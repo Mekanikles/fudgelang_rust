@@ -1,16 +1,18 @@
+use std::io::Read;
 use crate::source;
-use crate::source::SourceReader;
+use std::marker::PhantomData;
 
-pub struct Scanner<S : source::Source> {
+pub struct Scanner<'a, R : Read, S : source::Source<'a, R>> {
     source : S,
+    goddamnitrust : PhantomData<&'a R>,
 }
 
-impl<S : source::Source> Scanner<S> {
+impl<'a, R : Read, S : source::Source<'a, R>> Scanner<'a, R, S> {
     pub fn new(source : S) -> Self {
-        return Scanner::<S> { source };
+        return Scanner::<R, S> { source, goddamnitrust: PhantomData };
     }
 
-    pub fn test(&self) {
+    pub fn test(&'a self) {
         let mut reader = self.source.get_reader();
         while let Some(n) = reader.peek() {
             println!("Pos: {}, val: {}", reader.pos(), n);
