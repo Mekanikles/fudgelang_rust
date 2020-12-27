@@ -2,12 +2,23 @@ mod source;
 mod scanner;
 
 fn main() {
-    println!("Hello, world, för fan!");
-    let source = source::ByteArraySource::new("Hejhopp".as_bytes());
+    println!("Scan from bytes:");
+    let source = source::MemorySource::from_bytes("Hejhopp".as_bytes());
     let scanner = scanner::Scanner::new(source);
     scanner.test();
 
-    let source2 = source::StringSource::new("HejHoppFastStäng".to_string());
-    let scanner2 = scanner::Scanner::new(source2);
-    scanner2.test(); 
+    println!("Scan from string:");
+    let source = source::MemorySource::from_str("HejHoppFastStr");
+    let scanner = scanner::Scanner::new(source);
+    scanner.test();
+
+    println!("Scan from file in memory:");
+    let source = source::MemorySource::from_file("testdata/test.fu");
+    let scanner = scanner::Scanner::new(source);
+    scanner.test();
+
+    println!("Scan from streamed file:");
+    let source = source::FileSource::new("testdata/test.fu");
+    let scanner = scanner::Scanner::new(source);
+    scanner.test();
 }

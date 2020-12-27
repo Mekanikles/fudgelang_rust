@@ -15,7 +15,7 @@ impl<'a, R : Read, S : source::Source<'a, R>> Scanner<'a, R, S> {
     pub fn test(&'a self) {
         let mut reader = self.source.get_reader();
         while let Some(n) = reader.peek() {
-            println!("Pos: {}, val: {}", reader.pos(), n);
+            println!("Pos: {}, val: {}", reader.pos(), n as char);
             reader.advance();
         }
     }
