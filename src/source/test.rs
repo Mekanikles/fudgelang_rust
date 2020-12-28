@@ -13,7 +13,7 @@ fn verify_source<'a, R : Read, S : Source<'a, R>>(source : &'a S, bytes : &[u8])
 
 #[test]
 fn test_filesource() {
-    let source = FileSource::new("testdata/sourcetest.fu");
+    let source = FileSource::new("testdata/sourcetest.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 
@@ -25,7 +25,7 @@ fn test_memorysource() {
     let source = MemorySource::from_str("HejHoppFastStr");
     verify_source(&source, "HejHoppFastStr".as_bytes());
 
-    let source = MemorySource::from_file("testdata/sourcetest.fu");
+    let source = MemorySource::from_file("testdata/sourcetest.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 

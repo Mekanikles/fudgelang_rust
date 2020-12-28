@@ -29,7 +29,8 @@ impl<R : Read> SourceReader<R> {
             Ok(n) if n > 0 => {
                 self.pos += 1;
                 Some(buf[0])},
-            _ => None };
+            _ => None 
+        };
     }
     pub fn pos(&self) -> u64 { self.pos }
     pub fn peek(&self) -> Option<u8> { self.current }    
