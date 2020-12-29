@@ -18,7 +18,8 @@ pub enum Token
 {
     // 1-char tokens, has pos
     Comma(OCTokenData), 
-    Dot(OCTokenData), 
+    Dot(OCTokenData),
+    SemiColon(OCTokenData),
     Indent(OCTokenData), 
     LineBreak(OCTokenData),
 

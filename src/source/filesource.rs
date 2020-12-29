@@ -1,12 +1,13 @@
 use super::*;
 use std::fs::File;
+use std::path::*;
 
 pub struct FileSource {
-    filename : String,
+    filename : PathBuf,
 }
 
 impl FileSource {
-    pub fn new(filename : &str) -> FileSource { FileSource { filename: filename.to_string() } }
+    pub fn new<P : AsRef<Path>>(filename : P) -> FileSource { FileSource { filename: PathBuf::from(filename.as_ref()) } }
 }
 
 impl Source<'_, File> for FileSource {

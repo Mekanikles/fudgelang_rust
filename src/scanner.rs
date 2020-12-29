@@ -126,6 +126,7 @@ impl<R : Read> Scanner<R> {
             match c {
                 '.' => return Some(Token::Dot(self.produce_oc_tokendata())),
                 ',' => return Some(Token::Comma(self.produce_oc_tokendata())),
+                ';' => return Some(Token::SemiColon(self.produce_oc_tokendata())),
                 '\t' => return Some(Token::Indent(self.produce_oc_tokendata())),
                 '\n' => return Some(self.produce_linebreak()),
                 ' ' => return Some(self.produce_spacing()),
