@@ -1,21 +1,28 @@
+use std::io::Read;
 use super::*;
 
-fn readsourcebyte(bytes : &[u8], i : usize) -> u8{
-    if i < bytes.len() {
-        return bytes[i];
+fn expect_byte(expected_bytes : &[u8], i : usize, read_byte : u8) {
+    if i < expected_bytes.len() {
+        assert_eq!(expected_bytes[i], read_byte);
     }
-    panic!("Source was shorter than expected!");
+    else {
+        panic!("Source was longer than expected!");
+    }
 }
 
-fn verify_source<'a, R : Read, S : Source<'a, R>>(source : &'a S, bytes : &[u8]) {
+fn verify_source<'a, R : Read, S : Source<'a, R>>(source : &'a S, expected_bytes : &[u8]) {
     let mut reader = source.get_reader();
+    let mut count = 0;
     while let Some(n) = reader.peek() {
-        assert_eq!(readsourcebyte(bytes, reader.pos() as usize - 1), n);
+        assert_eq!(count, reader.pos() - 1);
+        expect_byte(expected_bytes, count as usize, n);
         if let Some(n) = reader.lookahead() {
-            assert_eq!(readsourcebyte(bytes, reader.pos() as usize), n); 
+            expect_byte(expected_bytes, count as usize + 1, n); 
         }
         reader.advance();
+        count += 1;
     }
+    assert!(count as usize == expected_bytes.len(), "Source was shorter than expected!");
 }
 
 #[test]

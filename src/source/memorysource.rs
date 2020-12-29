@@ -1,6 +1,7 @@
-use super::*;
+use std::io::Read;
 use std::fs::File;
 use std::path::Path;
+use super::*;
 
 pub struct MemorySource {
     bytes : Vec<u8>,
