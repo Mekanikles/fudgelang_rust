@@ -2,7 +2,6 @@ use structopt::StructOpt;
 
 mod source;
 mod scanner;
-mod token;
 
 use source::Source;
 
@@ -21,7 +20,7 @@ struct CommandLineParameters {
 
 fn main() {
     let params = CommandLineParameters::from_args();
-
+    
     let source = source::FileSource::new(params.file);
 
     if params.print_source {

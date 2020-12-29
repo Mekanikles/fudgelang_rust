@@ -1,11 +1,14 @@
 use std::fmt;
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub struct OCTokenData(pub u64);
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub struct NCTokenData(pub u64, pub u64);
 
+#[derive(PartialEq)]
 pub struct IdentifierTokenData(pub u64, pub Vec<u8>);
 impl fmt::Debug for IdentifierTokenData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -13,6 +16,7 @@ impl fmt::Debug for IdentifierTokenData {
     }
 }
 
+#[derive(PartialEq)]
 #[derive(Debug)]
 pub enum Token
 {

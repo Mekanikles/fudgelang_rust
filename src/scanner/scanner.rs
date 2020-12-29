@@ -1,7 +1,9 @@
+use super::*;
 use std::io::Read;
 use std::assert;
 use crate::source;
-use crate::token::*;
+
+use token::*;
 
 pub struct Scanner<R : Read> {
     reader : source::SourceReader<R>,
@@ -146,11 +148,11 @@ impl<R : Read> Scanner<R> {
                     '*' => return Some(self.produce_blockcomment()),
                     _ => ()
                 }
+                '*' if l == '/' => panic!("Stray closing comment found!"),
                 _ => ()
             }
 
-            println!("Error, found unrecognized character '{}' at pos: {}", n as char, self.reader.pos());
-            break;
+            panic!("Error, found unrecognized character '{}' at pos: {}", n as char, self.reader.pos());
         }
 
         return None;
