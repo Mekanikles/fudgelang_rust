@@ -1,4 +1,10 @@
 Hello, goodbye. // Comment
-Hello again,
+Hello/*inline comment*/again,
 
+/* block comment
+// ignored line comments
+/* nested block
+*/
+// end of block is not ignored */
 Goodbye,   hello.
+// Final comment

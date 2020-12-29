@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::assert;
 use crate::source;
 use crate::token::*;
 
@@ -40,6 +41,36 @@ impl<R : Read> Scanner<R> {
             }
             self.reader.advance();
         }
+
+        return Token::Comment(NCTokenData(startpos, self.reader.pos() - startpos));
+    }
+
+    fn produce_blockcomment(&mut self) -> Token
+    {
+        let startpos = self.reader.pos();
+        self.reader.advance();
+        self.reader.advance();
+
+        // Eat block, including nested blocks
+        let mut blocklevel = 1;
+        while let Some(n) = self.reader.peek() {
+            if n as char == '/' && self.reader.lookahead() == Some('*' as u8) {
+                blocklevel += 1;
+                self.reader.advance();
+            }
+            else if n as char == '*' && self.reader.lookahead() == Some('/' as u8) {
+                blocklevel -= 1;
+                self.reader.advance();
+            }    
+
+            self.reader.advance();
+
+            if blocklevel == 0 {
+                break;
+            }           
+        }
+
+        assert!(blocklevel == 0, "Unexpected end of file inside block comment");
 
         return Token::Comment(NCTokenData(startpos, self.reader.pos() - startpos));
     }
@@ -109,11 +140,15 @@ impl<R : Read> Scanner<R> {
 
             // LL(2) tokens
             match c {
-                '/' if l == '/' => return Some(self.produce_linecomment()),
+                '/' => match l {
+                    '/' => return Some(self.produce_linecomment()),
+                    '*' => return Some(self.produce_blockcomment()),
+                    _ => ()
+                }
                 _ => ()
             }
 
-            println!("Error, found invalid byte '{}' at pos: {}", n, self.reader.pos());
+            println!("Error, found unrecognized character '{}' at pos: {}", n as char, self.reader.pos());
             break;
         }
 
