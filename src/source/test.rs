@@ -1,11 +1,18 @@
 use super::*;
 
+fn readsourcebyte(bytes : &[u8], i : usize) -> u8{
+    if i < bytes.len() {
+        return bytes[i];
+    }
+    panic!("Source was shorter than expected!");
+}
+
 fn verify_source<'a, R : Read, S : Source<'a, R>>(source : &'a S, bytes : &[u8]) {
     let mut reader = source.get_reader();
-    for c in bytes {
-        match reader.peek() {
-            Some(n) => assert_eq!(*c, n),
-            _ => panic!("Source was shorter than expected!")
+    while let Some(n) = reader.peek() {
+        assert_eq!(readsourcebyte(bytes, reader.pos() as usize - 1), n);
+        if let Some(n) = reader.lookahead() {
+            assert_eq!(readsourcebyte(bytes, reader.pos() as usize), n); 
         }
         reader.advance();
     }

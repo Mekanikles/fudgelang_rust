@@ -23,7 +23,7 @@ pub enum Token
     LineBreak(OCTokenData),
 
     // n-char tokens, has pos + length
-    Spacing(NCTokenData),
+    Spacing(NCTokenData), Comment(NCTokenData),
 
     // Identifier tokens, has pos + identifier
     Identifier(IdentifierTokenData)

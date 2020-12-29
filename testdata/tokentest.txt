@@ -1,3 +1,4 @@
-Hello, goodbye.
+Hello, goodbye. // Comment
+Hello again,
 
 Goodbye,   hello.
