@@ -27,26 +27,6 @@ fn main() {
     let repeats = params.repeats;
     let source = source::FileSource::new(params.file);
 
-    let mut tokens = Vec::new();
-    tokens.reserve(100000);
-
-    let mut total_time = tempus_fugit::Measurement::zero();
-
-    for _i in 0..repeats {
-        // Scan all tokens
-        tokens.clear();
-        let (_, measurement) = measure! {{
-            let mut scanner = scanner::Scanner::new(&source);
-            while let Some(n) = scanner.read_token() {
-                tokens.push(n);
-            }
-        }};
-
-        total_time = (total_time + measurement).unwrap();
-    }
-
-    println!("Scanned {} tokens in {}, {} times", tokens.len(), total_time, repeats);
-
     if params.print_source {
         println!("Characters in file:");
         print!("    ");
@@ -58,13 +38,32 @@ fn main() {
         println!("");
     }
 
-    if params.print_tokens {
-        println!("Tokens:");
-        print!("    ");
-        for t in tokens {
-            print!("{:?}, ", t);
-        }
-        println!("");
+    let mut tokens = Vec::with_capacity(100000);
+    
+    let mut total_time = tempus_fugit::Measurement::zero();
+
+    for _i in 0..repeats {
+        // Scan all tokens
+        tokens.clear();
+        let mut scanner = scanner::Scanner::new(&source);
+        let (_, measurement) = measure! {{         
+            while let Some(n) = scanner.read_token() {
+                tokens.push(n);
+            }
+        }};
+
+        total_time = (total_time + measurement).unwrap();
+
+        if params.print_tokens {
+            println!("Tokens:");
+            print!("    ");
+            for t in &tokens {
+                print!("{:?}, ", scanner::token::TokenDisplay {token: t, scanner: &scanner } );
+            }
+            println!("");
+        }        
     }
+
+    println!("Scanned {} tokens in {}, {} times", tokens.len(), total_time, repeats);
     println!("Done");
 }

@@ -7,10 +7,12 @@ edition = "2018"
 [lib]
 name = "libfudgec"
 path = "src/libfudgec.rs"
+bench = false
 
 [[bin]]
 name = "fudgec"
 path = "src/fudgec.rs"
+bench = false
 
 [dependencies]
 structopt = "0.3.13"

@@ -1,3 +1,5 @@
+use super::*;
+use std::io::Read;
 use std::fmt;
 
 #[derive(PartialEq)]
@@ -9,12 +11,8 @@ pub struct OCTokenData(pub u64);
 pub struct NCTokenData(pub u64, pub u64);
 
 #[derive(PartialEq)]
-pub struct IdentifierTokenData(pub u64, pub Vec<u8>);
-impl fmt::Debug for IdentifierTokenData {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "'{}'", &String::from_utf8(self.1.clone()).unwrap())
-    }
-}
+#[derive(Debug)]
+pub struct IdentifierTokenData(pub u64, pub usize, pub usize);
 
 #[derive(PartialEq)]
 #[derive(Debug)]
@@ -32,4 +30,23 @@ pub enum Token
 
     // Identifier tokens, has pos + identifier
     Identifier(IdentifierTokenData)
+}
+
+pub struct TokenDisplay<'a, R : Read>
+{
+    pub token : &'a Token,
+    pub scanner : &'a Scanner<R>,
+}
+
+impl<'a, R : Read> fmt::Debug for TokenDisplay<'a, R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.token {
+            Token::Identifier(n) => {
+                f.debug_tuple("Identifier")
+                 .field(&self.scanner.resolve_identifier(n.1, n.2))
+                 .finish()
+            },
+            _ => self.token.fmt(f)
+        }
+    }
 }

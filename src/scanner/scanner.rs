@@ -1,18 +1,35 @@
 use super::*;
 use std::io::Read;
 use std::assert;
+use std::str;
 use crate::source;
 
-use token::*;
+use std::mem::{self, MaybeUninit};
+
+const IDENTIFIERBLOCK_SIZE : usize = 128*1024;
 
 pub struct Scanner<R : Read> {
     reader : source::SourceReader<R>,
+    identifier_data : [MaybeUninit<u8>; IDENTIFIERBLOCK_SIZE],
+    identifier_writepos : usize
 }
 
 impl<R : Read> Scanner<R> {
     pub fn new<'a>(source : &'a impl source::Source<'a, R>) -> Self {
-        Scanner::<R> { 
-            reader: source.get_reader()}
+        unsafe {
+            Scanner::<R> { 
+                reader: source.get_reader(),
+                identifier_data: MaybeUninit::uninit().assume_init(),
+                identifier_writepos: 0
+            }
+        }
+    }
+
+    pub fn resolve_identifier(&self, pos : usize, len : usize) -> String
+    {
+        unsafe { 
+            str::from_utf8_unchecked(&mem::transmute::<_, [u8; IDENTIFIERBLOCK_SIZE]>(self.identifier_data)[pos..pos + len]).into()
+        }   
     }
 
     fn produce_linebreak(&mut self) -> Token {
@@ -93,18 +110,19 @@ impl<R : Read> Scanner<R> {
 
     fn produce_identifier(&mut self) -> Token
     {
-        let pos = self.reader.pos();
-        let mut data = Vec::<u8>::new();
+        let sourcepos = self.reader.pos();
+        let targetpos = self.identifier_writepos;
 
         while let Some(n) = self.reader.peek() {
             if !(n as char).is_ascii_alphanumeric() {
                 break; 
             }
-            data.push(n);
+            self.identifier_data[self.identifier_writepos] = MaybeUninit::new(n);
+            self.identifier_writepos += 1;
             self.reader.advance();
         }
- 
-        return Token::Identifier(IdentifierTokenData(pos, data));
+
+        return Token::Identifier(IdentifierTokenData(sourcepos, targetpos, self.identifier_writepos - targetpos))
     }
 
     // Helper for producing 1-char token data, also advances reader
