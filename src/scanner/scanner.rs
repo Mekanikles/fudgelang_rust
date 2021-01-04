@@ -158,4 +158,3 @@ impl<R : Read> Scanner<R> {
         return None;
     }
 }
-

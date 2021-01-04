@@ -1,0 +1,70 @@
+#[macro_use] extern crate tempus_fugit;
+
+use libfudgec::*;
+
+use structopt::StructOpt;
+use source::Source;
+
+#[derive(StructOpt)]
+struct CommandLineParameters {
+    // Path to file
+    #[structopt(parse(from_os_str))]
+    file: std::path::PathBuf,
+
+    #[structopt(short = "r", long = "repeats", default_value = "1")]
+    repeats: u64,
+
+    #[structopt(short = "s", long = "print-source")]
+    print_source: bool,
+
+    #[structopt(short = "t", long = "print-tokens")]
+    print_tokens: bool,
+}
+
+fn main() {
+    let params = CommandLineParameters::from_args();
+
+    let repeats = params.repeats;
+    let source = source::FileSource::new(params.file);
+
+    let mut tokens = Vec::new();
+    tokens.reserve(100000);
+
+    let mut total_time = tempus_fugit::Measurement::zero();
+
+    for _i in 0..repeats {
+        // Scan all tokens
+        tokens.clear();
+        let (_, measurement) = measure! {{
+            let mut scanner = scanner::Scanner::new(&source);
+            while let Some(n) = scanner.read_token() {
+                tokens.push(n);
+            }
+        }};
+
+        total_time = (total_time + measurement).unwrap();
+    }
+
+    println!("Scanned {} tokens in {}, {} times", tokens.len(), total_time, repeats);
+
+    if params.print_source {
+        println!("Characters in file:");
+        print!("    ");
+        let mut reader = source.get_reader();
+        while let Some(n) = reader.peek() {
+            print!("{}, ", n as char);
+            reader.advance();
+        }
+        println!("");
+    }
+
+    if params.print_tokens {
+        println!("Tokens:");
+        print!("    ");
+        for t in tokens {
+            print!("{:?}, ", t);
+        }
+        println!("");
+    }
+    println!("Done");
+}
