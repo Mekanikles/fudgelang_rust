@@ -3,11 +3,11 @@ use std::fs::File;
 use std::path::*;
 
 pub struct FileSource {
-    filename : PathBuf,
+    filename: PathBuf,
 }
 
 impl FileSource {
-    pub fn new<P : AsRef<Path>>(filename : P) -> FileSource { FileSource { filename: PathBuf::from(filename.as_ref()) } }
+    pub fn new<P: AsRef<Path>>(filename: P) -> FileSource { FileSource { filename: PathBuf::from(filename.as_ref()) } }
 }
 
 impl Source<'_, File> for FileSource {

@@ -4,14 +4,14 @@ use std::io::BufReader;
 use std::option::Option;
 
 pub struct SourceReader<R> {
-    reader : BufReader<R>,
-    pos : u64,
-    current : Option<u8>,
-    lookahead : Option<u8>,
+    reader: BufReader<R>,
+    pos: u64,
+    current: Option<u8>,
+    lookahead: Option<u8>,
 }
 
-impl<R : Read + Seek> SourceReader<R> {
-    fn readbyte(reader : &mut BufReader<R>) -> Option<u8>
+impl<R: Read + Seek> SourceReader<R> {
+    fn readbyte(reader: &mut BufReader<R>) -> Option<u8>
     {
         let mut buf = [0; 1];
         match reader.read(&mut buf) {
@@ -20,7 +20,7 @@ impl<R : Read + Seek> SourceReader<R> {
             _ => None
         }
     }
-    pub fn new(read : R) -> SourceReader<R> {
+    pub fn new(read: R) -> SourceReader<R> {
         let mut reader = BufReader::new(read);
         let mut lookahead = None;
         let current = Self::readbyte(&mut reader);

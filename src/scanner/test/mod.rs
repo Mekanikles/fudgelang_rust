@@ -4,7 +4,7 @@ use super::scanner::*;
 
 mod comment;
 
-fn expect_token(expected_tokens : &[Token], i : usize, scanned_token : &Token) {
+fn expect_token(expected_tokens: &[Token], i: usize, scanned_token: &Token) {
     if i < expected_tokens.len() {
         assert_eq!(expected_tokens[i], *scanned_token);
     }
@@ -13,7 +13,7 @@ fn expect_token(expected_tokens : &[Token], i : usize, scanned_token : &Token) {
     }
 }
 
-fn verify_scanner_tokens<S : Scanner>(scanner : &mut S, expected_tokens : &[Token])
+fn verify_scanner_tokens<S: Scanner>(scanner: &mut S, expected_tokens: &[Token])
 {
     let mut count = 0;
     while let Some(t) = scanner.read_token() {
@@ -25,7 +25,7 @@ fn verify_scanner_tokens<S : Scanner>(scanner : &mut S, expected_tokens : &[Toke
 }
 
 // Checks that the scanner produces an exact list of tokens
-fn verify_exact_scan(source : &str, expected_tokens : &[Token]) {
+fn verify_exact_scan(source: &str, expected_tokens: &[Token]) {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
 
@@ -33,7 +33,7 @@ fn verify_exact_scan(source : &str, expected_tokens : &[Token]) {
 }
 
 // Checks that scanner produces any tokens that matches the list
-fn verify_sparse_scan(source : &str, expected_tokens : &[Token]) {
+fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
     

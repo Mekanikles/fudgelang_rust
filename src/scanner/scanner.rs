@@ -7,22 +7,22 @@ use crate::source;
 
 pub trait Scanner
 {
-    fn get_token_source_string(&self, token : &Token) -> String;
+    fn get_token_source_string(&self, token: &Token) -> String;
     fn read_token(&mut self) -> Option<Token>;
 }
 
-pub struct ScannerImpl<'a, R : Read, S : source::Source<'a, R>> {
-    source : &'a S,
-    reader : source::SourceReader<R>,
+pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
+    source: &'a S,
+    reader: source::SourceReader<R>,
 }
 
-impl<'a, R : Read + Seek, S : source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
-    fn get_token_source_string(&self, token : &Token) -> String
+impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
+    fn get_token_source_string(&self, token: &Token) -> String
     {
         let mut reader = self.source.get_readable();
         match reader.seek(SeekFrom::Start(token.source_pos)) {
             Ok(_) => {
-                let mut v : Vec<u8> = Vec::new();
+                let mut v: Vec<u8> = Vec::new();
                 v.resize(token.source_len, 0);
                 if let Ok(_) = reader.read(&mut v) {
                     return String::from_utf8_lossy(&v).to_string();
@@ -77,8 +77,8 @@ impl<'a, R : Read + Seek, S : source::Source<'a, R>> Scanner for ScannerImpl<'a,
     }
 }
 
-impl<'a, R : Read + Seek, S : source::Source<'a, R>> ScannerImpl<'a, R, S> {
-    pub fn new(source : &'a S) -> Self {
+impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
+    pub fn new(source: &'a S) -> Self {
         ScannerImpl { 
             source: source,
             reader: source.get_reader(),
@@ -175,7 +175,7 @@ impl<'a, R : Read + Seek, S : source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return Token::new(TokenType::Identifier, sourcepos, (self.reader.pos() - sourcepos) as usize)
     }
 
-    fn produce_token_and_advance(&mut self, tokentype : TokenType) -> Token
+    fn produce_token_and_advance(&mut self, tokentype: TokenType) -> Token
     {
         let token = Token::new(tokentype, self.reader.pos(), 1); 
         self.reader.advance();

@@ -2,7 +2,7 @@ use std::io::Read;
 use std::io::Seek;
 use super::*;
 
-fn expect_byte(expected_bytes : &[u8], i : usize, read_byte : u8) {
+fn expect_byte(expected_bytes: &[u8], i: usize, read_byte: u8) {
     if i < expected_bytes.len() {
         assert_eq!(expected_bytes[i], read_byte);
     }
@@ -11,7 +11,7 @@ fn expect_byte(expected_bytes : &[u8], i : usize, read_byte : u8) {
     }
 }
 
-fn verify_source<'a, R : Read + Seek, S : Source<'a, R>>(source : &'a S, expected_bytes : &[u8]) {
+fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_bytes: &[u8]) {
     let mut reader = source.get_reader();
     let mut count = 0;
     while let Some(n) = reader.peek() {

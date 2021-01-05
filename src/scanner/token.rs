@@ -19,13 +19,13 @@ pub enum TokenType
 #[derive(Debug)]
 pub struct Token
 {
-    pub tokentype : TokenType,
-    pub source_pos : u64,
-    pub source_len : usize,
+    pub tokentype: TokenType,
+    pub source_pos: u64,
+    pub source_len: usize,
 }
 
 impl Token {
-    pub fn new(tokentype : TokenType, pos : u64, len : usize) -> Token {
+    pub fn new(tokentype: TokenType, pos: u64, len: usize) -> Token {
         Token {
             tokentype: tokentype, 
             source_pos: pos,
@@ -34,13 +34,13 @@ impl Token {
     }
 }
 
-pub struct TokenDisplay<'a, S : Scanner>
+pub struct TokenDisplay<'a, S: Scanner>
 {
-    pub token : &'a Token,
-    pub scanner : &'a S,
+    pub token: &'a Token,
+    pub scanner: &'a S,
 }
 
-impl<'a, S : Scanner> fmt::Debug for TokenDisplay<'a, S> {
+impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token.tokentype {
             TokenType::Identifier => {
