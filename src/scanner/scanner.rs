@@ -1,35 +1,88 @@
 use super::*;
 use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::assert;
-use std::str;
 use crate::source;
 
-use std::mem::{self, MaybeUninit};
-
-const IDENTIFIERBLOCK_SIZE : usize = 128*1024;
-
-pub struct Scanner<R : Read> {
-    reader : source::SourceReader<R>,
-    identifier_data : [MaybeUninit<u8>; IDENTIFIERBLOCK_SIZE],
-    identifier_writepos : usize
+pub trait Scanner
+{
+    fn get_token_source_string(&self, token : &Token) -> String;
+    fn read_token(&mut self) -> Option<Token>;
 }
 
-impl<R : Read> Scanner<R> {
-    pub fn new<'a>(source : &'a impl source::Source<'a, R>) -> Self {
-        unsafe {
-            Scanner::<R> { 
-                reader: source.get_reader(),
-                identifier_data: MaybeUninit::uninit().assume_init(),
-                identifier_writepos: 0
-            }
+pub struct ScannerImpl<'a, R : Read, S : source::Source<'a, R>> {
+    source : &'a S,
+    reader : source::SourceReader<R>,
+}
+
+impl<'a, R : Read + Seek, S : source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
+    fn get_token_source_string(&self, token : &Token) -> String
+    {
+        let mut reader = self.source.get_readable();
+        match reader.seek(SeekFrom::Start(token.source_pos)) {
+            Ok(_) => {
+                let mut v : Vec<u8> = Vec::new();
+                v.resize(token.source_len, 0);
+                if let Ok(_) = reader.read(&mut v) {
+                    return String::from_utf8_lossy(&v).to_string();
+                }
+            },
+            Err(_) => ()
         }
+        return "".into();
     }
 
-    pub fn resolve_identifier(&self, pos : usize, len : usize) -> String
+    fn read_token(&mut self) -> Option<Token>
     {
-        unsafe { 
-            str::from_utf8_unchecked(&mem::transmute::<_, [u8; IDENTIFIERBLOCK_SIZE]>(self.identifier_data)[pos..pos + len]).into()
-        }   
+        while let Some(n) = self.reader.peek() {
+            let c = n as char;
+
+            // Non-ascii characters are not allowed outside of string literals
+            if !(c).is_ascii() {
+                panic!("Non-ascii character found!"); }
+
+            // LL(1) tokens
+            match c {
+                '.' => return Some(self.produce_token_and_advance(TokenType::Dot)),
+                ',' => return Some(self.produce_token_and_advance(TokenType::Comma)),
+                ';' => return Some(self.produce_token_and_advance(TokenType::SemiColon)),
+                '\t' => return Some(self.produce_token_and_advance(TokenType::Indent)),
+                '\n' => return Some(self.produce_linebreak()),
+                ' ' => return Some(self.produce_spacing()),
+                'a'..='z' | 'A'..='Z' => return Some(self.produce_identifier()),
+                _ => ()
+            }
+
+            let l = match self.reader.lookahead() {
+                Some(n) => n as char,
+                _ => 0 as char
+            };
+
+            // LL(2) tokens
+            match c {
+                '/' => match l {
+                    '/' => return Some(self.produce_linecomment()),
+                    '*' => return Some(self.produce_blockcomment()),
+                    _ => ()
+                }
+                '*' if l == '/' => panic!("Stray closing comment found!"),
+                _ => ()
+            }
+
+            panic!("Error, found unrecognized character '{}' at pos: {}", n as char, self.reader.pos());
+        }
+
+        return None;
+    }
+}
+
+impl<'a, R : Read + Seek, S : source::Source<'a, R>> ScannerImpl<'a, R, S> {
+    pub fn new(source : &'a S) -> Self {
+        ScannerImpl { 
+            source: source,
+            reader: source.get_reader(),
+        }
     }
 
     fn produce_linebreak(&mut self) -> Token {
@@ -44,7 +97,7 @@ impl<R : Read> Scanner<R> {
             self.reader.advance();
         }
 
-        return Token::LineBreak(OCTokenData(pos));
+        return Token::new(TokenType::LineBreak, pos, 1);
     }
 
     fn produce_linecomment(&mut self) -> Token
@@ -61,7 +114,7 @@ impl<R : Read> Scanner<R> {
             self.reader.advance();
         }
 
-        return Token::Comment(NCTokenData(startpos, self.reader.pos() - startpos));
+        return Token::new(TokenType::Comment, startpos, (self.reader.pos() - startpos) as usize);
     }
 
     fn produce_blockcomment(&mut self) -> Token
@@ -91,7 +144,7 @@ impl<R : Read> Scanner<R> {
 
         assert!(blocklevel == 0, "Unexpected end of file inside block comment");
 
-        return Token::Comment(NCTokenData(startpos, self.reader.pos() - startpos));
+        return Token::new(TokenType::Comment, startpos, (self.reader.pos() - startpos) as usize);
     }
 
     fn produce_spacing(&mut self) -> Token
@@ -105,74 +158,27 @@ impl<R : Read> Scanner<R> {
             }
             self.reader.advance();
         }
-        return Token::Spacing(NCTokenData(startpos, self.reader.pos() - startpos));
+        return Token::new(TokenType::Spacing, startpos, (self.reader.pos() - startpos) as usize);
     }
 
     fn produce_identifier(&mut self) -> Token
     {
         let sourcepos = self.reader.pos();
-        let targetpos = self.identifier_writepos;
 
         while let Some(n) = self.reader.peek() {
             if !(n as char).is_ascii_alphanumeric() {
                 break; 
             }
-            self.identifier_data[self.identifier_writepos] = MaybeUninit::new(n);
-            self.identifier_writepos += 1;
             self.reader.advance();
         }
 
-        return Token::Identifier(IdentifierTokenData(sourcepos, targetpos, self.identifier_writepos - targetpos))
+        return Token::new(TokenType::Identifier, sourcepos, (self.reader.pos() - sourcepos) as usize)
     }
 
-    // Helper for producing 1-char token data, also advances reader
-    fn produce_oc_tokendata(&mut self) -> OCTokenData
+    fn produce_token_and_advance(&mut self, tokentype : TokenType) -> Token
     {
-        let tokendata = OCTokenData(self.reader.pos());
+        let token = Token::new(tokentype, self.reader.pos(), 1); 
         self.reader.advance();
-        return tokendata;   
-    }
-    
-    pub fn read_token(&mut self) -> Option<Token>
-    {
-        while let Some(n) = self.reader.peek() {
-            let c = n as char;
-
-            // Non-ascii characters are not allowed outside of string literals
-            if !(c).is_ascii() {
-                panic!("Non-ascii character found!"); }
-
-            // LL(1) tokens
-            match c {
-                '.' => return Some(Token::Dot(self.produce_oc_tokendata())),
-                ',' => return Some(Token::Comma(self.produce_oc_tokendata())),
-                ';' => return Some(Token::SemiColon(self.produce_oc_tokendata())),
-                '\t' => return Some(Token::Indent(self.produce_oc_tokendata())),
-                '\n' => return Some(self.produce_linebreak()),
-                ' ' => return Some(self.produce_spacing()),
-                'a'..='z' | 'A'..='Z' => return Some(self.produce_identifier()),
-                _ => ()
-            }
-
-            let l = match self.reader.lookahead() {
-                Some(n) => n as char,
-                _ => 0 as char
-            };
-
-            // LL(2) tokens
-            match c {
-                '/' => match l {
-                    '/' => return Some(self.produce_linecomment()),
-                    '*' => return Some(self.produce_blockcomment()),
-                    _ => ()
-                }
-                '*' if l == '/' => panic!("Stray closing comment found!"),
-                _ => ()
-            }
-
-            panic!("Error, found unrecognized character '{}' at pos: {}", n as char, self.reader.pos());
-        }
-
-        return None;
+        return token;   
     }
 }

@@ -11,6 +11,9 @@ impl FileSource {
 }
 
 impl Source<'_, File> for FileSource {
+    fn get_readable(&self) -> File {
+        File::open(self.filename.clone()).expect("File not found!")
+    }
     fn get_reader(&self) -> SourceReader<File> { 
         let file = File::open(self.filename.clone()).expect("File not found!");
         return SourceReader::new(file); 

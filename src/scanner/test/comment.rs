@@ -3,46 +3,46 @@ use super::*;
 #[test]
 fn test_line_trivial() {
     verify_exact_scan("//", &[
-        Token::Comment(NCTokenData(1, 2)) ]);
+        Token::new(TokenType::Comment, 0, 2) ]);
 }
 
 #[test]
 fn test_line_simple() {
     verify_exact_scan("// Comment", &[
-        Token::Comment(NCTokenData(1, 10)) ]);
+        Token::new(TokenType::Comment, 0, 10) ]);
 }
 
 #[test]
 fn test_line_edges() {
     verify_exact_scan(".// Comment\n", &[
-        Token::Dot(OCTokenData(1)),
-        Token::Comment(NCTokenData(2, 10)),
-        Token::LineBreak(OCTokenData(12)) ]);
+        Token::new(TokenType::Dot, 0, 1),
+        Token::new(TokenType::Comment, 1, 10),
+        Token::new(TokenType::LineBreak, 11, 1) ]);
 }
 
 #[test]
 fn test_line_partial() {
     verify_sparse_scan("text// Comment\ntext", &[
-        Token::Comment(NCTokenData(5, 10)) ]);
+        Token::new(TokenType::Comment, 4, 10) ]);
 }
 
 #[test]
 fn test_line_nested() {
     verify_sparse_scan("text// Comment // Comment\ntext", &[
-        Token::Comment(NCTokenData(5, 21)) ]);
+        Token::new(TokenType::Comment, 4, 21) ]);
 }
 
 #[test]
 fn test_line_multiple() {
     verify_sparse_scan("text// Comment\n// Comment\ntext", &[
-        Token::Comment(NCTokenData(5, 10)),
-        Token::Comment(NCTokenData(16, 10)) ]);
+        Token::new(TokenType::Comment, 4, 10),
+        Token::new(TokenType::Comment, 15, 10) ]);
 }
 
 #[test]
 fn test_block_trivial() {
     verify_exact_scan("/**/", &[
-        Token::Comment(NCTokenData(1, 4)) ]);
+        Token::new(TokenType::Comment, 0, 4) ]);
 }
 
 #[test]
@@ -60,34 +60,34 @@ fn test_block_strayopen() {
 #[test]
 fn test_block_simple() {
     verify_exact_scan("/* Comment */", &[
-        Token::Comment(NCTokenData(1, 13)) ]);
+        Token::new(TokenType::Comment, 0, 13) ]);
 }
 
 #[test]
 fn test_block_edges() {
     verify_exact_scan("./* Comment */.", &[
-        Token::Dot(OCTokenData(1)),
-        Token::Comment(NCTokenData(2, 13)),
-        Token::Dot(OCTokenData(15)) ]);
+        Token::new(TokenType::Dot, 0, 1),
+        Token::new(TokenType::Comment, 1, 13),
+        Token::new(TokenType::Dot, 14, 1) ]);
 }
 
 #[test]
 fn test_block_partial() {
     verify_sparse_scan("text/* Comment */text", &[
-        Token::Comment(NCTokenData(5, 13)) ]);
+        Token::new(TokenType::Comment, 4, 13) ]);
 }
 
 #[test]
 fn test_block_nested_trivial() {
     verify_exact_scan("/*/**/*/", &[
-        Token::Comment(NCTokenData(1, 8)) ]);
+        Token::new(TokenType::Comment, 0, 8) ]);
 }
 
 #[test]
 #[should_panic]
 fn test_block_nested_incomplete() {
     verify_exact_scan("/*/**/", &[
-        Token::Comment(NCTokenData(1, 8)) ]);
+        Token::new(TokenType::Comment, 0, 8) ]);
 }
 
 

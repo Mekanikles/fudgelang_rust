@@ -1,4 +1,3 @@
-use std::io::Read;
 use crate::source::*;
 use super::token::*;
 use super::scanner::*;
@@ -14,7 +13,7 @@ fn expect_token(expected_tokens : &[Token], i : usize, scanned_token : &Token) {
     }
 }
 
-fn verify_scanner_tokens<R : Read>(scanner : &mut Scanner<R>, expected_tokens : &[Token])
+fn verify_scanner_tokens<S : Scanner>(scanner : &mut S, expected_tokens : &[Token])
 {
     let mut count = 0;
     while let Some(t) = scanner.read_token() {
@@ -28,7 +27,7 @@ fn verify_scanner_tokens<R : Read>(scanner : &mut Scanner<R>, expected_tokens : 
 // Checks that the scanner produces an exact list of tokens
 fn verify_exact_scan(source : &str, expected_tokens : &[Token]) {
     let source = MemorySource::from_str(source);
-    let mut scanner = Scanner::new(&source);
+    let mut scanner = ScannerImpl::new(&source);
 
     verify_scanner_tokens(&mut scanner, expected_tokens);
 }
@@ -36,7 +35,7 @@ fn verify_exact_scan(source : &str, expected_tokens : &[Token]) {
 // Checks that scanner produces any tokens that matches the list
 fn verify_sparse_scan(source : &str, expected_tokens : &[Token]) {
     let source = MemorySource::from_str(source);
-    let mut scanner = Scanner::new(&source);
+    let mut scanner = ScannerImpl::new(&source);
     
     let mut scanned_tokens = Vec::new();
     while let Some(t) = scanner.read_token() {

@@ -4,6 +4,7 @@ use libfudgec::*;
 
 use structopt::StructOpt;
 use source::Source;
+use scanner::Scanner;
 
 #[derive(StructOpt)]
 struct CommandLineParameters {
@@ -39,13 +40,13 @@ fn main() {
     }
 
     let mut tokens = Vec::with_capacity(100000);
-    
+
     let mut total_time = tempus_fugit::Measurement::zero();
 
     for _i in 0..repeats {
         // Scan all tokens
         tokens.clear();
-        let mut scanner = scanner::Scanner::new(&source);
+        let mut scanner = scanner::ScannerImpl::new(&source);
         let (_, measurement) = measure! {{         
             while let Some(n) = scanner.read_token() {
                 tokens.push(n);

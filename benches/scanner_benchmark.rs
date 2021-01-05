@@ -2,6 +2,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 extern crate libfudgec;
 use libfudgec::*;
+use scanner::Scanner;
 
 fn scan_lipsum100k(c: &mut Criterion) {
     let source = source::FileSource::new("testdata/lipsum100k.txt");
@@ -11,7 +12,7 @@ fn scan_lipsum100k(c: &mut Criterion) {
     c.bench_function("lipsum100k", |b| b.iter(|| {
         tokens.clear();
         // Scan all tokens
-        let mut scanner = scanner::Scanner::new(&source);
+        let mut scanner = scanner::ScannerImpl::new(&source);
         while let Some(n) = scanner.read_token() {
             tokens.push(n);
         };

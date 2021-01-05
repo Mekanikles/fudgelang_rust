@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::io::Seek;
 use super::*;
 
 fn expect_byte(expected_bytes : &[u8], i : usize, read_byte : u8) {
@@ -10,11 +11,11 @@ fn expect_byte(expected_bytes : &[u8], i : usize, read_byte : u8) {
     }
 }
 
-fn verify_source<'a, R : Read, S : Source<'a, R>>(source : &'a S, expected_bytes : &[u8]) {
+fn verify_source<'a, R : Read + Seek, S : Source<'a, R>>(source : &'a S, expected_bytes : &[u8]) {
     let mut reader = source.get_reader();
     let mut count = 0;
     while let Some(n) = reader.peek() {
-        assert_eq!(count, reader.pos() - 1);
+        assert_eq!(count, reader.pos());
         expect_byte(expected_bytes, count as usize, n);
         if let Some(n) = reader.lookahead() {
             expect_byte(expected_bytes, count as usize + 1, n); 

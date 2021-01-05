@@ -1,49 +1,53 @@
 use super::*;
-use std::io::Read;
 use std::fmt;
 
 #[derive(PartialEq)]
 #[derive(Debug)]
-pub struct OCTokenData(pub u64);
-
-#[derive(PartialEq)]
-#[derive(Debug)]
-pub struct NCTokenData(pub u64, pub u64);
-
-#[derive(PartialEq)]
-#[derive(Debug)]
-pub struct IdentifierTokenData(pub u64, pub usize, pub usize);
-
-#[derive(PartialEq)]
-#[derive(Debug)]
-pub enum Token
+pub enum TokenType
 {
-    // 1-char tokens, has pos
-    Comma(OCTokenData), 
-    Dot(OCTokenData),
-    SemiColon(OCTokenData),
-    Indent(OCTokenData), 
-    LineBreak(OCTokenData),
+    // 1-char tokens
+    Comma, Dot, SemiColon, Indent, LineBreak,
 
-    // n-char tokens, has pos + length
-    Spacing(NCTokenData), Comment(NCTokenData),
+    // n-char tokens
+    Spacing, Comment,
 
-    // Identifier tokens, has pos + identifier
-    Identifier(IdentifierTokenData)
+    // Tokens with significant data
+    Identifier
 }
 
-pub struct TokenDisplay<'a, R : Read>
+#[derive(PartialEq)]
+#[derive(Debug)]
+pub struct Token
+{
+    pub tokentype : TokenType,
+    pub source_pos : u64,
+    pub source_len : usize,
+}
+
+impl Token {
+    pub fn new(tokentype : TokenType, pos : u64, len : usize) -> Token {
+        Token {
+            tokentype: tokentype, 
+            source_pos: pos,
+            source_len: len 
+        }
+    }
+}
+
+pub struct TokenDisplay<'a, S : Scanner>
 {
     pub token : &'a Token,
-    pub scanner : &'a Scanner<R>,
+    pub scanner : &'a S,
 }
 
-impl<'a, R : Read> fmt::Debug for TokenDisplay<'a, R> {
+impl<'a, S : Scanner> fmt::Debug for TokenDisplay<'a, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.token {
-            Token::Identifier(n) => {
+        match self.token.tokentype {
+            TokenType::Identifier => {
                 f.debug_tuple("Identifier")
-                 .field(&self.scanner.resolve_identifier(n.1, n.2))
+                 .field(&self.token.source_pos)
+                 .field(&self.token.source_len)
+                 .field(&self.scanner.get_token_source_string(self.token))
                  .finish()
             },
             _ => self.token.fmt(f)

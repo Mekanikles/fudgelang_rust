@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::io::Cursor;
 use std::fs::File;
 use std::path::Path;
 use super::*;
@@ -21,8 +22,11 @@ impl MemorySource {
     }     
 }
 
-impl<'a> Source<'a, &'a[u8]> for MemorySource {
-    fn get_reader(&'a self) -> SourceReader<&'a[u8]> { 
-        return SourceReader::new(&self.bytes); 
+impl<'a> Source<'a, Cursor<&'a[u8]>> for MemorySource {
+    fn get_readable(&'a self) -> Cursor<&'a[u8]> {
+        Cursor::new(&self.bytes)
+    }
+    fn get_reader(&'a self) -> SourceReader<Cursor<&'a[u8]>> { 
+        return SourceReader::new(Cursor::new(&self.bytes)); 
     }
 }

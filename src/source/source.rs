@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::io::Seek;
 use std::io::BufReader;
 use std::option::Option;
 
@@ -9,7 +10,7 @@ pub struct SourceReader<R> {
     lookahead : Option<u8>,
 }
 
-impl<R : Read> SourceReader<R> {
+impl<R : Read + Seek> SourceReader<R> {
     fn readbyte(reader : &mut BufReader<R>) -> Option<u8>
     {
         let mut buf = [0; 1];
@@ -21,17 +22,15 @@ impl<R : Read> SourceReader<R> {
     }
     pub fn new(read : R) -> SourceReader<R> {
         let mut reader = BufReader::new(read);
-        let mut pos = 0;
         let mut lookahead = None;
         let current = Self::readbyte(&mut reader);
         if current != None {
-            pos = 1;
             lookahead = Self::readbyte(&mut reader);
         }
 
         return SourceReader { 
             reader, 
-            pos,
+            pos: 0,
             current,
             lookahead };
     }
@@ -49,6 +48,7 @@ impl<R : Read> SourceReader<R> {
 }
 
 pub trait Source<'a, R> {
+    fn get_readable(&'a self) -> R;
     fn get_reader(&'a self) -> SourceReader<R>;
 }
 
