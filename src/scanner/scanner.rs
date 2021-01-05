@@ -13,7 +13,7 @@ pub trait Scanner
 
 pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     source: &'a S,
-    reader: source::SourceReader<R>,
+    reader: source::LookAheadReader<R>,
 }
 
 impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
@@ -81,7 +81,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
     pub fn new(source: &'a S) -> Self {
         ScannerImpl { 
             source: source,
-            reader: source.get_reader(),
+            reader: source::LookAheadReader::new(source.get_readable()),
         }
     }
 
