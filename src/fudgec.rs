@@ -3,7 +3,6 @@
 use libfudgec::*;
 
 use structopt::StructOpt;
-use source::Source;
 use scanner::Scanner;
 
 #[derive(StructOpt)]
@@ -15,9 +14,6 @@ struct CommandLineParameters {
     #[structopt(short = "r", long = "repeats", default_value = "1")]
     repeats: u64,
 
-    #[structopt(short = "s", long = "print-source")]
-    print_source: bool,
-
     #[structopt(short = "t", long = "print-tokens")]
     print_tokens: bool,
 }
@@ -26,18 +22,7 @@ fn main() {
     let params = CommandLineParameters::from_args();
 
     let repeats = params.repeats;
-    let source = source::FileSource::new(params.file);
-
-    if params.print_source {
-        println!("Characters in file:");
-        print!("    ");
-        let mut reader = source.get_reader();
-        while let Some(n) = reader.peek() {
-            print!("{}, ", n as char);
-            reader.advance();
-        }
-        println!("");
-    }
+    let source = source::FileSource::from_filepath(params.file);
 
     let mut tokens = Vec::with_capacity(100000);
 

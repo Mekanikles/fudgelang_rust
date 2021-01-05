@@ -12,7 +12,7 @@ fn expect_byte(expected_bytes: &[u8], i: usize, read_byte: u8) {
 }
 
 fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_bytes: &[u8]) {
-    let mut reader = source.get_reader();
+    let mut reader = LookAheadReader::new(source.get_readable());
     let mut count = 0;
     while let Some(n) = reader.peek() {
         assert_eq!(count, reader.pos());
@@ -27,8 +27,8 @@ fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_b
 }
 
 #[test]
-fn test_filesource() {
-    let source = FileSource::new("testdata/sourcetest.txt");
+fn test_bufferedfilesource() {
+    let source = BufferedFileSource::from_filepath("testdata/sourcetest.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 
@@ -40,7 +40,7 @@ fn test_memorysource() {
     let source = MemorySource::from_str("HejHoppFastStr");
     verify_source(&source, "HejHoppFastStr".as_bytes());
 
-    let source = MemorySource::from_file("testdata/sourcetest.txt");
+    let source = MemorySource::from_filepath("testdata/sourcetest.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 

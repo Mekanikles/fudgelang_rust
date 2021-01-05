@@ -1,6 +1,5 @@
 use super::*;
 use std::fmt;
-use std::convert::Into;
 
 #[derive(PartialEq)]
 #[derive(Debug)]
@@ -17,6 +16,7 @@ pub enum TokenType
 }
 
 #[derive(PartialEq)]
+#[derive(Debug)]
 pub struct Token
 {
     pub tokentype: TokenType,
@@ -54,7 +54,7 @@ impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
                 self.token.tokentype.fmt(f).unwrap();
                 f.debug_tuple("")
                  .field(&self.token.source_pos)
-                 .field(&self.token.source_pos)
+                 .field(&self.token.source_len)
                  .finish()
             }
         }

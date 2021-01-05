@@ -5,7 +5,7 @@ use libfudgec::*;
 use scanner::Scanner;
 
 fn scan_lipsum100k(c: &mut Criterion) {
-    let source = source::FileSource::new("testdata/lipsum100k.txt");
+    let source = source::FileSource::from_filepath("testdata/lipsum100k.txt");
     let mut tokens = Vec::new();
     tokens.reserve(100000);
 
