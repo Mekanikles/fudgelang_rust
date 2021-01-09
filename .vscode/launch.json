@@ -11,11 +11,11 @@
 			"cargo": {
 				"args": [
 					"build",
-					"--bin=fudgelang_rust",
+					"--bin=fudgec",
 					"--package=fudgelang_rust"
 				],
 				"filter": {
-					"name": "fudgelang_rust",
+					"name": "fudgec",
 					"kind": "bin"
 				}
 			},
@@ -30,12 +30,10 @@
 				"args": [
 					"test",
 					"--no-run",
-					"--bin=fudgelang_rust",
-					"--package=fudgelang_rust"
 				],
 				"filter": {
-					"name": "fudgelang_rust",
-					"kind": "bin"
+					"name": "libfudgec",
+					"kind": "lib",
 				}
 			},
 			"args": [],

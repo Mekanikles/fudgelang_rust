@@ -5,6 +5,12 @@ pub use MemorySource as FileSource;
 
 mod lookaheadreader; pub use lookaheadreader::*;
 
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct SourceSpan {
+    pub pos: u64,
+    pub len: usize,
+}
+
 pub trait Source<'a, R> {
     fn get_readable(&'a self) -> R;
 }

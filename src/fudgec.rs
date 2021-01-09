@@ -47,7 +47,11 @@ fn main() {
                 print!("{:?}, ", scanner::token::TokenDisplay {token: t, scanner: &scanner } );
             }
             println!("");
-        }        
+        }   
+        
+        for err in &scanner.errors {
+            println!("Error at pos {}: {}", err.source_span.pos, err.message);
+        }
     }
 
     println!("Scanned {} tokens in {}, {} times", tokens.len(), total_time, repeats);

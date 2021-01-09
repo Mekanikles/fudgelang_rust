@@ -1,8 +1,8 @@
 use super::*;
 use std::fmt;
+use crate::source;
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub enum TokenType
 {
     // 1-char tokens
@@ -15,21 +15,18 @@ pub enum TokenType
     Identifier
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 pub struct Token
 {
     pub tokentype: TokenType,
-    pub source_pos: u64,
-    pub source_len: usize,
+    pub source_span: source::SourceSpan,
 }
 
 impl Token {
     pub fn new(tokentype: TokenType, pos: u64, len: usize) -> Token {
         Token {
-            tokentype: tokentype, 
-            source_pos: pos,
-            source_len: len 
+            tokentype: tokentype,
+            source_span: source::SourceSpan { pos, len }
         }
     }
 }
@@ -45,16 +42,16 @@ impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
         match self.token.tokentype {
             TokenType::Identifier => {
                 f.debug_tuple("Identifier")
-                 .field(&self.token.source_pos)
-                 .field(&self.token.source_len)
+                 .field(&self.token.source_span.pos)
+                 .field(&self.token.source_span.len)
                  .field(&self.scanner.get_token_source_string(self.token))
                  .finish()
             },
             _ => { 
                 self.token.tokentype.fmt(f).unwrap();
                 f.debug_tuple("")
-                 .field(&self.token.source_pos)
-                 .field(&self.token.source_len)
+                 .field(&self.token.source_span.pos)
+                 .field(&self.token.source_span.len)
                  .finish()
             }
         }

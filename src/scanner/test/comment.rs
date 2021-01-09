@@ -52,9 +52,10 @@ fn test_block_incomplete() {
 }
 
 #[test]
-#[should_panic]
-fn test_block_strayopen() {
-    verify_exact_scan("*/", &[]);
+fn test_block_stray_close() {
+    let errors = verify_exact_scan("*/", &[]);
+    expect_error_ids(&errors, &[
+        error::ErrorId::EnexpectedSequence ]);    
 }
 
 #[test]
