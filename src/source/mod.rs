@@ -1,9 +1,12 @@
-mod bufferedfilesource; pub use bufferedfilesource::*;
-mod memorysource; pub use memorysource::*;
+mod bufferedfilesource;
+pub use bufferedfilesource::*;
+mod memorysource;
+pub use memorysource::*;
 
 pub use MemorySource as FileSource;
 
-mod lookaheadreader; pub use lookaheadreader::*;
+mod lookaheadreader;
+pub use lookaheadreader::*;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct SourceSpan {

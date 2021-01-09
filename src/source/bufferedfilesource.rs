@@ -8,7 +8,11 @@ pub struct BufferedFileSource {
 }
 
 impl BufferedFileSource {
-    pub fn from_filepath<P: AsRef<Path>>(filename: P) -> BufferedFileSource { BufferedFileSource { filename: PathBuf::from(filename.as_ref()) } }
+    pub fn from_filepath<P: AsRef<Path>>(filename: P) -> BufferedFileSource {
+        BufferedFileSource {
+            filename: PathBuf::from(filename.as_ref()),
+        }
+    }
 }
 
 impl Source<'_, BufReader<File>> for BufferedFileSource {

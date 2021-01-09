@@ -1,15 +1,14 @@
 use super::*;
+use crate::error;
+use crate::source;
+use std::assert;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::assert;
-use crate::source;
-use crate::error;
 
-const ERROR_THRESHOLD : u32 = 5;
+const ERROR_THRESHOLD: u32 = 5;
 
-pub trait Scanner
-{
+pub trait Scanner {
     fn get_token_source_string(&self, token: &Token) -> String;
     fn read_token(&mut self) -> Option<Token>;
 }
@@ -21,8 +20,7 @@ pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
 }
 
 impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
-    fn get_token_source_string(&self, token: &Token) -> String
-    {
+    fn get_token_source_string(&self, token: &Token) -> String {
         let mut reader = self.source.get_readable();
         match reader.seek(SeekFrom::Start(token.source_span.pos)) {
             Ok(_) => {
@@ -31,14 +29,13 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 if let Ok(_) = reader.read(&mut v) {
                     return String::from_utf8_lossy(&v).to_string();
                 }
-            },
-            Err(_) => ()
+            }
+            Err(_) => (),
         }
         return "".into();
     }
 
-    fn read_token(&mut self) -> Option<Token>
-    {
+    fn read_token(&mut self) -> Option<Token> {
         let mut error_count = 0;
 
         while let Some(n) = self.reader.peek() {
@@ -57,12 +54,12 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'\n' => return Some(self.produce_linebreak()),
                 b' ' => return Some(self.produce_spacing()),
                 b'a'..=b'z' | b'A'..=b'Z' => return Some(self.produce_identifier()),
-                _ => ()
+                _ => (),
             }
 
             let l = match self.reader.lookahead() {
                 Some(n) => n,
-                _ => 0
+                _ => 0,
             };
 
             // LL(2) tokens
@@ -70,17 +67,20 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'/' => match l {
                     b'/' => return Some(self.produce_linecomment()),
                     b'*' => return Some(self.produce_blockcomment()),
-                    _ => ()
+                    _ => (),
                 },
                 b'*' if l == b'/' => {
-                    self.log_error(error::new_unexpected_sequence_error(self.reader.pos(), 2,
-                        "Found stray block comment end".into()));
+                    self.log_error(error::new_unexpected_sequence_error(
+                        self.reader.pos(),
+                        2,
+                        "Found stray block comment end".into(),
+                    ));
                     self.reader.advance();
                     self.reader.advance();
                     error_count += 1;
                     continue;
-                },
-                _ => ()
+                }
+                _ => (),
             }
 
             // Non-ascii characters are not allowed outside of string literals
@@ -88,16 +88,20 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 let pos = self.reader.pos();
                 let c = self.read_utf8_char();
                 if c.is_none() {
-                    self.log_error(error::new_non_utf8_sequence_error(pos, self.reader.pos() - pos));
-                }
-                else {
-                    self.log_error(error::new_non_ascii_char_error(c.unwrap(), pos));   
+                    self.log_error(error::new_non_utf8_sequence_error(
+                        pos,
+                        self.reader.pos() - pos,
+                    ));
+                } else {
+                    self.log_error(error::new_non_ascii_char_error(c.unwrap(), pos));
                 }
                 error_count += 1;
                 continue;
-            }
-            else {
-                self.log_error(error::new_unexpected_char_error(n as char, self.reader.pos()));
+            } else {
+                self.log_error(error::new_unexpected_char_error(
+                    n as char,
+                    self.reader.pos(),
+                ));
                 self.reader.advance();
                 error_count += 1;
                 continue;
@@ -110,10 +114,10 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
 
 impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
     pub fn new(source: &'a S) -> Self {
-        ScannerImpl { 
+        ScannerImpl {
             source: source,
             reader: source::LookAheadReader::new(source.get_readable()),
-            errors: Vec::new()
+            errors: Vec::new(),
         }
     }
 
@@ -127,14 +131,14 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         self.reader.advance();
 
         // Utf-8 is at max 4 bytes
-        let mut buf : [u8; 4] = [controlbyte, 0, 0, 0];
+        let mut buf: [u8; 4] = [controlbyte, 0, 0, 0];
 
-        const CTRL_2_BYTE_MASK : u8 = 0b11100000;
-        const CTRL_3_BYTE_MASK : u8 = 0b11110000;
-        const CTRL_4_BYTE_MASK : u8 = 0b11111000;
-        const CTRL_2_BYTE_VALUE : u8 = 0b11000000;
-        const CTRL_3_BYTE_VALUE : u8 = 0b11100000;
-        const CTRL_4_BYTE_VALUE : u8 = 0b11110000;
+        const CTRL_2_BYTE_MASK: u8 = 0b11100000;
+        const CTRL_3_BYTE_MASK: u8 = 0b11110000;
+        const CTRL_4_BYTE_MASK: u8 = 0b11111000;
+        const CTRL_2_BYTE_VALUE: u8 = 0b11000000;
+        const CTRL_3_BYTE_VALUE: u8 = 0b11100000;
+        const CTRL_4_BYTE_VALUE: u8 = 0b11110000;
 
         // Check how long the sequence should be
         let bytecount;
@@ -142,7 +146,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             n if n & CTRL_2_BYTE_MASK == CTRL_2_BYTE_VALUE => bytecount = 2,
             n if n & CTRL_3_BYTE_MASK == CTRL_3_BYTE_VALUE => bytecount = 3,
             n if n & CTRL_4_BYTE_MASK == CTRL_4_BYTE_VALUE => bytecount = 4,
-            _ => return None
+            _ => return None,
         }
 
         for i in 1..bytecount {
@@ -150,7 +154,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             self.reader.advance();
             match n {
                 Some(n) => buf[i] = n,
-                _=> return None
+                _ => return None,
             }
         }
 
@@ -177,8 +181,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return Token::new(TokenType::LineBreak, pos, 1);
     }
 
-    fn produce_linecomment(&mut self) -> Token
-    {
+    fn produce_linecomment(&mut self) -> Token {
         let startpos = self.reader.pos();
         self.reader.advance();
         self.reader.advance();
@@ -191,11 +194,14 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             self.reader.advance();
         }
 
-        return Token::new(TokenType::Comment, startpos, (self.reader.pos() - startpos) as usize);
+        return Token::new(
+            TokenType::Comment,
+            startpos,
+            (self.reader.pos() - startpos) as usize,
+        );
     }
 
-    fn produce_blockcomment(&mut self) -> Token
-    {
+    fn produce_blockcomment(&mut self) -> Token {
         let startpos = self.reader.pos();
         self.reader.advance();
         self.reader.advance();
@@ -206,56 +212,67 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             if n as char == '/' && self.reader.lookahead() == Some('*' as u8) {
                 blocklevel += 1;
                 self.reader.advance();
-            }
-            else if n as char == '*' && self.reader.lookahead() == Some('/' as u8) {
+            } else if n as char == '*' && self.reader.lookahead() == Some('/' as u8) {
                 blocklevel -= 1;
                 self.reader.advance();
-            }    
+            }
 
             self.reader.advance();
 
             if blocklevel == 0 {
                 break;
-            }           
+            }
         }
 
-        assert!(blocklevel == 0, "Unexpected end of file inside block comment");
+        assert!(
+            blocklevel == 0,
+            "Unexpected end of file inside block comment"
+        );
 
-        return Token::new(TokenType::Comment, startpos, (self.reader.pos() - startpos) as usize);
+        return Token::new(
+            TokenType::Comment,
+            startpos,
+            (self.reader.pos() - startpos) as usize,
+        );
     }
 
-    fn produce_spacing(&mut self) -> Token
-    {
+    fn produce_spacing(&mut self) -> Token {
         let startpos = self.reader.pos();
         self.reader.advance();
 
         while let Some(n) = self.reader.peek() {
             if n as char != ' ' {
-                break; 
+                break;
             }
             self.reader.advance();
         }
-        return Token::new(TokenType::Spacing, startpos, (self.reader.pos() - startpos) as usize);
+        return Token::new(
+            TokenType::Spacing,
+            startpos,
+            (self.reader.pos() - startpos) as usize,
+        );
     }
 
-    fn produce_identifier(&mut self) -> Token
-    {
+    fn produce_identifier(&mut self) -> Token {
         let sourcepos = self.reader.pos();
 
         while let Some(n) = self.reader.peek() {
             if !(n as char).is_ascii_alphanumeric() {
-                break; 
+                break;
             }
             self.reader.advance();
         }
 
-        return Token::new(TokenType::Identifier, sourcepos, (self.reader.pos() - sourcepos) as usize)
+        return Token::new(
+            TokenType::Identifier,
+            sourcepos,
+            (self.reader.pos() - sourcepos) as usize,
+        );
     }
 
-    fn produce_token_and_advance(&mut self, tokentype: TokenType) -> Token
-    {
-        let token = Token::new(tokentype, self.reader.pos(), 1); 
+    fn produce_token_and_advance(&mut self, tokentype: TokenType) -> Token {
+        let token = Token::new(tokentype, self.reader.pos(), 1);
         self.reader.advance();
-        return token;   
+        return token;
     }
 }

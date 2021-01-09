@@ -1,12 +1,11 @@
+use super::*;
 use std::io::Read;
 use std::io::Seek;
-use super::*;
 
 fn expect_byte(expected_bytes: &[u8], i: usize, read_byte: u8) {
     if i < expected_bytes.len() {
         assert_eq!(expected_bytes[i], read_byte);
-    }
-    else {
+    } else {
         panic!("Source was longer than expected!");
     }
 }
@@ -18,12 +17,15 @@ fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_b
         assert_eq!(count, reader.pos());
         expect_byte(expected_bytes, count as usize, n);
         if let Some(n) = reader.lookahead() {
-            expect_byte(expected_bytes, count as usize + 1, n); 
+            expect_byte(expected_bytes, count as usize + 1, n);
         }
         reader.advance();
         count += 1;
     }
-    assert!(count as usize == expected_bytes.len(), "Source was shorter than expected!");
+    assert!(
+        count as usize == expected_bytes.len(),
+        "Source was shorter than expected!"
+    );
 }
 
 #[test]
@@ -43,4 +45,3 @@ fn test_memorysource() {
     let source = MemorySource::from_filepath("testdata/sourcetest.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
-

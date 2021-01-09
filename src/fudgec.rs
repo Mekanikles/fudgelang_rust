@@ -1,9 +1,10 @@
-#[macro_use] extern crate tempus_fugit;
+#[macro_use]
+extern crate tempus_fugit;
 
 use libfudgec::*;
 
-use structopt::StructOpt;
 use scanner::Scanner;
+use structopt::StructOpt;
 
 #[derive(StructOpt)]
 struct CommandLineParameters {
@@ -32,7 +33,7 @@ fn main() {
         // Scan all tokens
         tokens.clear();
         let mut scanner = scanner::ScannerImpl::new(&source);
-        let (_, measurement) = measure! {{         
+        let (_, measurement) = measure! {{
             while let Some(n) = scanner.read_token() {
                 tokens.push(n);
             }
@@ -44,16 +45,27 @@ fn main() {
             println!("Tokens:");
             print!("    ");
             for t in &tokens {
-                print!("{:?}, ", scanner::token::TokenDisplay {token: t, scanner: &scanner } );
+                print!(
+                    "{:?}, ",
+                    scanner::token::TokenDisplay {
+                        token: t,
+                        scanner: &scanner
+                    }
+                );
             }
             println!("");
-        }   
-        
+        }
+
         for err in &scanner.errors {
             println!("Error at pos {}: {}", err.source_span.pos, err.message);
         }
     }
 
-    println!("Scanned {} tokens in {}, {} times", tokens.len(), total_time, repeats);
+    println!(
+        "Scanned {} tokens in {}, {} times",
+        tokens.len(),
+        total_time,
+        repeats
+    );
     println!("Done");
 }
