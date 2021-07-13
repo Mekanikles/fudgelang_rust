@@ -1,3 +1,5 @@
+use std::io::Read;
+
 mod bufferedfilesource;
 pub use bufferedfilesource::*;
 mod memorysource;
@@ -14,7 +16,7 @@ pub struct SourceSpan {
     pub len: usize,
 }
 
-pub trait Source<'a, R> {
+pub trait Source<'a, R : Read> {
     fn get_readable(&'a self) -> R;
 }
 

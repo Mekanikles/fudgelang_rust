@@ -30,7 +30,7 @@ fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_b
 
 #[test]
 fn test_bufferedfilesource() {
-    let source = BufferedFileSource::from_filepath("testdata/sourcetest.txt");
+    let source = BufferedFileSource::from_filepath("testdata/singletoken.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 
@@ -42,6 +42,6 @@ fn test_memorysource() {
     let source = MemorySource::from_str("HejHoppFastStr");
     verify_source(&source, "HejHoppFastStr".as_bytes());
 
-    let source = MemorySource::from_filepath("testdata/sourcetest.txt");
+    let source = MemorySource::from_filepath("testdata/singletoken.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }

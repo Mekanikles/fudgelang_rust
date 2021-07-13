@@ -1,5 +1,6 @@
 use super::*;
 use crate::error;
+use crate::source;
 
 #[test]
 fn test_simple_error() {
@@ -58,7 +59,7 @@ fn test_non_utf8_sequence() {
     const SEQ_BYTE: u8 = 0b10000000;
     const ILLEGAL_SEQ_BYTE: u8 = 0b01000000;
 
-    let source = MemorySource::from_bytes(&[
+    let source = source::MemorySource::from_bytes(&[
         b'.',
         ILLEGAL_CTRL_BYTE,
         b'.',
@@ -77,7 +78,7 @@ fn test_non_utf8_sequence() {
     ]);
     let mut scanner = ScannerImpl::new(&source);
 
-    verify_scanner_tokens(
+    verify_exact_scanner_tokens(
         &mut scanner,
         &[
             Token::new(TokenType::Dot, 0, 1),

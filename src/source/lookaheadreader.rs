@@ -1,6 +1,6 @@
 use std::io::Read;
 
-pub struct LookAheadReader<R> {
+pub struct LookAheadReader<R : Read> {
     readable: R,
     pos: u64,
     current: Option<u8>,

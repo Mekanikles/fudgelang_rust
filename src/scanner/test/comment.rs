@@ -1,4 +1,5 @@
 use super::*;
+use crate::error;
 
 #[test]
 fn test_line_trivial() {
