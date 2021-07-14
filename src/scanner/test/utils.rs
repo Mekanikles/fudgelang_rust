@@ -66,3 +66,10 @@ pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) -> Vec<error:
     verify_sparse_scanner_tokens(&mut scanner, expected_tokens);
     scanner.errors.clone()
 }
+
+pub fn do_scan(source: &str) -> Vec<error::Error> {
+    let source = MemorySource::from_str(source);
+    let mut scanner = ScannerImpl::new(&source);
+    while scanner.read_token().is_some() {};
+    scanner.errors.clone()
+}

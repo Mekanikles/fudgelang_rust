@@ -9,6 +9,12 @@ fn test_simple_error() {
 }
 
 #[test]
+fn test_error_threshold() {
+    let errors = do_scan(".\x07.\x07.\x07.\x07.\x07.\x07");
+    assert_eq!(errors.len(), 5);
+}
+
+#[test]
 fn test_errors_and_tokens() {
     let errors = verify_exact_scan(
         ".€€€€.",
@@ -17,38 +23,22 @@ fn test_errors_and_tokens() {
             Token::new(TokenType::Dot, 13, 1),
         ],
     );
-    assert_eq!(errors.len(), 4);
+    assert_eq!(errors.len(), 1);
 }
 
 #[test]
-fn test_error_threshold() {
-    let errors = verify_exact_scan(".€€€€€.", &[Token::new(TokenType::Dot, 0, 1)]);
-    assert_eq!(errors.len(), 5);
-}
+fn test_unexpected_sequence() {
+    let errors = do_scan("\0");
+    expect_error_ids(&errors, &[error::ErrorId::InvalidSequece]);
 
-#[test]
-fn test_non_ascii_chars() {
-    let errors = verify_exact_scan(
-        ".ö.",
-        &[
-            Token::new(TokenType::Dot, 0, 1),
-            Token::new(TokenType::Dot, 3, 1),
-        ],
-    );
-    expect_error_ids(&errors, &[error::ErrorId::NonAsciiChar]);
-}
+    let errors = do_scan("\0\0");
+    expect_error_ids(&errors, &[error::ErrorId::InvalidSequece]);
 
-#[test]
-fn test_unexpected_chars() {
-    let errors = verify_exact_scan(
-        ".\0.",
-        &[
-            Token::new(TokenType::Dot, 0, 1),
-            Token::new(TokenType::Dot, 2, 1),
-        ],
-    );
-    expect_error_ids(&errors, &[error::ErrorId::UnexpectedChar]);
-}
+    let errors = do_scan("\0.\0");
+    expect_error_ids(&errors, &[
+        error::ErrorId::InvalidSequece,
+        error::ErrorId::InvalidSequece]);
+ }
 
 #[test]
 fn test_non_utf8_sequence() {

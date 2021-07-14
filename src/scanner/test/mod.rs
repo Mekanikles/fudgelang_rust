@@ -6,7 +6,8 @@ mod utils;
 use utils::*;
 
 mod basic;
-mod comment;
+mod comments;
+mod identifiers;
 
 #[test]
 fn test_file_with_comments() {

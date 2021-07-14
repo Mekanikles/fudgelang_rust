@@ -39,6 +39,7 @@ pub struct TokenDisplay<'a, S: Scanner> {
     pub scanner: &'a S,
 }
 
+// Debug formatter
 impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token.tokentype {

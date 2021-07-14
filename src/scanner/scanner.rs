@@ -6,7 +6,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
-const ERROR_THRESHOLD: u32 = 5;
+const ERROR_THRESHOLD: usize = 5;
 
 pub trait Scanner {
     fn get_token_source_string(&self, token: &Token) -> String;
@@ -36,12 +36,11 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
     }
 
     fn read_token(&mut self) -> Option<Token> {
-        let mut error_count = 0;
-
+        let mut invalid_sequence_started = false;
         while let Some(n) = self.reader.peek() {
             // If we have reached the maximum allowed errors before producing a token
             //  consider the scan ended
-            if error_count >= ERROR_THRESHOLD {
+            if self.errors.len() >= ERROR_THRESHOLD {
                 return None;
             }
 
@@ -54,7 +53,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'\n' => return Some(self.produce_linebreak()),
                 b' ' => return Some(self.produce_spacing()),
                 b'a'..=b'z' | b'A'..=b'Z' => return Some(self.produce_identifier()),
-                _ => (),
+                _ => ()
             }
 
             let l = match self.reader.lookahead() {
@@ -77,35 +76,61 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                     ));
                     self.reader.advance();
                     self.reader.advance();
-                    error_count += 1;
                     continue;
                 }
                 _ => (),
             }
 
-            // Non-ascii characters are not allowed outside of string literals
-            if !(n).is_ascii() {
-                let pos = self.reader.pos();
-                let c = self.read_utf8_char();
-                if c.is_none() {
-                    self.log_error(error::new_non_utf8_sequence_error(
+            // If we reach this point, we did not know what to do with this char
+            //  do error handling best we can
+            let pos = self.reader.pos();
+            if let Some(c) = self.read_utf8_char_with_error() {
+                // If this is the start of an "invalid" alphabetic utf8 sequence,
+                //  treat it as an identifier
+                if !invalid_sequence_started && !c.is_ascii() && c.is_alphabetic() {
+                    return Some(self.produce_identifier_at_pos(pos));
+                }
+
+                if !invalid_sequence_started {
+                    invalid_sequence_started = true;
+                    self.log_error(error::new_invalid_sequence_error(
                         pos,
                         self.reader.pos() - pos,
                     ));
-                } else {
-                    self.log_error(error::new_non_ascii_char_error(c.unwrap(), pos));
                 }
-                error_count += 1;
-                continue;
-            } else {
-                self.log_error(error::new_unexpected_char_error(
-                    n as char,
-                    self.reader.pos(),
-                ));
-                self.reader.advance();
-                error_count += 1;
-                continue;
+                else
+                {
+                    self.adjust_last_error_end(self.reader.pos());
+                }
             }
+
+
+           /*let mut invalidcharscount = 0;
+            while let Some(c) = self.read_utf8_char_with_error() {
+                if !c.is_ascii() && c.is_alphabetic() {
+                    // Treat all alphabetics as identifiers, and let the 
+                    //  internal identifier error handling deal with it the non-utf8 stuff
+                    return Some(self.produce_identifier_at_pos(pos));
+                }
+
+                invalidcharscount += 1;
+
+                // Break on upcoming ascii characters or EOF
+                match self.reader.peek() {
+                    Some(n) if n.is_ascii() => break,
+                    None => break,
+                    _ => ()
+                }
+            }
+
+            // At this point, if we've accumulated 1 or more characters that
+            //  are non-sensical, log them all as one error
+            if invalidcharscount > 0 {
+                self.log_error(error::new_invalid_sequence_error(
+                    pos,
+                    self.reader.pos() - pos,
+                ));
+            }*/
         }
 
         return None;
@@ -125,10 +150,19 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         self.errors.push(error);
     }
 
+    fn adjust_last_error_end(&mut self, end : u64) {
+        let pos = self.errors.last_mut().unwrap().source_span.pos;
+        self.errors.last_mut().unwrap().source_span.len = (end - pos) as usize;
+    }
+
     fn read_utf8_char(&mut self) -> Option<char> {
         let controlbyte = self.reader.peek().unwrap();
 
         self.reader.advance();
+
+        if controlbyte <= 127 {
+            return Some(controlbyte as char);
+        }
 
         // Utf-8 is at max 4 bytes
         let mut buf: [u8; 4] = [controlbyte, 0, 0, 0];
@@ -164,6 +198,17 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         }
 
         return None;
+    }
+
+    fn read_utf8_char_with_error(&mut self) -> Option<char> {
+        let pos = self.reader.pos();
+        return match self.read_utf8_char() {
+            Some(n) => Some(n),
+            None => {
+                self.log_error(error::new_non_utf8_sequence_error(pos, self.reader.pos() - pos));
+                None
+            }
+        };
     }
 
     fn produce_linebreak(&mut self) -> Token {
@@ -253,22 +298,48 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         );
     }
 
-    fn produce_identifier(&mut self) -> Token {
-        let sourcepos = self.reader.pos();
-
+    // Produce identifier starting at supplied source pos, continuing at the readder pos
+    fn produce_identifier_at_pos(&mut self, sourcepos : u64) -> Token {
         while let Some(n) = self.reader.peek() {
             if !(n as char).is_ascii_alphanumeric() {
-                break;
+                // If we are still ascii, this marks the end of a valid identifier
+                if (n as char).is_ascii() {
+                    break;
+                }
+
+                // Error recovery: advance until end of non-ascii utf8 sequence
+                while let Some(n) = self.reader.peek() {
+                    if (n as char).is_ascii() && !(n as char).is_ascii_alphanumeric() {
+                        break;
+                    }
+                    
+                    self.read_utf8_char_with_error();
+                }
+
+                self.log_error(error::new_non_ascii_identifier_error(sourcepos, self.reader.pos() - sourcepos));
+
+                // In order to not give cascading errors in the parser, we still produce a token here
+                return Token::new(
+                    TokenType::Identifier,
+                    sourcepos,
+                    (self.reader.pos() - sourcepos) as usize,
+                );
             }
             self.reader.advance();
         }
 
+        // Everything was fine
         return Token::new(
             TokenType::Identifier,
             sourcepos,
             (self.reader.pos() - sourcepos) as usize,
         );
     }
+
+    // Produce identifier at reader pos
+    fn produce_identifier(&mut self) -> Token {
+        return self.produce_identifier_at_pos(self.reader.pos());
+    }  
 
     fn produce_token_and_advance(&mut self, tokentype: TokenType) -> Token {
         let token = Token::new(tokentype, self.reader.pos(), 1);

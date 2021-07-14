@@ -19,7 +19,7 @@
 					"kind": "bin"
 				}
 			},
-			"args": ["testdata/singletoken.txt"],
+			"args": ["tests/dummytest.txt"],
 			"cwd": "${workspaceFolder}"
 		},
 		{
