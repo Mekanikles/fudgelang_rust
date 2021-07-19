@@ -23,7 +23,7 @@ fn main() {
     let params = CommandLineParameters::from_args();
 
     let repeats = params.repeats;
-    let source = source::FileSource::from_filepath(params.file);
+    let source = source::FileSource::from_filepath(params.file.clone());
 
     let mut tokens = Vec::with_capacity(100000);
 
@@ -57,7 +57,10 @@ fn main() {
         }
 
         for err in &scanner.errors {
-            println!("Error at pos {}: {}", err.source_span.pos, err.message);
+            let lineinfo = scanner.get_line_info(err.source_span.pos).unwrap();
+            println!("Error: {} at {}:{}:{}", err.message, params.file.to_str().unwrap(), lineinfo.row, lineinfo.column);
+
+            println!("{} |  {}", lineinfo.row, lineinfo.text.trim());
         }
     }
 
@@ -67,5 +70,4 @@ fn main() {
         total_time,
         repeats
     );
-    println!("Done");
 }

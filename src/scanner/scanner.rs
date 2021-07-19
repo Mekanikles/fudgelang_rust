@@ -6,10 +6,21 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 
+use std::io::BufReader;
+use std::io::BufRead;
+
 const ERROR_THRESHOLD: usize = 5;
+
+// TODO: This is not a good place for this, has nothing to do with the scanner
+pub struct LineInfo {
+    pub text : String,
+    pub row : u32,
+    pub column : u32,
+}
 
 pub trait Scanner {
     fn get_token_source_string(&self, token: &Token) -> String;
+    fn get_line_info(&self, filepos : u64) -> Option<LineInfo>;
     fn read_token(&mut self) -> Option<Token>;
 }
 
@@ -33,6 +44,33 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
             Err(_) => (),
         }
         return "".into();
+    }
+
+    fn get_line_info(&self, filepos : u64) -> Option<LineInfo> {
+        let mut reader = BufReader::new(self.source.get_readable());
+ 
+        let mut seekpos = 0;
+        let mut row = 0;
+        let mut text = String::new();
+        while let Ok(bytes_read) = reader.read_line(&mut text) {
+            if bytes_read == 0 {
+                return None;
+            }
+            let eol = seekpos + bytes_read;
+            if eol > filepos as usize
+            {
+                let column = text[..(filepos as usize - seekpos)].chars().count() as u32;
+                return Some(LineInfo {
+                    text,
+                    row : row + 1,
+                    column: column + 1,
+                });
+            }
+            seekpos = eol;
+            row += 1;
+            text.clear();
+        }
+        return None;
     }
 
     fn read_token(&mut self) -> Option<Token> {
@@ -103,34 +141,6 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                     self.adjust_last_error_end(self.reader.pos());
                 }
             }
-
-
-           /*let mut invalidcharscount = 0;
-            while let Some(c) = self.read_utf8_char_with_error() {
-                if !c.is_ascii() && c.is_alphabetic() {
-                    // Treat all alphabetics as identifiers, and let the 
-                    //  internal identifier error handling deal with it the non-utf8 stuff
-                    return Some(self.produce_identifier_at_pos(pos));
-                }
-
-                invalidcharscount += 1;
-
-                // Break on upcoming ascii characters or EOF
-                match self.reader.peek() {
-                    Some(n) if n.is_ascii() => break,
-                    None => break,
-                    _ => ()
-                }
-            }
-
-            // At this point, if we've accumulated 1 or more characters that
-            //  are non-sensical, log them all as one error
-            if invalidcharscount > 0 {
-                self.log_error(error::new_invalid_sequence_error(
-                    pos,
-                    self.reader.pos() - pos,
-                ));
-            }*/
         }
 
         return None;
