@@ -65,9 +65,10 @@ fn main() {
     }
 
     println!(
-        "Scanned {} tokens in {}, {} times",
+        "Scanned {} tokens in {}, {} times. ({} per scan)",
         tokens.len(),
         total_time,
-        repeats
+        repeats,
+        tempus_fugit::Measurement::from(tempus_fugit::Duration::from(total_time.clone()) / repeats as i32)
     );
 }
