@@ -6,6 +6,9 @@ use libfudgec::*;
 use scanner::Scanner;
 use structopt::StructOpt;
 
+use ansi_term::Colour as Color;
+use ansi_term::Style;
+
 #[derive(StructOpt)]
 struct CommandLineParameters {
     // Path to file
@@ -56,11 +59,44 @@ fn main() {
             println!("");
         }
 
+        // Print errors
         for err in &scanner.errors {
+            // Draw header
             let lineinfo = scanner.get_line_info(err.source_span.pos).unwrap();
-            println!("Error: {} at {}:{}:{}", err.message, params.file.to_str().unwrap(), lineinfo.row, lineinfo.column);
+            let error_label = Color::Red.bold().paint("Error:");
+            let error_message = Style::new().bold().paint(err.message.clone());
+            println!("{label} {message} ({file}:{row}:{column})", 
+                label = error_label, 
+                message = error_message, 
+                file = params.file.to_str().unwrap(), 
+                row = lineinfo.row, 
+                column = lineinfo.column);
 
-            println!("{} |  {}", lineinfo.row, lineinfo.text.trim());
+            let mut span_start = err.source_span.pos as usize - lineinfo.line_start;
+            let mut span_end = span_start + err.source_span.len as usize;
+
+            // Check how may tabs wil be converted to spaces before and mid-span
+            let pre_span_tabs = lineinfo.text[..span_start].matches('\t').count();
+            let in_span_tabs = lineinfo.text[span_start..span_end].matches('\t').count();
+
+            // Replace tabs with spaces for consistent output
+            let trimmed_tab_replaced_text = lineinfo.text.trim_end().replace('\t', "    ");
+
+            // Adjust span
+            span_start += pre_span_tabs * 3;
+            span_end += pre_span_tabs * 3 + in_span_tabs * 3;
+
+            // Draw code line
+            let row_header = Color::Blue.bold().paint(format!(" {} |", lineinfo.row));
+            println!("{} {}", row_header, trimmed_tab_replaced_text);
+
+            // Draw squiggles
+            let span_start_char_count = trimmed_tab_replaced_text[..span_start].chars().count();
+            let span_len_char_count = trimmed_tab_replaced_text[span_start..span_end].chars().count();
+            let squiggles = format!("{}", Color::Red.bold().paint("^".repeat(span_len_char_count)));
+            println!("{} {}{}", " ".repeat(row_header.len()), 
+                " ".repeat(span_start_char_count), 
+                squiggles);
         }
     }
 

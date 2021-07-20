@@ -17,6 +17,7 @@ bench = false
 [dependencies]
 structopt = "0.3.13"
 tempus_fugit = "0.10"
+ansi_term = "0.12"
 
 [dev-dependencies]
 criterion = "0.3"

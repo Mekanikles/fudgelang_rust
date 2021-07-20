@@ -14,6 +14,7 @@ const ERROR_THRESHOLD: usize = 5;
 // TODO: This is not a good place for this, has nothing to do with the scanner
 pub struct LineInfo {
     pub text : String,
+    pub line_start : usize,
     pub row : u32,
     pub column : u32,
 }
@@ -30,20 +31,9 @@ pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     pub errors: Vec<error::Error>,
 }
 
-impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
+impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {  
     fn get_token_source_string(&self, token: &Token) -> String {
-        let mut reader = self.source.get_readable();
-        match reader.seek(SeekFrom::Start(token.source_span.pos)) {
-            Ok(_) => {
-                let mut v: Vec<u8> = Vec::new();
-                v.resize(token.source_span.len, 0);
-                if let Ok(_) = reader.read(&mut v) {
-                    return String::from_utf8_lossy(&v).to_string();
-                }
-            }
-            Err(_) => (),
-        }
-        return "".into();
+        return self.get_source_string(token.source_span.pos, token.source_span.len);
     }
 
     fn get_line_info(&self, filepos : u64) -> Option<LineInfo> {
@@ -62,6 +52,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 let column = text[..(filepos as usize - seekpos)].chars().count() as u32;
                 return Some(LineInfo {
                     text,
+                    line_start : seekpos,
                     row : row + 1,
                     column: column + 1,
                 });
@@ -154,6 +145,21 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             reader: source::LookAheadReader::new(source.get_readable()),
             errors: Vec::new(),
         }
+    }
+
+    fn get_source_string(&self, pos: u64, len: usize) -> String {
+        let mut reader = self.source.get_readable();
+        match reader.seek(SeekFrom::Start(pos)) {
+            Ok(_) => {
+                let mut v: Vec<u8> = Vec::new();
+                v.resize(len, 0);
+                if let Ok(_) = reader.read(&mut v) {
+                    return String::from_utf8_lossy(&v).to_string();
+                }
+            }
+            Err(_) => (),
+        }
+        return "".into();
     }
 
     fn log_error(&mut self, error: error::Error) {
@@ -326,7 +332,10 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
                     self.read_utf8_char_with_error();
                 }
 
-                self.log_error(error::new_non_ascii_identifier_error(sourcepos, self.reader.pos() - sourcepos));
+                self.log_error(error::new_non_ascii_identifier_error(
+                    sourcepos, 
+                    self.reader.pos() - sourcepos,
+                    self.get_source_string(sourcepos, (self.reader.pos() - sourcepos) as usize)));
 
                 // In order to not give cascading errors in the parser, we still produce a token here
                 return Token::new(

@@ -33,13 +33,13 @@ pub fn new_unexpected_sequence_error(pos: u64, len: u64, message: String) -> Err
     )
 }
 
-pub fn new_non_ascii_identifier_error(pos: u64, len: u64) -> Error {
+pub fn new_non_ascii_identifier_error(pos: u64, len: u64, identifier: String) -> Error {
     Error::at_span(
         ErrorId::NonAsciiIdentifier,
         source::SourceSpan {
             pos,
             len: len as usize,
         },
-        format!("Non-ascii identifiers are not allowed"),
+        format!("Non-ascii identifier: '{}'", identifier),
     )
 }

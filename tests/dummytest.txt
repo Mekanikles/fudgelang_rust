@@ -7,7 +7,7 @@ frulle
 löv
 pepparrot
 gurkmeja
-ett par tråkiga ord
+		ett 		par 	väldigt	tråkiga ord
 jumper
 kolja
 smacka
