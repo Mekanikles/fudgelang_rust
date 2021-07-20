@@ -75,26 +75,26 @@ fn main() {
             let mut span_start = err.source_span.pos as usize - lineinfo.line_start;
             let mut span_end = span_start + err.source_span.len as usize;
 
-            // Check how may tabs wil be converted to spaces before and mid-span
+            // Check how may tabs will be converted to spaces before and mid-span
             let pre_span_tabs = lineinfo.text[..span_start].matches('\t').count();
             let in_span_tabs = lineinfo.text[span_start..span_end].matches('\t').count();
 
             // Replace tabs with spaces for consistent output
             let trimmed_tab_replaced_text = lineinfo.text.trim_end().replace('\t', "    ");
 
-            // Adjust span
+            // Adjust span for tabs
             span_start += pre_span_tabs * 3;
             span_end += pre_span_tabs * 3 + in_span_tabs * 3;
 
             // Draw code line
-            let row_header = Color::Blue.bold().paint(format!(" {} |", lineinfo.row));
-            println!("{} {}", row_header, trimmed_tab_replaced_text);
+            let row_header = Color::Blue.bold().paint(format!(" {} | ", lineinfo.row));
+            println!("{}{}", row_header, trimmed_tab_replaced_text);
 
             // Draw squiggles
             let span_start_char_count = trimmed_tab_replaced_text[..span_start].chars().count();
             let span_len_char_count = trimmed_tab_replaced_text[span_start..span_end].chars().count();
             let squiggles = format!("{}", Color::Red.bold().paint("^".repeat(span_len_char_count)));
-            println!("{} {}{}", " ".repeat(row_header.len()), 
+            println!("{}{}{}", " ".repeat(row_header.len()), 
                 " ".repeat(span_start_char_count), 
                 squiggles);
         }

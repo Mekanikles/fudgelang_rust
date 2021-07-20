@@ -117,7 +117,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 // If this is the start of an "invalid" alphabetic utf8 sequence,
                 //  treat it as an identifier
                 if !invalid_sequence_started && !c.is_ascii() && c.is_alphabetic() {
-                    return Some(self.produce_identifier_at_pos(pos));
+                    return Some(self.produce_non_ascii_identifier(pos));
                 }
 
                 if !invalid_sequence_started {
@@ -314,6 +314,28 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         );
     }
 
+    // Produces an "invalid" identifier and logs an error
+    fn produce_non_ascii_identifier(&mut self, sourcepos : u64) -> Token {
+        // Error recovery: advance until end of non-ascii utf8 sequence
+        while let Some(n) = self.reader.peek() {
+            if (n as char).is_ascii() && !(n as char).is_ascii_alphanumeric() {
+                break;
+            }
+            
+            self.read_utf8_char_with_error();
+        }
+
+        self.log_error(error::new_non_ascii_identifier_error(
+            sourcepos, 
+            self.reader.pos() - sourcepos,
+            self.get_source_string(sourcepos, (self.reader.pos() - sourcepos) as usize)));
+        
+        return Token::new(
+            TokenType::Identifier,
+            sourcepos,
+            (self.reader.pos() - sourcepos) as usize);
+    }
+
     // Produce identifier starting at supplied source pos, continuing at the readder pos
     fn produce_identifier_at_pos(&mut self, sourcepos : u64) -> Token {
         while let Some(n) = self.reader.peek() {
@@ -323,26 +345,8 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
                     break;
                 }
 
-                // Error recovery: advance until end of non-ascii utf8 sequence
-                while let Some(n) = self.reader.peek() {
-                    if (n as char).is_ascii() && !(n as char).is_ascii_alphanumeric() {
-                        break;
-                    }
-                    
-                    self.read_utf8_char_with_error();
-                }
-
-                self.log_error(error::new_non_ascii_identifier_error(
-                    sourcepos, 
-                    self.reader.pos() - sourcepos,
-                    self.get_source_string(sourcepos, (self.reader.pos() - sourcepos) as usize)));
-
                 // In order to not give cascading errors in the parser, we still produce a token here
-                return Token::new(
-                    TokenType::Identifier,
-                    sourcepos,
-                    (self.reader.pos() - sourcepos) as usize,
-                );
+                return self.produce_non_ascii_identifier(sourcepos);
             }
             self.reader.advance();
         }
@@ -351,8 +355,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return Token::new(
             TokenType::Identifier,
             sourcepos,
-            (self.reader.pos() - sourcepos) as usize,
-        );
+            (self.reader.pos() - sourcepos) as usize);
     }
 
     // Produce identifier at reader pos
