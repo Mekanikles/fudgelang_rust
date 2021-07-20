@@ -26,7 +26,6 @@ fn test_get_line_info_simple() {
     let lineinfo = scanner.get_line_info(12).unwrap();
     assert_eq!(lineinfo.text.trim(), "row3");
     assert_eq!(lineinfo.row, 3);
-    assert_eq!(lineinfo.column, 3);
 }
 
 #[test]
@@ -37,7 +36,6 @@ fn test_get_line_info_complex() {
     let lineinfo = scanner.get_line_info(21).unwrap();
     assert_eq!(lineinfo.text.trim(), "row3");
     assert_eq!(lineinfo.row, 3);
-    assert_eq!(lineinfo.column, 1);
 }
 
 #[test]

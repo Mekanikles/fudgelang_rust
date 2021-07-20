@@ -61,16 +61,7 @@ fn main() {
 
         // Print errors
         for err in &scanner.errors {
-            // Draw header
             let lineinfo = scanner.get_line_info(err.source_span.pos).unwrap();
-            let error_label = Color::Red.bold().paint("Error:");
-            let error_message = Style::new().bold().paint(err.message.clone());
-            println!("{label} {message} ({file}:{row}:{column})", 
-                label = error_label, 
-                message = error_message, 
-                file = params.file.to_str().unwrap(), 
-                row = lineinfo.row, 
-                column = lineinfo.column);
 
             let mut span_start = err.source_span.pos as usize - lineinfo.line_start;
             let mut span_end = span_start + err.source_span.len as usize;
@@ -82,17 +73,27 @@ fn main() {
             // Replace tabs with spaces for consistent output
             let trimmed_tab_replaced_text = lineinfo.text.trim_end().replace('\t', "    ");
 
-            // Adjust span for tabs
+            // Adjust span for tabs and convert to characters
             span_start += pre_span_tabs * 3;
             span_end += pre_span_tabs * 3 + in_span_tabs * 3;
+            let span_start_char_count = trimmed_tab_replaced_text[..span_start].chars().count();
+            let span_len_char_count = trimmed_tab_replaced_text[span_start..span_end].chars().count();
+
+            // Draw header
+            let error_label = Color::Red.bold().paint("Error:");
+            let error_message = Style::new().bold().paint(err.message.clone());    
+            println!("{label} {message} ({file}:{row}:{column})", 
+                label = error_label, 
+                message = error_message, 
+                file = params.file.to_str().unwrap(), 
+                row = lineinfo.row, 
+                column = span_start_char_count + 1);
 
             // Draw code line
             let row_header = Color::Blue.bold().paint(format!(" {} | ", lineinfo.row));
             println!("{}{}", row_header, trimmed_tab_replaced_text);
 
             // Draw squiggles
-            let span_start_char_count = trimmed_tab_replaced_text[..span_start].chars().count();
-            let span_len_char_count = trimmed_tab_replaced_text[span_start..span_end].chars().count();
             let squiggles = format!("{}", Color::Red.bold().paint("^".repeat(span_len_char_count)));
             println!("{}{}{}", " ".repeat(row_header.len()), 
                 " ".repeat(span_start_char_count), 

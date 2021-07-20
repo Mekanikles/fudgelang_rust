@@ -16,7 +16,6 @@ pub struct LineInfo {
     pub text : String,
     pub line_start : usize,
     pub row : u32,
-    pub column : u32,
 }
 
 pub trait Scanner {
@@ -49,12 +48,10 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
             let eol = seekpos + bytes_read;
             if eol > filepos as usize
             {
-                let column = text[..(filepos as usize - seekpos)].chars().count() as u32;
                 return Some(LineInfo {
                     text,
                     line_start : seekpos,
                     row : row + 1,
-                    column: column + 1,
                 });
             }
             seekpos = eol;
