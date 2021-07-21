@@ -27,6 +27,8 @@ pub trait Scanner {
 pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     source: &'a S,
     reader: source::LookAheadReader<R>,
+    allow_indentation : bool,
+    reached_error_limit : bool,
     pub errors: Vec<error::Error>,
 }
 
@@ -66,8 +68,31 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
         while let Some(n) = self.reader.peek() {
             // If we have reached the maximum allowed errors before producing a token
             //  consider the scan ended
-            if self.errors.len() >= ERROR_THRESHOLD {
+            if self.reached_error_limit {
                 return None;
+            }
+
+            // Indentation management
+            if n == b'\t' {
+                let indentation_token = self.produce_indentation();
+                if !self.allow_indentation {
+                    self.log_error(error::new_invalid_indentation_error(
+                        indentation_token.source_span.pos,
+                        indentation_token.source_span.len as u64));
+                    continue;
+                }
+                else {
+                    return Some(indentation_token);
+                }
+            }
+            else if self.allow_indentation {
+                self.allow_indentation = false;
+            }
+
+            // Consume unimportant whitespace
+            if n == b' ' {
+                self.consume_spacing();
+                continue;
             }
 
             // LL(1) tokens
@@ -75,9 +100,10 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'.' => return Some(self.produce_token_and_advance(TokenType::Dot)),
                 b',' => return Some(self.produce_token_and_advance(TokenType::Comma)),
                 b';' => return Some(self.produce_token_and_advance(TokenType::SemiColon)),
-                b'\t' => return Some(self.produce_token_and_advance(TokenType::Indent)),
-                b'\n' => return Some(self.produce_linebreak()),
-                b' ' => return Some(self.produce_spacing()),
+                b'\n' => {
+                    self.allow_indentation = true;
+                    return Some(self.produce_token_and_advance(TokenType::LineBreak));
+                }
                 b'a'..=b'z' | b'A'..=b'Z' => return Some(self.produce_identifier()),
                 _ => ()
             }
@@ -126,6 +152,8 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 }
                 else
                 {
+                    // TODO: Check that last error len matches current posision
+                    //  there might be spacing in-between
                     self.adjust_last_error_end(self.reader.pos());
                 }
             }
@@ -140,6 +168,8 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         ScannerImpl {
             source: source,
             reader: source::LookAheadReader::new(source.get_readable()),
+            allow_indentation: true,
+            reached_error_limit: false,
             errors: Vec::new(),
         }
     }
@@ -161,6 +191,9 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
     fn log_error(&mut self, error: error::Error) {
         self.errors.push(error);
+        if self.errors.len() >= ERROR_THRESHOLD {
+            self.reached_error_limit = true;
+        }
     }
 
     fn adjust_last_error_end(&mut self, end : u64) {
@@ -224,21 +257,6 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         };
     }
 
-    fn produce_linebreak(&mut self) -> Token {
-        let pos = self.reader.pos();
-        self.reader.advance();
-
-        // Eat all control characters
-        while let Some(n) = self.reader.peek() {
-            if !(n as char).is_ascii_control() {
-                break;
-            }
-            self.reader.advance();
-        }
-
-        return Token::new(TokenType::LineBreak, pos, 1);
-    }
-
     fn produce_linecomment(&mut self) -> Token {
         let startpos = self.reader.pos();
         self.reader.advance();
@@ -246,7 +264,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
         // Eat until line break
         while let Some(n) = self.reader.peek() {
-            if n as char == '\n' {
+            if n == b'\n' {
                 break;
             }
             self.reader.advance();
@@ -267,10 +285,10 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         // Eat block, including nested blocks
         let mut blocklevel = 1;
         while let Some(n) = self.reader.peek() {
-            if n as char == '/' && self.reader.lookahead() == Some('*' as u8) {
+            if n == b'/' && self.reader.lookahead() == Some('*' as u8) {
                 blocklevel += 1;
                 self.reader.advance();
-            } else if n as char == '*' && self.reader.lookahead() == Some('/' as u8) {
+            } else if n == b'*' && self.reader.lookahead() == Some('/' as u8) {
                 blocklevel -= 1;
                 self.reader.advance();
             }
@@ -294,18 +312,29 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         );
     }
 
-    fn produce_spacing(&mut self) -> Token {
+    fn consume_spacing(&mut self) {
+        self.reader.advance();
+
+        while let Some(n) = self.reader.peek() {
+            if n != b' ' {
+                break;
+            }
+            self.reader.advance();
+        }
+    }
+
+    fn produce_indentation(&mut self) -> Token {
         let startpos = self.reader.pos();
         self.reader.advance();
 
         while let Some(n) = self.reader.peek() {
-            if n as char != ' ' {
+            if n != b'\t' {
                 break;
             }
             self.reader.advance();
         }
         return Token::new(
-            TokenType::Spacing,
+            TokenType::Indentation,
             startpos,
             (self.reader.pos() - startpos) as usize,
         );

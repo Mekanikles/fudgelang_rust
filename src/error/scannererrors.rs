@@ -43,3 +43,14 @@ pub fn new_non_ascii_identifier_error(pos: u64, len: u64, identifier: String) ->
         format!("Non-ascii identifier: '{}'", identifier),
     )
 }
+
+pub fn new_invalid_indentation_error(pos: u64, len: u64) -> Error {
+    Error::at_span(
+        ErrorId::InvalidIndentation,
+        source::SourceSpan {
+            pos,
+            len: len as usize,
+        },
+        "Indentations are only allowed at the start of a line or immediately after other indentations".into(),
+    )
+}

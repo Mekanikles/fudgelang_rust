@@ -8,6 +8,7 @@ use utils::*;
 mod basic;
 mod comments;
 mod identifiers;
+mod indentation;
 
 #[test]
 fn test_get_line_info_trivial() {
@@ -48,10 +49,8 @@ fn test_file_with_comments() {
         &[
             Token::new(TokenType::Identifier, 0, 5),
             Token::new(TokenType::Comma, 5, 1),
-            Token::new(TokenType::Spacing, 6, 1),
             Token::new(TokenType::Identifier, 7, 7),
             Token::new(TokenType::Dot, 14, 1),
-            Token::new(TokenType::Spacing, 15, 1),
             Token::new(TokenType::Comment, 16, 10),
             Token::new(TokenType::LineBreak, 26, 1),
             Token::new(TokenType::Identifier, 27, 5),
@@ -63,7 +62,6 @@ fn test_file_with_comments() {
             Token::new(TokenType::LineBreak, 152, 1),
             Token::new(TokenType::Identifier, 153, 7),
             Token::new(TokenType::Comma, 160, 1),
-            Token::new(TokenType::Spacing, 161, 3),
             Token::new(TokenType::Identifier, 164, 5),
             Token::new(TokenType::Dot, 169, 1),
             Token::new(TokenType::LineBreak, 170, 1),

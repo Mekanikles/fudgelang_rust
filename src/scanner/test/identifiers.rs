@@ -7,6 +7,11 @@ fn test_simple() {
 }
 
 #[test]
+fn test_alphanumeric() {
+    verify_exact_scan("Hello23", &[Token::new(TokenType::Identifier, 0, 7)]);
+}
+
+#[test]
 fn test_non_ascii_1() {
     let errors = verify_exact_scan("Hallåj", &[Token::new(TokenType::Identifier, 0, 7)]);
     expect_error_ids(&errors, &[error::ErrorId::NonAsciiIdentifier]);

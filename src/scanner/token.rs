@@ -8,11 +8,10 @@ pub enum TokenType {
     Comma,
     Dot,
     SemiColon,
-    Indent,
     LineBreak,
 
     // n-char tokens
-    Spacing,
+    Indentation, 
     Comment,
 
     // Tokens with significant data

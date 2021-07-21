@@ -15,6 +15,7 @@ pub enum ErrorId {
     NonUtf8Sequence = scanner_error_code(2),
     UnexpectedSequence = scanner_error_code(3),
     NonAsciiIdentifier = scanner_error_code(4),
+    InvalidIndentation = scanner_error_code(5),
 }
 
 #[derive(Clone)]
