@@ -15,7 +15,11 @@ impl BufferedFileSource {
     }
 }
 
-impl Source<'_, BufReader<File>> for BufferedFileSource {
+impl<'a> Source<'a, BufReader<File>> for BufferedFileSource {
+    fn get_name(&'a self) -> &'a str {
+        return self.filename.to_str().unwrap();
+    }
+
     fn get_readable(&self) -> BufReader<File> {
         BufReader::new(File::open(self.filename.clone()).expect("File not found!"))
     }

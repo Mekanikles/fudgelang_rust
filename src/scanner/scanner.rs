@@ -21,6 +21,7 @@ pub struct LineInfo {
 }
 
 pub trait Scanner {
+    fn get_errors(&self) -> &Vec<error::Error>;
     fn get_token_source_string(&self, token: &Token) -> String;
     fn get_line_info(&self, filepos : u64) -> Option<LineInfo>;
     fn read_token(&mut self) -> Option<Token>;
@@ -42,6 +43,10 @@ pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
 }
 
 impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {  
+    fn get_errors(&self) -> &Vec<error::Error> {
+        return &self.error_data.errors;
+    }
+
     fn get_token_source_string(&self, token: &Token) -> String {
         return self.get_source_string(token.source_span.pos, token.source_span.len);
     }
