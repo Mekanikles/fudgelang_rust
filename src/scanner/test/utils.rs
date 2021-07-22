@@ -49,6 +49,15 @@ pub fn verify_sparse_scanner_tokens<S: Scanner>(scanner: &mut S, expected_tokens
     }
 }
 
+pub fn verify_scanner_tokens_snapshot<S: Scanner>(scanner: &mut S) {  
+    let mut scanned_tokens = Vec::new();
+    while let Some(t) = scanner.read_token() {     
+        scanned_tokens.push(t);
+    } 
+    
+    insta::assert_debug_snapshot!(scanned_tokens);
+}
+
 // Checks that the scanner produces an exact list of tokens
 pub fn verify_exact_scan(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);

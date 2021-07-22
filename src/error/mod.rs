@@ -41,19 +41,19 @@ pub trait ErrorIdConstructor {
 
 impl ErrorIdConstructor for errors::FatalErrorType {
     fn create_id(&self) -> ErrorId {
-        ErrorId::FatalError(self.clone())
+        ErrorId::FatalError(*self)
     }
 }
 
 impl ErrorIdConstructor for errors::MajorErrorType {
     fn create_id(&self) -> ErrorId {
-        ErrorId::MajorError(self.clone())
+        ErrorId::MajorError(*self)
     }
 }
 
 impl ErrorIdConstructor for errors::MinorErrorType {
     fn create_id(&self) -> ErrorId {
-        ErrorId::MinorError(self.clone())
+        ErrorId::MinorError(*self)
     }
 }
 

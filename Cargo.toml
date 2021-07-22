@@ -21,6 +21,7 @@ ansi_term = "0.12"
 
 [dev-dependencies]
 criterion = "0.3"
+insta = "1.7"
 
 [profile.release]
 debug = true
