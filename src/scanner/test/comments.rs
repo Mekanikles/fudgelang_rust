@@ -1,5 +1,5 @@
 use super::*;
-use crate::error;
+use crate::error::*;
 
 #[test]
 fn test_line_trivial() {
@@ -64,7 +64,7 @@ fn test_block_incomplete() {
 #[test]
 fn test_block_stray_close() {
     let errors = verify_exact_scan("*/", &[]);
-    expect_error_ids(&errors, &[error::ErrorId::UnexpectedSequence]);
+    expect_error_ids(&errors, &[new_error_id(errors::UnexpectedSequence)]);
 }
 
 #[test]

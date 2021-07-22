@@ -1,5 +1,5 @@
 use super::*;
-use crate::error;
+use crate::error::*;
 use crate::source;
 
 #[test]
@@ -10,7 +10,7 @@ fn test_simple_error() {
 
 #[test]
 fn test_error_threshold() {
-    let errors = do_scan(".\x07.\x07.\x07.\x07.\x07.\x07");
+    let errors = do_scan(".\0.\0.\0.\0.\0.\0");
     assert_eq!(errors.len(), 5);
 }
 
@@ -29,15 +29,15 @@ fn test_errors_and_tokens() {
 #[test]
 fn test_unexpected_sequence() {
     let errors = do_scan("\0");
-    expect_error_ids(&errors, &[error::ErrorId::InvalidSequece]);
+    expect_error_ids(&errors, &[new_error_id(errors::InvalidSequece)]);
 
     let errors = do_scan("\0\0");
-    expect_error_ids(&errors, &[error::ErrorId::InvalidSequece]);
+    expect_error_ids(&errors, &[new_error_id(errors::InvalidSequece)]);
 
     let errors = do_scan("\0.\0");
     expect_error_ids(&errors, &[
-        error::ErrorId::InvalidSequece,
-        error::ErrorId::InvalidSequece]);
+        new_error_id(errors::InvalidSequece),
+        new_error_id(errors::InvalidSequece)]);
  }
 
 #[test]
@@ -79,12 +79,12 @@ fn test_non_utf8_sequence() {
         ],
     );
     expect_error_ids(
-        &scanner.errors,
+        &scanner.error_data.errors,
         &[
-            error::ErrorId::NonUtf8Sequence,
-            error::ErrorId::NonUtf8Sequence,
-            error::ErrorId::NonUtf8Sequence,
-            error::ErrorId::NonUtf8Sequence,
+            new_error_id(errors::NonUtf8Sequence),
+            new_error_id(errors::NonUtf8Sequence),
+            new_error_id(errors::NonUtf8Sequence),
+            new_error_id(errors::NonUtf8Sequence),
         ],
     );
 }

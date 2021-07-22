@@ -9,7 +9,9 @@ use std::io::SeekFrom;
 use std::io::BufReader;
 use std::io::BufRead;
 
-const ERROR_THRESHOLD: usize = 5;
+const FATAL_ERROR_THRESHOLD: usize = 1;
+const MAJOR_ERROR_THRESHOLD: usize = 5;
+const MINOR_ERROR_THRESHOLD: usize = 20;
 
 // TODO: This is not a good place for this, has nothing to do with the scanner
 pub struct LineInfo {
@@ -24,12 +26,19 @@ pub trait Scanner {
     fn read_token(&mut self) -> Option<Token>;
 }
 
+pub struct ErrorData {
+    fatal_error_count: usize,
+    major_error_count: usize,
+    minor_error_count: usize,
+    pub errors: Vec<error::Error>,
+}
+
 pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     source: &'a S,
     reader: source::LookAheadReader<R>,
     allow_indentation : bool,
-    reached_error_limit : bool,
-    pub errors: Vec<error::Error>,
+    reached_error_limit : bool,    
+    pub error_data : ErrorData,
 }
 
 impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {  
@@ -170,7 +179,12 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             reader: source::LookAheadReader::new(source.get_readable()),
             allow_indentation: true,
             reached_error_limit: false,
-            errors: Vec::new(),
+            error_data: ErrorData {
+                fatal_error_count: 0,
+                major_error_count: 0,
+                minor_error_count: 0,
+                errors: Vec::new(),
+            },
         }
     }
 
@@ -190,15 +204,32 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
     }
 
     fn log_error(&mut self, error: error::Error) {
-        self.errors.push(error);
-        if self.errors.len() >= ERROR_THRESHOLD {
-            self.reached_error_limit = true;
+        match error.id {
+            error::ErrorId::FatalError(_e) => {
+                self.error_data.fatal_error_count += 1;
+                if self.error_data.fatal_error_count >= FATAL_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
+            error::ErrorId::MajorError(_e) => {
+                self.error_data.major_error_count += 1;
+                if self.error_data.major_error_count >= MAJOR_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
+            error::ErrorId::MinorError(_e) => {
+                self.error_data.minor_error_count += 1;
+                if self.error_data.minor_error_count >= MINOR_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
         }
+        self.error_data.errors.push(error);        
     }
 
     fn adjust_last_error_end(&mut self, end : u64) {
-        let pos = self.errors.last_mut().unwrap().source_span.pos;
-        self.errors.last_mut().unwrap().source_span.len = (end - pos) as usize;
+        let pos = self.error_data.errors.last_mut().unwrap().source_span.pos;
+        self.error_data.errors.last_mut().unwrap().source_span.len = (end - pos) as usize;
     }
 
     fn read_utf8_char(&mut self) -> Option<char> {

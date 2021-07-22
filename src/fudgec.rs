@@ -60,7 +60,7 @@ fn main() {
         }
 
         // Print errors
-        for err in &scanner.errors {
+        for err in &scanner.error_data.errors {
             let lineinfo = scanner.get_line_info(err.source_span.pos).unwrap();
 
             let mut span_start = err.source_span.pos as usize - lineinfo.line_start;
@@ -80,7 +80,9 @@ fn main() {
             let span_len_char_count = trimmed_tab_replaced_text[span_start..span_end].chars().count();
 
             // Draw header
-            let error_label = Color::Red.bold().paint("Error:");
+            let error_label = Color::Red.bold().paint(format!("{}[{}]:", 
+                error::error_label(err.id),
+                error::error_code(err.id)));
             let error_message = Style::new().bold().paint(err.message.clone());    
             println!("{label} {message} ({file}:{row}:{column})", 
                 label = error_label, 

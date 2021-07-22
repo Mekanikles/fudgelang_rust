@@ -2,7 +2,7 @@ use super::*;
 
 pub fn new_non_utf8_sequence_error(pos: u64, len: u64) -> Error {
     Error::at_span(
-        ErrorId::NonUtf8Sequence,
+        errors::NonUtf8Sequence,
         source::SourceSpan {
             pos,
             len: len as usize,
@@ -13,7 +13,7 @@ pub fn new_non_utf8_sequence_error(pos: u64, len: u64) -> Error {
 
 pub fn new_invalid_sequence_error(pos: u64, len: u64) -> Error {
     Error::at_span(
-        ErrorId::InvalidSequece,
+        errors::InvalidSequece,
         source::SourceSpan {
             pos,
             len: len as usize,
@@ -24,7 +24,7 @@ pub fn new_invalid_sequence_error(pos: u64, len: u64) -> Error {
 
 pub fn new_unexpected_sequence_error(pos: u64, len: u64, message: String) -> Error {
     Error::at_span(
-        ErrorId::UnexpectedSequence,
+        errors::UnexpectedSequence,
         source::SourceSpan {
             pos,
             len: len as usize,
@@ -35,7 +35,7 @@ pub fn new_unexpected_sequence_error(pos: u64, len: u64, message: String) -> Err
 
 pub fn new_non_ascii_identifier_error(pos: u64, len: u64, identifier: String) -> Error {
     Error::at_span(
-        ErrorId::NonAsciiIdentifier,
+        errors::NonAsciiIdentifier,
         source::SourceSpan {
             pos,
             len: len as usize,
@@ -46,7 +46,7 @@ pub fn new_non_ascii_identifier_error(pos: u64, len: u64, identifier: String) ->
 
 pub fn new_invalid_indentation_error(pos: u64, len: u64) -> Error {
     Error::at_span(
-        ErrorId::InvalidIndentation,
+        errors::InvalidIndentation,
         source::SourceSpan {
             pos,
             len: len as usize,

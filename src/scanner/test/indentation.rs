@@ -1,5 +1,5 @@
 use super::*;
-use crate::error;
+use crate::error::*;
 
 #[test]
 fn test_simple() {
@@ -23,12 +23,12 @@ fn test_multiline() {
 #[test]
 fn test_invalid_1() {
     let errors = verify_exact_scan(" \t", &[]);
-    expect_error_ids(&errors, &[error::ErrorId::InvalidIndentation]);
+    expect_error_ids(&errors, &[new_error_id(errors::InvalidIndentation)]);
 }
 
 #[test]
 fn test_invalid_2() {
     let errors = verify_exact_scan("\t \t", &[Token::new(TokenType::Indentation, 0, 1)]);
-    expect_error_ids(&errors, &[error::ErrorId::InvalidIndentation]);
+    expect_error_ids(&errors, &[new_error_id(errors::InvalidIndentation)]);
 }
 
