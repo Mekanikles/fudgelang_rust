@@ -5,6 +5,7 @@ use std::assert;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use phf::phf_map;
 
 use std::io::BufReader;
 use std::io::BufRead;
@@ -12,6 +13,10 @@ use std::io::BufRead;
 const FATAL_ERROR_THRESHOLD: usize = 1;
 const MAJOR_ERROR_THRESHOLD: usize = 5;
 const MINOR_ERROR_THRESHOLD: usize = 20;
+
+static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
+    "if" => TokenType::If,
+};
 
 // TODO: This is not a good place for this, has nothing to do with the scanner
 pub struct LineInfo {
@@ -400,6 +405,9 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
     // Produce identifier starting at supplied source pos, continuing at the readder pos
     fn produce_identifier_at_pos(&mut self, sourcepos : u64) -> Token {
+        // TODO: This seems unnecessary
+        let mut string : String = String::new();
+
         while let Some(n) = self.reader.peek() {
             if !(n as char).is_ascii_alphanumeric() {
                 // If we are still ascii, this marks the end of a valid identifier
@@ -410,10 +418,20 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
                 // In order to not give cascading errors in the parser, we still produce a token here
                 return self.produce_non_ascii_identifier(sourcepos);
             }
+            string.push(n as char);
             self.reader.advance();
         }
 
-        // Everything was fine
+        // Everything was fine, check if this was a keyword
+        if let Some(tokentype) = KEYWORDS.get(&string)
+        {
+            return Token::new(
+                *tokentype, 
+                sourcepos,
+                (self.reader.pos() - sourcepos) as usize); 
+        }
+
+        // If not a keyword, it is a use identifier
         return Token::new(
             TokenType::Identifier,
             sourcepos,

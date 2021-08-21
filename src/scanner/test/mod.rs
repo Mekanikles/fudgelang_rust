@@ -9,6 +9,7 @@ mod basic;
 mod comments;
 mod identifiers;
 mod indentation;
+mod keywords;
 
 #[test]
 fn test_get_line_info_trivial() {

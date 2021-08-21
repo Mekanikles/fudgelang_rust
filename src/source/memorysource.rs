@@ -24,7 +24,8 @@ impl MemorySource {
         }
     }
     pub fn from_filepath<P: AsRef<Path>>(filename: P) -> MemorySource {
-        let name : String = filename.as_ref().to_str().unwrap().into();
+        let path = filename.as_ref();
+        let name : String = path.to_string_lossy().into();
         let mut file = File::open(filename).expect("File not found!");
         let mut data = Vec::new();
         match file.read_to_end(&mut data) {
