@@ -59,26 +59,36 @@ pub fn verify_scanner_tokens_snapshot<S: Scanner>(scanner: &mut S) {
 }
 
 // Checks that the scanner produces an exact list of tokens
-pub fn verify_exact_scan(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
+pub fn verify_exact_scan_with_errors(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
 
     verify_exact_scanner_tokens(&mut scanner, expected_tokens);
-    scanner.error_data.errors.clone()
+    return scanner.error_data.errors.clone();
+}
+
+pub fn verify_exact_scan(source: &str, expected_tokens: &[Token]) {
+    let errors = verify_exact_scan_with_errors(source, expected_tokens);
+    assert!(errors.is_empty());
 }
 
 // Checks that scanner produces any tokens that matches the list
-pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
+pub fn verify_sparse_scan_with_errors(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
 
     verify_sparse_scanner_tokens(&mut scanner, expected_tokens);
-    scanner.error_data.errors.clone()
+    return scanner.error_data.errors.clone();
 }
 
-pub fn do_scan(source: &str) -> Vec<error::Error> {
+pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) {
+    let errors = verify_sparse_scan_with_errors(source, expected_tokens);
+    assert!(errors.is_empty());
+}
+
+pub fn do_scan_with_errors(source: &str) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
     while scanner.read_token().is_some() {};
-    scanner.error_data.errors.clone()
+    return scanner.error_data.errors.clone();
 }

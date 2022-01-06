@@ -1,0 +1,11 @@
+def u32 = #primitives.u32
+
+def add = func(a : u32, b : u32) -> u32 do
+	return a + b
+end
+
+def print = func(a : u32) do
+	#output.print_format "Ditt nummer är: %u", a
+end
+
+print(add(123, 42))

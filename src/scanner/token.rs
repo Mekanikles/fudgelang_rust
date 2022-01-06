@@ -7,10 +7,24 @@ pub enum TokenType {
     // 1-char tokens
     Comma,
     Dot,
+    Colon,
     SemiColon,
-    LineBreak,
+    Equals,
+    Hash,
+    LeftParenthesis,
+    RightParenthesis,
+    LeftSquareBracket,
+    RightSquareBracket,
+    LeftCurlyBrace,
+    RightCurlyBrace, 
+    Arrow,
+    Plus,
+    Minus,
+    Slash,
+    Star,
 
     // n-char tokens
+    LineBreak,
     Indentation, 
     Comment,
 
@@ -19,6 +33,9 @@ pub enum TokenType {
 
     // Tokens with significant data
     Identifier,
+    StringLiteral,
+    CharacterLiteral,
+    NumericLiteral,
 }
 
 #[derive(PartialEq, Debug)]
@@ -45,12 +62,17 @@ pub struct TokenDisplay<'a, S: Scanner> {
 impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token.tokentype {
-            TokenType::Identifier => f
-                .debug_tuple("Identifier")
-                .field(&self.token.source_span.pos)
-                .field(&self.token.source_span.len)
-                .field(&self.scanner.get_token_source_string(self.token))
-                .finish(),
+            TokenType::Identifier | 
+            TokenType::NumericLiteral | 
+            TokenType::StringLiteral | 
+            TokenType::CharacterLiteral => {
+                self.token.tokentype.fmt(f).unwrap();
+                f.debug_tuple("")
+                    .field(&self.token.source_span.pos)
+                    .field(&self.token.source_span.len)
+                    .field(&self.scanner.get_token_source_string(self.token))
+                    .finish()
+            },
             _ => {
                 self.token.tokentype.fmt(f).unwrap();
                 f.debug_tuple("")

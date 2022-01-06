@@ -4,19 +4,19 @@ use crate::source;
 
 #[test]
 fn test_simple_error() {
-    let errors = verify_exact_scan("€", &[]);
+    let errors = verify_exact_scan_with_errors("€", &[]);
     assert_eq!(errors.len(), 1);
 }
 
 #[test]
 fn test_error_threshold() {
-    let errors = do_scan(".\0.\0.\0.\0.\0.\0");
+    let errors = do_scan_with_errors(".\0.\0.\0.\0.\0.\0");
     assert_eq!(errors.len(), 5);
 }
 
 #[test]
 fn test_errors_and_tokens() {
-    let errors = verify_exact_scan(
+    let errors = verify_exact_scan_with_errors(
         ".€€€€.",
         &[
             Token::new(TokenType::Dot, 0, 1),
@@ -27,18 +27,30 @@ fn test_errors_and_tokens() {
 }
 
 #[test]
-fn test_unexpected_sequence() {
-    let errors = do_scan("\0");
+fn test_unexpected_sequence_1() {
+    let errors = do_scan_with_errors("\0");
     expect_error_ids(&errors, &[new_error_id(errors::InvalidSequece)]);
+}
 
-    let errors = do_scan("\0\0");
+#[test]
+fn test_unexpected_sequence_2() {
+    let errors = do_scan_with_errors("\0\0");
     expect_error_ids(&errors, &[new_error_id(errors::InvalidSequece)]);
+}
 
-    let errors = do_scan("\0.\0");
+#[test]
+fn test_unexpected_sequence_3() {
+    let errors = do_scan_with_errors("\0.\0");
     expect_error_ids(&errors, &[
         new_error_id(errors::InvalidSequece),
         new_error_id(errors::InvalidSequece)]);
- }
+}
+
+#[test]
+fn test_unexpected_sequence_4() {
+    let errors = do_scan_with_errors("\0 \0");
+    expect_error_ids(&errors, &[new_error_id(errors::InvalidSequece)]);
+}
 
 #[test]
 fn test_non_utf8_sequence() {

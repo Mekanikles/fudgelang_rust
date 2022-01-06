@@ -10,6 +10,12 @@ mod comments;
 mod identifiers;
 mod indentation;
 mod keywords;
+mod arithmetics;
+mod brackets;
+mod misctokens;
+mod stringliterals;
+mod numericliterals;
+mod characterliterals;
 
 #[test]
 fn test_get_line_info_trivial() {

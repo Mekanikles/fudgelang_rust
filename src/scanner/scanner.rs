@@ -1,7 +1,7 @@
 use super::*;
 use crate::error;
 use crate::source;
-use std::assert;
+use std::debug_assert;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -14,6 +14,7 @@ const FATAL_ERROR_THRESHOLD: usize = 1;
 const MAJOR_ERROR_THRESHOLD: usize = 5;
 const MINOR_ERROR_THRESHOLD: usize = 20;
 
+// Map with all scannable keywords
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "if" => TokenType::If,
 };
@@ -114,42 +115,53 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 continue;
             }
 
-            // LL(1) tokens
+            // Produce token
             match n {
                 b'.' => return Some(self.produce_token_and_advance(TokenType::Dot)),
                 b',' => return Some(self.produce_token_and_advance(TokenType::Comma)),
+                b':' => return Some(self.produce_token_and_advance(TokenType::Colon)),
+                b'=' => return Some(self.produce_token_and_advance(TokenType::Equals)),
+                b'+' => return Some(self.produce_token_and_advance(TokenType::Plus)),
+                b'-' => match self.reader.lookahead() {
+                    Some(b'>') => return Some(self.produce_token_and_advance_n(TokenType::Arrow, 2)),
+                    _ => return Some(self.produce_token_and_advance(TokenType::Minus))
+                },
+                b'(' => return Some(self.produce_token_and_advance(TokenType::LeftParenthesis)),
+                b')' => return Some(self.produce_token_and_advance(TokenType::RightParenthesis)),
+                b'[' => return Some(self.produce_token_and_advance(TokenType::LeftSquareBracket)),
+                b']' => return Some(self.produce_token_and_advance(TokenType::RightSquareBracket)),
+                b'{' => return Some(self.produce_token_and_advance(TokenType::LeftCurlyBrace)),
+                b'}' => return Some(self.produce_token_and_advance(TokenType::RightCurlyBrace)),
                 b';' => return Some(self.produce_token_and_advance(TokenType::SemiColon)),
+                b'#' => return Some(self.produce_token_and_advance(TokenType::Hash)),
+                b'/' => match self.reader.lookahead() {
+                    Some(b'/') => return Some(self.produce_linecomment()),
+                    Some(b'*') => return Some(self.produce_blockcomment()),
+                    _ => return Some(self.produce_token_and_advance(TokenType::Slash))
+                },
+                b'*' => match self.reader.lookahead() {
+                    Some(b'/') => {
+                        self.log_error(error::new_unexpected_sequence_error(
+                            self.reader.pos(),
+                            2,
+                            "Found stray block comment end".into(),
+                        ));
+                        self.reader.advance();
+                        self.reader.advance();
+                        continue;
+                    },
+                    _ => return Some(self.produce_token_and_advance(TokenType::Star))
+                }
                 b'\n' => {
+                    // TODO: Eat windows-style line breaks as one token
                     self.allow_indentation = true;
                     return Some(self.produce_token_and_advance(TokenType::LineBreak));
                 }
-                b'a'..=b'z' | b'A'..=b'Z' => return Some(self.produce_identifier()),
+                b'\"' => return Some(self.produce_stringliteral()),
+                b'\'' => return Some(self.produce_characterliteral()),
+                b'0'..=b'9' => return Some(self.produce_numericliteral()),
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' => return Some(self.produce_identifier()),
                 _ => ()
-            }
-
-            let l = match self.reader.lookahead() {
-                Some(n) => n,
-                _ => 0,
-            };
-
-            // LL(2) tokens
-            match n {
-                b'/' => match l {
-                    b'/' => return Some(self.produce_linecomment()),
-                    b'*' => return Some(self.produce_blockcomment()),
-                    _ => (),
-                },
-                b'*' if l == b'/' => {
-                    self.log_error(error::new_unexpected_sequence_error(
-                        self.reader.pos(),
-                        2,
-                        "Found stray block comment end".into(),
-                    ));
-                    self.reader.advance();
-                    self.reader.advance();
-                    continue;
-                }
-                _ => (),
             }
 
             // If we reach this point, we did not know what to do with this char
@@ -300,7 +312,9 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
     fn produce_linecomment(&mut self) -> Token {
         let startpos = self.reader.pos();
+        debug_assert!(self.reader.peek().unwrap() == b'/');
         self.reader.advance();
+        debug_assert!(self.reader.peek().unwrap() == b'/');
         self.reader.advance();
 
         // Eat until line break
@@ -320,7 +334,9 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
     fn produce_blockcomment(&mut self) -> Token {
         let startpos = self.reader.pos();
+        debug_assert!(self.reader.peek().unwrap() == b'/');
         self.reader.advance();
+        debug_assert!(self.reader.peek().unwrap() == b'*');
         self.reader.advance();
 
         // Eat block, including nested blocks
@@ -341,10 +357,12 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             }
         }
 
-        assert!(
-            blocklevel == 0,
-            "Unexpected end of file inside block comment"
-        );
+        if blocklevel != 0 {
+            // TODO: Add error reference to start of comment
+            self.log_error(error::new_unexpected_eof_error(
+                self.reader.pos(),
+                "Unexpected end of file inside block comment".into()));
+        }
 
         return Token::new(
             TokenType::Comment,
@@ -354,6 +372,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
     }
 
     fn consume_spacing(&mut self) {
+        debug_assert!(self.reader.peek().unwrap() == b' ');
         self.reader.advance();
 
         while let Some(n) = self.reader.peek() {
@@ -366,6 +385,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
     fn produce_indentation(&mut self) -> Token {
         let startpos = self.reader.pos();
+        debug_assert!(self.reader.peek().unwrap() == b'\t');
         self.reader.advance();
 
         while let Some(n) = self.reader.peek() {
@@ -403,13 +423,13 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             (self.reader.pos() - sourcepos) as usize);
     }
 
-    // Produce identifier starting at supplied source pos, continuing at the readder pos
+    // Produce identifier starting at supplied source pos, continuing at the reader pos
     fn produce_identifier_at_pos(&mut self, sourcepos : u64) -> Token {
         // TODO: This seems unnecessary
         let mut string : String = String::new();
 
         while let Some(n) = self.reader.peek() {
-            if !(n as char).is_ascii_alphanumeric() {
+            if !(n as char).is_ascii_alphanumeric() && n != b'_' {
                 // If we are still ascii, this marks the end of a valid identifier
                 if (n as char).is_ascii() {
                     break;
@@ -431,7 +451,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
                 (self.reader.pos() - sourcepos) as usize); 
         }
 
-        // If not a keyword, it is a use identifier
+        // If not a keyword, it is an identifier
         return Token::new(
             TokenType::Identifier,
             sourcepos,
@@ -443,9 +463,93 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return self.produce_identifier_at_pos(self.reader.pos());
     }  
 
+    fn produce_stringliteral(&mut self) -> Token {
+        let startpos = self.reader.pos();
+        debug_assert!(self.reader.peek().unwrap() == b'\"');
+        self.reader.advance();
+
+        while self.reader.peek().filter(
+            |c| *c != b'\"').is_some()
+        {
+            self.reader.advance();
+        }
+
+        // TODO: Add error reference to start of literal
+        if self.reader.peek().is_none() {
+            self.log_error(error::new_unexpected_eof_error(
+                self.reader.pos(),
+                "Unexpected end of file inside string literal".into()));
+        }
+        else
+        {
+            self.reader.advance();
+        }
+        
+        return Token::new(
+            TokenType::StringLiteral,
+            startpos,
+            (self.reader.pos() - startpos) as usize);
+    }
+
+    fn produce_characterliteral(&mut self) -> Token {
+        let startpos = self.reader.pos();
+        debug_assert!(self.reader.peek().unwrap() == b'\'');
+        self.reader.advance();
+
+        while self.reader.peek().filter(
+            |c| *c != b'\'').is_some()
+        {
+            self.reader.advance();
+        }
+
+        // TODO: Add error reference to start of literal
+        if self.reader.peek().is_none() {
+            self.log_error(error::new_unexpected_eof_error(
+                self.reader.pos(),
+                "Unexpected end of file inside character literal".into()));
+        }
+        else
+        {
+            self.reader.advance();
+        }
+
+        return Token::new(
+            TokenType::CharacterLiteral,
+            startpos,
+            (self.reader.pos() - startpos) as usize);
+    }
+
+    fn produce_numericliteral(&mut self) -> Token {
+        let startpos = self.reader.pos();
+        debug_assert!(self.reader.peek().unwrap().is_ascii_digit());
+        self.reader.advance();
+
+        // Note: we eat all trailing alphanumericals in this function, parsing of the 
+        //  actual number and error reporting happens when constructing AST
+
+        while self.reader.peek().filter(
+            |c| c.is_ascii_alphanumeric() || *c == b'.').is_some()
+        {
+            self.reader.advance();
+        }
+
+        return Token::new(
+            TokenType::NumericLiteral,
+            startpos,
+            (self.reader.pos() - startpos) as usize);
+    }
+
     fn produce_token_and_advance(&mut self, tokentype: TokenType) -> Token {
         let token = Token::new(tokentype, self.reader.pos(), 1);
         self.reader.advance();
+        return token;
+    }
+
+    fn produce_token_and_advance_n(&mut self, tokentype: TokenType, len : usize) -> Token {
+        let token = Token::new(tokentype, self.reader.pos(), len);
+        for _ in 0..len {
+            self.reader.advance();
+        }
         return token;
     }
 }

@@ -1,5 +1,16 @@
 use super::*;
 
+pub fn new_unexpected_eof_error(pos: u64, message: String) -> Error {
+    Error::at_span(
+        errors::UnexpetedEOF,
+        source::SourceSpan {
+            pos,
+            len: 1,
+        },
+        message,
+    )
+}
+
 pub fn new_non_utf8_sequence_error(pos: u64, len: u64) -> Error {
     Error::at_span(
         errors::NonUtf8Sequence,

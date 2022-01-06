@@ -5,13 +5,17 @@ pub mod scannererrors;
 pub use scannererrors::*;
 
 pub mod errors {
+    // TODO: We might want to attribute "severity" to errors more dynamically
+    //  (say, via some map), so that users can elevate warnings to errors etc
+    // The static division here might be better oriented towards recoverability, 
+    //  or category, rather than user-facing severity
     pub use FatalErrorType::*;
     pub use MajorErrorType::*;
     pub use MinorErrorType::*;
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum FatalErrorType {
-        PlaceHolder,
+        UnexpetedEOF,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]

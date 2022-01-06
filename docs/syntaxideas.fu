@@ -1,0 +1,529 @@
+
+/*
+ * No semicolons. Use linebreaks as delimiters.
+	- Grammar should allow for certain one-lines (if cases etc).
+	- Line breaks should be allow in the middle of an expression, for Formatting.
+		Possibly force different indentation for line continuation.
+
+ * Indentation is a part of the language. Done with tabs.
+	- To avoid tab vs space problems, only allow tabs at beginning of line.
+		Formatting indentation is done with spaces, tabs always mean scope indentation.
+	- To avoid unintentional execution flow for mis-indented lines, 
+		also use explicit block openers and closers.
+	- Error reporting will be able more easily pin-point errors.
+
+ * Everything is potentially a function. Parentheses are only used for arguments.
+	- Allows seamless syntax transition from raw struct members to accessors.
+		Like properties in C#. However C# does not have parentheses optional,
+			they always denote a function call.
+	- Need to differentiate between function reference and calling a function.
+		Can be done by type inference (see c++ cast operators).
+	- Default arguments and overloading can cause ambiguities, need ways to disambiguate. 
+*/
+
+// ==================== SCRAPPED IDEAS ===================
+
+/*
+	* Compile-time parameters for all symbol definitions (creating multiple symbol instances)
+		E.g. "var myvar(i : int) = i"
+		- Overlaps with type parameters
+		- Most of the same effect can be achieved by functions with compile-time parameters
+*/
+
+// ====================== VARIABLES ======================
+
+// V.0 - Defining a variable
+//////////////////////////////////////////////////////////
+
+// A simple variable declaration statement. Here, myvar will default to 0.
+//	Its type is declared to be an "int".
+var myvar : int
+
+// Assigning a variable
+myvar = 5
+
+// Declaring and assigning a variable
+var myvar_v2 : int = 5
+
+// Variables can often infer their type
+var myvar_v3 = 5
+
+// Variables can be declared as "definitions".
+//	They are computed at compile time and cannot be re-assigned.
+def mydef = 5
+
+// Variables can be declared as "constants"
+//	They are computed at declaration and cannot be re-assigned.
+const myconst = 5
+
+// Variables can infer their mutability qualifier with
+//	short-hand syntax for assignment.
+myvar_v4 : int = 5
+myvar_v5 := 5
+
+// ======================= ARRAYS ========================
+
+// A.0 - Defining a static array
+//////////////////////////////////////////////////////////
+
+// Here myarr is inferred to be a 4-length static array of ints
+var myarr = [5, 6, 7, 8] // Hm, why not tuple syntax instead? var myvar = (5, 6, 7, 8)
+
+// We can specify the type of the array
+var myarr_v2 : int[4] = [5, 6, 7, 8] // Hm, problematic? Array/slice operator on types, are all valid?
+
+// The array parameters are optional, here any int array can be assigned
+var myarr_v3 : int[] = [5, 6, 7, 8] 
+
+// The type is also optional, any array can be assigned here
+var myarr_v4 : [] = [5, 6, 7, 8]
+
+// To explicitly specify a static array, specify the length
+var myarr_v5 : [4] = [5, 6, 7, 8]
+
+// The length of static arrays can be inferred by using underscore
+var myarr_v6 : [_] = [5, 6, 7, 8]
+
+// A.1 - Defining a dynamic array
+//////////////////////////////////////////////////////////
+
+// Dynamic arrays can also be initialized
+var mydynarr = [5, 6, 7, 8, ..] // Meh, is this necessary?
+
+// Specify [..] to make the array dynamic
+var mydynarr_v2 : int[..] = [5, 6, 7, 8]
+
+// Just like with static arrays, the type is optional
+var mydynarr_v3 : [..] = [5, 6, 7, 8]
+
+// Here, the array is inferred to be dynamic
+var mydynarr_v4 : [] = [5, 6, 7, 8, ..]
+
+// And here
+var mydynarr_v5 : int[] = [5, 6, 7, 8, ..]
+
+// A.2 - Array slicing
+//////////////////////////////////////////////////////////
+
+// A slice can contain a single element. If so, it can be assigned to the element type.
+//	Here, the result is 5
+var a2_1 : int = myarr[0]
+
+// A slice can exist as a reference to the original array, denoted by [&]
+var a2_2 : [&] = myarr[0]
+
+// The type can also be specified
+var a2_2_v2 : int[&] = myarr[0]
+
+// TODO: Slicing is very similar to "views", i.e a way of reading data in a non-linear
+//	way. If slices are generalised to views, probably a multi-segment slice should
+//	result in a single view, rather than an array of views.
+
+// A slice can be noncontiguous, here the type the result is (int[&][2]), because of the
+//	two 1-length segments
+var a2_3 : [&][] = myarr[0, 3]
+
+// Resolving to a new contiguous array of length 2: [5, 8]
+var a2_4 : [] = myarr[0, 3]
+
+// HMM: Using length forces slices to be "nice" and allow for longer lengths
+//	than there is data. Using begin/end position instead allows for asserting on out-of-array
+//	accesses.
+// Use ":" to specify ranges of a certain length. Here, the result is [5, 6, 7]
+var a2_5 = myarr[1:myarr.len - 1]
+
+// Using two ":"-separators allows to specify a step. Here, the result us [5, 7] 
+var a2_6 = myarr[0:2:2]
+
+// ====================== FUNCTIONS ======================
+
+// F.0 - Defining a function
+//////////////////////////////////////////////////////////
+
+// Here the type of mynot is inferred to (func[](a : bool) -> bool).
+//	Note the empty closure and presence of "a" in the type signature.
+def mynot = func(a : bool) -> bool do
+	return not a
+end
+
+// Syntactic sugar for a named function definiton statement.
+func mynot_v2(a : bool) -> bool do
+	return not a
+end
+
+// Syntactic sugar for single expression functions.
+def mynot_v3 = func(a : bool) -> bool => not a
+
+// Combined with syntactic sugar for function definiton statements
+func mynot_v4(a : bool) -> bool => not a
+
+// Most terse function definition syntax as an expression, suitable for lambas, 
+//	 using partial qualification of function type.
+//	Here, the type of "a" is inferred to any type that supports inversion.
+def mynot_v5 = func(a) => not a
+
+// Most terse function definition as a statement
+func mynot_v6(a) => not a
+
+// F.1 - Calling a function without arguments
+//////////////////////////////////////////////////////////
+
+func true -> bool => #primitives.true
+
+// We can call the function without any parantheses if it has no arguments.
+// 	Disambiguation: Here the type of f1_1 is a typeset of (func[]() -> bool, bool).
+//	If no other type restrictions apply, defaulting rules allow 
+//	f1_1 to choose (bool) as a type and the function is evaluated immediately.
+var f1_1 = true
+
+// Here f1_2 is of type (bool) and therefore the function can be evaluated immediately.
+var f1_2 : bool = true
+
+// Here, the implied type of f1_3 is (func[...](...) -> (...)), i.e any function with any closure.
+//	This allows (bool) to be exluded from the typeset (see f1_1) and f1_3
+//	is inferred as a function reference with the concrete type (func[]() -> bool)
+var f1_3 : func = true
+
+// Here the function is force-evaluated and the type of f1_4 is (bool)
+//	Will yield a compiler error if true is not a callable.
+var f1_4 : true()
+
+// F.2 - Calling a function with a single argument
+//////////////////////////////////////////////////////////
+
+func myprint(s : string) => #output.print(s)
+
+// Here the argument type is inferred as to be the parameter type
+//	allow any auto casting rules to convert it.
+// 	Note that the parentheses are required here.
+myprint("Hello")
+
+// Since myprint must take a single argument, f2_1 becomes a function reference
+//	with type (func[](s : string) -> ())
+var f2_1 = myprint
+
+// Which can then be called like the original function
+f2_1("Hello")
+
+// Functions can be partially evaluated, even for single-paramters functions.
+//	Here, the type of f2_2 becomes (func[s : string]() -> ()), taking the
+//	argument as a part of its closure. It will expand to a function semantically
+//	equivalent to func[s : string]() -> () => myprint(s)
+var f2_2 = partial myprint("Hello")
+
+// Which can be called like a normal non-parameter function reference.
+//	Note that the closure is populated at the partial application.
+f2_2()
+
+// F.3 - Calling a function with multiple arguments
+//////////////////////////////////////////////////////////
+
+// Parameter types can be partially defined
+func lerp(a, b, f : float) => return a + (b - a) * c
+
+// Multiple arguments are comma-separated, parantheses are required.
+var f3_1 = lerp(1, 2, 0.5)
+
+// Arguments can be partially named and supplied out of order.
+//	A non-named argument cannot appear to the right of a named one.
+var f3_2 = lerp(1, 2, f : 0.5)
+var f3_3 = lerp(f : 0.5, a : 1, b : 2)
+
+// F.4 - Calling a function with multiple return values
+//////////////////////////////////////////////////////////
+
+// Return statement can take comma-separated list, or tuple expression
+func oneandtwo do 
+	return 1, 2
+end
+
+// When single-expression function syntax, return value must be a tuple
+func oneandtwo_v2 => (1, 2)
+
+// Tuple assignment, type of f4_1 is (real, real)
+var f4_1 = oneandtwo
+
+// Comma-separated assignment
+//	Here a is 1 and b is 2
+var f4_2a, f4_2b = oneandtwo
+
+// Return arguments can be ignored with underscores
+//	Here b is 2, first return value is discarded
+var _, f4_3b = oneandtwo
+
+// F.5 - Calling a function with tuples
+//////////////////////////////////////////////////////////
+
+// You can use tuples to call functions that does not explicitly
+//	take tuples. Tuples will be unpacked and consumed left-to-right.
+var f5_1 = lerp(f4_1, 0.5)
+
+// F.6 - Calling a function that takes a function
+//////////////////////////////////////////////////////////
+
+func caller(c : func(a : u8) -> u8) -> u8 do
+	// Disambiguation: Here c is evaluated because the return type is u8
+	return c(42)
+end
+
+// Will be type-inferred to (func() -> u8) when used below
+def callback = func(a) => a 
+
+// Callback is inferred to a function reference
+var f6_1 = caller(callback)
+
+// Functions can be defined directly as an expression as well
+var f6_2 = caller(func(a) => a + 1)
+
+// F.7 - Calling a function that returns a function
+//////////////////////////////////////////////////////////
+
+// The nested function takes a bool, b, and returns a function
+//	with b captured in a closure, taking another bool, c, as a parameter
+func nested(b : bool) => func(c : bool) => c and b
+
+// Type of f7_1 is (func[b : bool](c : bool) -> bool)
+var f7_1 = nested(true)
+
+// Calling f7_2 includes the closed "true" value
+var f7_2 = f7_1(false)
+
+// Directly calling the returned function
+var f7_3 = nested(true)(false)
+
+// F.8 - Calling functions with optional paramters
+//////////////////////////////////////////////////////////
+
+// Function paramters can have default arguments, making it optional for the caller.
+//	Internally, the parameter will be assigned the default arument, if not supplied.
+func stringToInteger(s : string, base : uint = 10) => #intrinsics.atoi(s, base)
+
+// Calling the function both with and without the parameter is ok
+var f8_1 = stringToInteger("42")
+var f8_2 = stringToInteger("0101", 2)
+
+// All parameters can be optional
+func int(bitcount : uint = 32, signed : bool = true) => #primitives.aint(bitcount, signed)
+
+// The caller can specify any or all of the optional parameters by name
+var f8_3 = int(signed : true)
+
+// F.9 - Partial application
+//////////////////////////////////////////////////////////
+
+// Arguments can be partially applied
+var f9_1 = partial lerp(1, 2)
+
+// And then called with the rest of the arguments, left to right
+var f9_2 = f9_3(0.5)
+
+// When applying arguments that are not the left-most, use named
+//	arguments, or underscore
+var f9_3 = partial lerp(_, _, 0.5)
+var f9_4 = f9_3(1, 2)
+
+// F.10 - Specializing functions
+//////////////////////////////////////////////////////////
+
+// Functions can be specialized for certain arguments, fully or partially.
+//	The best matching specialization will be chosen.
+specialize int(16, true) => #primitives.s16
+specialize int(16, false) => #primitives.u16
+specialize int(signed : true) => partial #primitives.aint(_, true)
+
+// F.11 - Generic function parameters
+//////////////////////////////////////////////////////////
+
+// Use "$" to create labels for type indentifiers that can be shared among
+//	epxression in that scope. Here, a and b is restricted to be the same type.
+func myadd(a : $op_type, b : $op_type) => a + b
+
+// ======================== TYPES ========================
+
+// T.0 - Defining a type
+//////////////////////////////////////////////////////////
+
+// A type definiton lists all members. The type of mytype is (type).
+def mytype = type begin
+	a : int
+	b : int
+end
+
+// Syntactic sugar for a named type definiton statement.
+type mytype_v2 begin
+	a : int
+	b : int
+end
+
+// Syntactic sugar for simple wrapper types.
+def mytype_v3 = type => mytype_v2
+
+// Combined with syntactic sugar for function definiton statements
+type mytype_v4 => mytype_v3
+
+
+// T.X - Type parameters
+//////////////////////////////////////////////////////////
+
+def vector = type(t : type, s : size) begin // <- unecessary if symbol parameters exist?, better used for trait syntax?
+	data : t[s]
+end
+
+type vector_v2(t : type, s : size) begin
+	data : t[s]
+end
+
+specialize vector(f32, 4) => #primitives.f32x4
+
+type vec4 => vector(f32, 4)
+
+
+// ======================== VIEWS ========================
+
+type objtype begin
+	name : string
+	x : int
+	y : int
+end
+
+def myobjview = view(objtype, 2) begin
+	x, x, x, y, y, y, name, name, name
+end
+
+
+var objarr = objtype[1000]
+
+var r = objarr.x + objarr.y
+
+// Generic SOA view
+type __soa_view(obj_type : type, field : #types.field) begin
+	a : #field_type(obj_type, field)[&] // <- TODO: Slice syntax
+end
+
+func __create_soa_view(obj_type : type, field : #types.field, a : obj_type[]) -> __soa_view(obj_type, field) begin
+	const field_type = #field_type(obj_type, field)
+	const blockoffset = #field_offset(obj_type, field) * a.size
+	const blocksize = a.size * #field_size(obj_type, field)
+	const memblock = #memory(a)[blockoffset:blocksize]
+	return __objtype_soa_view { memblock as field_type[a.size] }
+end
+
+func __ref_soa_view(v : __soa_view, i : u64, l : u64) -> #field_type(objtype, v.id)[&] begin
+	return v.a[i:l]
+end
+
+// =======================================================
+
+// Control flow
+
+if !value
+	return false
+
+if a b
+else if c d
+else e
+
+if a then
+	b
+else if a2
+	if c // <- maybe prevent in non-block ifs: statement, not expression. Want it for return though...
+		d
+else // <- problem, only indentation dictates flow
+	e
+
+if hej == 0 then
+	print("hej")
+else hej == 1
+	asdas
+else
+	asdasd
+end
+
+
+// Complex nesting block indentation
+//////////////////////////////////////////////////////////
+
+/////////////////////////////
+///// Non-bracer blocks /////
+/////////////////////////////
+
+// Explicit blocks, one line
+if call(func do return true end) then print "case true" else print "case false" end
+
+// Single-expressions, one line
+if call(func do return true end) then print "case true" else print "case false" end
+
+// Explicit blocks, multiple lines
+if call(func => true) then
+	print "case true"
+else
+	print "case false"
+end
+
+// Single-expressions, multiple lines
+if call(func => true)
+	print "case true"
+else
+	print "case false"
+
+/////////////////////////
+///// Bracer blocks /////
+/////////////////////////
+
+// Explicit blocks, one line
+if call(func { return true }) { print "case true" } else { print "case false" }
+
+// Single-expressions, one line
+if call(func do return true end) then print "case true" else print "case false" end
+
+// Explicit blocks, multiple lines
+if call(func => true)
+{
+	print "case true"
+}
+else
+{
+	print "case false"
+}
+
+// Single-expressions, multiple lines
+if call(func => true)
+	print "case true"
+else
+	print "case false"
+
+//////////////////////////////////////////////////////////
+
+// Something something printf
+func parse_fmt_params(fmt : string) -> fmt_param[] do 
+	...
+end
+func to_types(params_data : fmt_param[]) -> type(display)[] do
+	...
+end
+func printf(fmt : string, params : to_types($params_data)) 
+		where $params_data = parse_fmt_params(fmt) do
+	var slice_pos = 0
+	for (param, param_data) in (params, params_data) do
+		#output.print(fmt[slice_pos..param_data.start]
+		#output.print(param.display)
+		slice_pos += param_data.length
+	end
+	#output.print(fmt[slice_pos..])
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -63,7 +63,7 @@ fn test_block_incomplete() {
 
 #[test]
 fn test_block_stray_close() {
-    let errors = verify_exact_scan("*/", &[]);
+    let errors = verify_exact_scan_with_errors("*/", &[]);
     expect_error_ids(&errors, &[new_error_id(errors::UnexpectedSequence)]);
 }
 
