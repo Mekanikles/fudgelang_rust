@@ -30,6 +30,10 @@ pub enum TokenType {
 
     // Keywords
     If,
+    Def, 
+    Func,
+    Do,
+    End,
 
     // Tokens with significant data
     Identifier,

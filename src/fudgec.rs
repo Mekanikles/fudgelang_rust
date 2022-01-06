@@ -16,63 +16,76 @@ struct CommandLineParameters {
     #[structopt(parse(from_os_str))]
     file: std::path::PathBuf,
 
-    #[structopt(short = "r", long = "repeats", default_value = "1")]
-    repeats: u64,
+    #[structopt(short = "r", long = "bench-repeats", default_value = "0")]
+    bench_repeats: u64,
 
-    #[structopt(short = "t", long = "print-tokens")]
+    #[structopt(short = "t", long = "output-tokens")]
     print_tokens: bool,
 }
 
 fn main() {
     let params = CommandLineParameters::from_args();
 
-    let repeats = params.repeats;
-    let source = source::FileSource::from_filepath(params.file.clone());
+    // Bench mode
+    if params.bench_repeats > 0 {
+        let repeats = params.bench_repeats;
+        let mut tokens = Vec::with_capacity(100000);
 
-    let mut tokens = Vec::with_capacity(100000);
+        let mut total_scan_time = tempus_fugit::Measurement::zero();
 
-    let mut total_time = tempus_fugit::Measurement::zero();
+        let source = source::FileSource::from_filepath(params.file.clone());
 
-    for _i in 0..repeats {
-        // Scan all tokens
-        tokens.clear();
-        let mut scanner = scanner::ScannerImpl::new(&source);
-        let (_, measurement) = measure! {{
-            while let Some(n) = scanner.read_token() {
-                tokens.push(n);
-            }
-        }};
+        for _i in 0..repeats {
+            // Scan all tokens
+            tokens.clear();
+            let mut scanner = scanner::ScannerImpl::new(&source);
+            let (_, measurement) = measure! {{
+                while let Some(t) = scanner.read_token() {
+                    tokens.push(t);
+                }
+            }};
 
-        total_time = (total_time + measurement).unwrap();
-
-        if params.print_tokens {
-            println!("Tokens:");
-            print!("    ");
-            for t in &tokens {
-                print!(
-                    "{:?}, ",
-                    scanner::token::TokenDisplay {
-                        token: t,
-                        scanner: &scanner
-                    }
-                );
-            }
-            println!("");
+            total_scan_time = (total_scan_time + measurement).unwrap();
         }
-
-        // Print errors
-        output::print_errors(scanner.get_errors(), &source);
+        
+        println!(
+            "Scanned {} tokens in {}, {} times. ({} per scan)",
+            tokens.len(),
+            total_scan_time,
+            repeats,
+            tempus_fugit::Measurement::from(
+                tempus_fugit::Duration::from(total_scan_time.clone()) / repeats as i32
+            )
+        );
     }
 
-    println!(
-        "Scanned {} tokens in {}, {} times. ({} per scan)",
-        tokens.len(),
-        total_time,
-        repeats,
-        tempus_fugit::Measurement::from(
-            tempus_fugit::Duration::from(total_time.clone()) / repeats as i32
-        )
-    );
+    let source = source::FileSource::from_filepath(params.file.clone());
+
+    // If printing tokens, do a separate scan for the print
+    if params.print_tokens {
+        let mut scanner = scanner::ScannerImpl::new(&source);
+
+        println!("Tokens:");
+        print!("    ");
+        while let Some(t) = scanner.read_token() {
+            print!(
+                "{:?}, ",
+                scanner::token::TokenDisplay {
+                    token: &t,
+                    scanner: &scanner
+                }
+            );
+        }
+        println!("");
+    }
+
+    // Scan and parse
+    let mut scanner = scanner::ScannerImpl::new(&source);
+    let mut parser = parser::Parser::new(&mut scanner);
+    parser.parse();
+
+    // Print errors
+    output::print_errors(scanner.get_errors(), &source);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

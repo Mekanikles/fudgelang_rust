@@ -17,6 +17,10 @@ const MINOR_ERROR_THRESHOLD: usize = 20;
 // Map with all scannable keywords
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "if" => TokenType::If,
+    "def" => TokenType::Def,
+    "func" => TokenType::Func,
+    "do" => TokenType::Do,
+    "end" => TokenType::End,
 };
 
 // TODO: This is not a good place for this, has nothing to do with the scanner
@@ -484,7 +488,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         {
             self.reader.advance();
         }
-        
+
         return Token::new(
             TokenType::StringLiteral,
             startpos,
