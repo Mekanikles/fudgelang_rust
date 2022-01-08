@@ -91,7 +91,7 @@ fn test_non_utf8_sequence() {
         ],
     );
     expect_error_ids(
-        &scanner.error_data.errors,
+        &scanner.get_errors(),
         &[
             new_error_id(errors::NonUtf8Sequence),
             new_error_id(errors::NonUtf8Sequence),

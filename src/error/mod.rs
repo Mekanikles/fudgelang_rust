@@ -15,7 +15,7 @@ pub mod errors {
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum FatalErrorType {
-        UnexpetedEOF,
+        UnexpectedEOF,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -23,14 +23,23 @@ pub mod errors {
         InvalidSequece,
         NonUtf8Sequence,
         UnexpectedSequence,
+        UnexpectedToken,
+        ExpectedExpression,
+        UnknownCompilerDirective,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum MinorErrorType {
         NonAsciiIdentifier,
         InvalidIndentation,
+        ExpectedInputParameterDeclaration,
+        ExpectedOutputParameterDeclaration,
     }
 }
+
+const FATAL_ERROR_THRESHOLD: usize = 1;
+const MAJOR_ERROR_THRESHOLD: usize = 5;
+const MINOR_ERROR_THRESHOLD: usize = 20;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ErrorId {
@@ -117,5 +126,68 @@ impl Error {
     }
     pub fn at_token<T: ErrorIdConstructor>(t: T, token: &token::Token, message: String) -> Error {
         Self::at_span(t, token.source_span, message)
+    }
+}
+
+pub struct ErrorData {
+    fatal_error_count: usize,
+    major_error_count: usize,
+    minor_error_count: usize,
+    errors: Vec<Error>,
+}
+
+pub struct ErrorManager {
+    reached_error_limit : bool,
+    error_data : ErrorData,
+}
+
+impl ErrorManager {
+    pub fn new() -> Self {
+        ErrorManager {
+            reached_error_limit: false,
+            error_data: ErrorData {
+                fatal_error_count: 0,
+                major_error_count: 0,
+                minor_error_count: 0,
+                errors: Vec::new(),
+            },
+        }
+    }
+    
+    pub fn reached_error_limit(&self) -> bool {
+        return self.reached_error_limit;
+    }
+
+    pub fn get_errors(&self) -> &Vec<Error> {
+        return &self.error_data.errors;
+    }
+
+    pub fn log_error(&mut self, error: Error) {
+        match error.id {
+            ErrorId::FatalError(_e) => {
+                self.error_data.fatal_error_count += 1;
+                if self.error_data.fatal_error_count >= FATAL_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
+            ErrorId::MajorError(_e) => {
+                self.error_data.major_error_count += 1;
+                if self.error_data.major_error_count >= MAJOR_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
+            ErrorId::MinorError(_e) => {
+                self.error_data.minor_error_count += 1;
+                if self.error_data.minor_error_count >= MINOR_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
+        }
+        self.error_data.errors.push(error);
+    }
+
+    pub fn adjust_last_error_end(&mut self, end : u64) {
+        let pos = self.error_data.errors.last_mut().unwrap().source_span.pos;
+        self.error_data.errors.last_mut().unwrap().source_span.len = (end - pos) as usize;
     }
 }

@@ -5,7 +5,7 @@ def add = func(a : u32, b : u32) -> u32 do
 end
 
 def print = func(a : u32) do
-	#output.print_format "Ditt nummer är: %u", a
+	#output.print_format("Ditt nummer är: %u", a)
 end
 
 print(add(123, 42))

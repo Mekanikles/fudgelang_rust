@@ -64,7 +64,7 @@ pub fn verify_exact_scan_with_errors(source: &str, expected_tokens: &[Token]) ->
     let mut scanner = ScannerImpl::new(&source);
 
     verify_exact_scanner_tokens(&mut scanner, expected_tokens);
-    return scanner.error_data.errors.clone();
+    return scanner.get_errors().clone();
 }
 
 pub fn verify_exact_scan(source: &str, expected_tokens: &[Token]) {
@@ -78,7 +78,7 @@ pub fn verify_sparse_scan_with_errors(source: &str, expected_tokens: &[Token]) -
     let mut scanner = ScannerImpl::new(&source);
 
     verify_sparse_scanner_tokens(&mut scanner, expected_tokens);
-    return scanner.error_data.errors.clone();
+    return scanner.get_errors().clone();
 }
 
 pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) {
@@ -90,5 +90,5 @@ pub fn do_scan_with_errors(source: &str) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
     while scanner.read_token().is_some() {};
-    return scanner.error_data.errors.clone();
+    return scanner.get_errors().clone();
 }

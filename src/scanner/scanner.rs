@@ -10,10 +10,6 @@ use phf::phf_map;
 use std::io::BufReader;
 use std::io::BufRead;
 
-const FATAL_ERROR_THRESHOLD: usize = 1;
-const MAJOR_ERROR_THRESHOLD: usize = 5;
-const MINOR_ERROR_THRESHOLD: usize = 20;
-
 // Map with all scannable keywords
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "if" => TokenType::If,
@@ -37,24 +33,16 @@ pub trait Scanner {
     fn read_token(&mut self) -> Option<Token>;
 }
 
-pub struct ErrorData {
-    fatal_error_count: usize,
-    major_error_count: usize,
-    minor_error_count: usize,
-    pub errors: Vec<error::Error>,
-}
-
 pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     source: &'a S,
     reader: source::LookAheadReader<R>,
     allow_indentation : bool,
-    reached_error_limit : bool,    
-    pub error_data : ErrorData,
+    errors : error::ErrorManager,
 }
 
 impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {  
     fn get_errors(&self) -> &Vec<error::Error> {
-        return &self.error_data.errors;
+        return self.errors.get_errors();
     }
 
     fn get_token_source_string(&self, token: &Token) -> String {
@@ -92,7 +80,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
         while let Some(n) = self.reader.peek() {
             // If we have reached the maximum allowed errors before producing a token
             //  consider the scan ended
-            if self.reached_error_limit {
+            if self.errors.reached_error_limit() {
                 return None;
             }
 
@@ -100,7 +88,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
             if n == b'\t' {
                 let indentation_token = self.produce_indentation();
                 if !self.allow_indentation {
-                    self.log_error(error::new_invalid_indentation_error(
+                    self.errors.log_error(error::new_invalid_indentation_error(
                         indentation_token.source_span.pos,
                         indentation_token.source_span.len as u64));
                     continue;
@@ -130,12 +118,12 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                     Some(b'>') => return Some(self.produce_token_and_advance_n(TokenType::Arrow, 2)),
                     _ => return Some(self.produce_token_and_advance(TokenType::Minus))
                 },
-                b'(' => return Some(self.produce_token_and_advance(TokenType::LeftParenthesis)),
-                b')' => return Some(self.produce_token_and_advance(TokenType::RightParenthesis)),
-                b'[' => return Some(self.produce_token_and_advance(TokenType::LeftSquareBracket)),
-                b']' => return Some(self.produce_token_and_advance(TokenType::RightSquareBracket)),
-                b'{' => return Some(self.produce_token_and_advance(TokenType::LeftCurlyBrace)),
-                b'}' => return Some(self.produce_token_and_advance(TokenType::RightCurlyBrace)),
+                b'(' => return Some(self.produce_token_and_advance(TokenType::OpeningParenthesis)),
+                b')' => return Some(self.produce_token_and_advance(TokenType::ClosingParenthesis)),
+                b'[' => return Some(self.produce_token_and_advance(TokenType::OpeningSquareBracket)),
+                b']' => return Some(self.produce_token_and_advance(TokenType::ClosingSquareBracket)),
+                b'{' => return Some(self.produce_token_and_advance(TokenType::OpeningCurlyBrace)),
+                b'}' => return Some(self.produce_token_and_advance(TokenType::ClosingCurlyBrace)),
                 b';' => return Some(self.produce_token_and_advance(TokenType::SemiColon)),
                 b'#' => return Some(self.produce_token_and_advance(TokenType::Hash)),
                 b'/' => match self.reader.lookahead() {
@@ -145,7 +133,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 },
                 b'*' => match self.reader.lookahead() {
                     Some(b'/') => {
-                        self.log_error(error::new_unexpected_sequence_error(
+                        self.errors.log_error(error::new_unexpected_sequence_error(
                             self.reader.pos(),
                             2,
                             "Found stray block comment end".into(),
@@ -180,7 +168,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
 
                 if !invalid_sequence_started {
                     invalid_sequence_started = true;
-                    self.log_error(error::new_invalid_sequence_error(
+                    self.errors.log_error(error::new_invalid_sequence_error(
                         pos,
                         self.reader.pos() - pos,
                     ));
@@ -189,7 +177,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 {
                     // TODO: Check that last error len matches current posision
                     //  there might be spacing in-between
-                    self.adjust_last_error_end(self.reader.pos());
+                    self.errors.adjust_last_error_end(self.reader.pos());
                 }
             }
         }
@@ -204,13 +192,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             source: source,
             reader: source::LookAheadReader::new(source.get_readable()),
             allow_indentation: true,
-            reached_error_limit: false,
-            error_data: ErrorData {
-                fatal_error_count: 0,
-                major_error_count: 0,
-                minor_error_count: 0,
-                errors: Vec::new(),
-            },
+            errors: error::ErrorManager::new(),
         }
     }
 
@@ -227,35 +209,6 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             Err(_) => (),
         }
         return "".into();
-    }
-
-    fn log_error(&mut self, error: error::Error) {
-        match error.id {
-            error::ErrorId::FatalError(_e) => {
-                self.error_data.fatal_error_count += 1;
-                if self.error_data.fatal_error_count >= FATAL_ERROR_THRESHOLD {
-                    self.reached_error_limit = true;
-                }
-            }
-            error::ErrorId::MajorError(_e) => {
-                self.error_data.major_error_count += 1;
-                if self.error_data.major_error_count >= MAJOR_ERROR_THRESHOLD {
-                    self.reached_error_limit = true;
-                }
-            }
-            error::ErrorId::MinorError(_e) => {
-                self.error_data.minor_error_count += 1;
-                if self.error_data.minor_error_count >= MINOR_ERROR_THRESHOLD {
-                    self.reached_error_limit = true;
-                }
-            }
-        }
-        self.error_data.errors.push(error);        
-    }
-
-    fn adjust_last_error_end(&mut self, end : u64) {
-        let pos = self.error_data.errors.last_mut().unwrap().source_span.pos;
-        self.error_data.errors.last_mut().unwrap().source_span.len = (end - pos) as usize;
     }
 
     fn read_utf8_char(&mut self) -> Option<char> {
@@ -308,7 +261,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return match self.read_utf8_char() {
             Some(n) => Some(n),
             None => {
-                self.log_error(error::new_non_utf8_sequence_error(pos, self.reader.pos() - pos));
+                self.errors.log_error(error::new_non_utf8_sequence_error(pos, self.reader.pos() - pos));
                 None
             }
         };
@@ -363,7 +316,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
         if blocklevel != 0 {
             // TODO: Add error reference to start of comment
-            self.log_error(error::new_unexpected_eof_error(
+            self.errors.log_error(error::new_unexpected_eof_error(
                 self.reader.pos(),
                 "Unexpected end of file inside block comment".into()));
         }
@@ -416,7 +369,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             self.read_utf8_char_with_error();
         }
 
-        self.log_error(error::new_non_ascii_identifier_error(
+        self.errors.log_error(error::new_non_ascii_identifier_error(
             sourcepos, 
             self.reader.pos() - sourcepos,
             self.get_source_string(sourcepos, (self.reader.pos() - sourcepos) as usize)));
@@ -480,7 +433,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
         // TODO: Add error reference to start of literal
         if self.reader.peek().is_none() {
-            self.log_error(error::new_unexpected_eof_error(
+            self.errors.log_error(error::new_unexpected_eof_error(
                 self.reader.pos(),
                 "Unexpected end of file inside string literal".into()));
         }
@@ -508,7 +461,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
         // TODO: Add error reference to start of literal
         if self.reader.peek().is_none() {
-            self.log_error(error::new_unexpected_eof_error(
+            self.errors.log_error(error::new_unexpected_eof_error(
                 self.reader.pos(),
                 "Unexpected end of file inside character literal".into()));
         }

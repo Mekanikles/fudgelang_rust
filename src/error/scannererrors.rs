@@ -2,7 +2,7 @@ use super::*;
 
 pub fn new_unexpected_eof_error(pos: u64, message: String) -> Error {
     Error::at_span(
-        errors::UnexpetedEOF,
+        errors::UnexpectedEOF,
         source::SourceSpan {
             pos,
             len: 1,
