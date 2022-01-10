@@ -28,6 +28,7 @@ insta = "1.7"
 
 [profile.release]
 debug = true
+panic = 'abort'
 
 [[bench]]
 name = "scanner_benchmark"

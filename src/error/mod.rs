@@ -16,6 +16,7 @@ pub mod errors {
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum FatalErrorType {
         UnexpectedEOF,
+        ErrorLimitExceeded,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -162,8 +163,11 @@ impl ErrorManager {
         return &self.error_data.errors;
     }
 
-    pub fn log_error(&mut self, error: Error) {
-        match error.id {
+    pub fn log_error(&mut self, error: Error) -> ErrorId {
+        let id = error.id;
+        self.error_data.errors.push(error);
+
+        match id {
             ErrorId::FatalError(_e) => {
                 self.error_data.fatal_error_count += 1;
                 if self.error_data.fatal_error_count >= FATAL_ERROR_THRESHOLD {
@@ -183,7 +187,7 @@ impl ErrorManager {
                 }
             }
         }
-        self.error_data.errors.push(error);
+        return id;
     }
 
     pub fn adjust_last_error_end(&mut self, end : u64) {
