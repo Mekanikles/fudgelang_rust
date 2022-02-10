@@ -84,10 +84,13 @@ fn main() {
     let mut parser = parser::Parser::new(&mut scanner);
     parser.parse();
 
+    let mut treeWalker = interpreter::TreeWalker::new(&parser.ast);
+    treeWalker.interpret();
+
     // Print errors
     // TODO: Have to print in this order, since parse borrows scanner
     output::print_errors(parser.get_errors(), &source);
-    output::print_errors(scanner.get_errors(), &source);
-   
+    output::print_errors(scanner.get_errors(), &source);    
+    
     println!("{}", Color::Green.bold().paint("Done"));
 }

@@ -34,6 +34,7 @@ pub enum TokenType {
     Func,
     Do,
     End,
+    Return,
 
     // Tokens with significant data
     Identifier,

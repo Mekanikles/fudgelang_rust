@@ -451,19 +451,22 @@ end
 if call(func do return true end) then print "case true" else print "case false" end
 
 // Single-expressions, one line
-if call(func do return true end) then print "case true" else print "case false" end
+if call(func => true) print "case true" else print "case false"
 
 // Explicit blocks, multiple lines
-if call(func => true) then
+if call(
+	func do 
+		return true 
+	end,
+	func do 
+		return true 
+	end)
 	print "case true"
-else
-	print "case false"
-end
 
 // Single-expressions, multiple lines
 if call(func => true)
 	print "case true"
-else
+else if call(func => true)
 	print "case false"
 
 /////////////////////////
@@ -474,10 +477,14 @@ else
 if call(func { return true }) { print "case true" } else { print "case false" }
 
 // Single-expressions, one line
-if call(func do return true end) then print "case true" else print "case false" end
+if call(func => true) print "case true" else print "case false"
 
 // Explicit blocks, multiple lines
-if call(func => true)
+if call(
+	func 
+	{
+		return true 
+	})
 {
 	print "case true"
 }

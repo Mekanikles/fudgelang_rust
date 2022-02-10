@@ -1,4 +1,7 @@
+use std::convert::From;
+
 use regex::Regex;
+use enum_dispatch::enum_dispatch;
 
 use std::str;
 use std::fmt;
@@ -6,12 +9,12 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BuiltInFunction {
     PrintFormat,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BuiltInPrimitiveType {
     U32,
 }
@@ -27,9 +30,11 @@ pub struct NodeRef {
     index: u32,
 }
 
+pub use u64 as SymbolKey;
+
 #[derive(Copy, Clone)]
 pub struct SymbolRef {
-    key: u64,
+    pub key: SymbolKey,
 }
 
 impl<'a> fmt::Debug for NodeRef {
@@ -61,7 +66,7 @@ impl Ast {
     }
 
     pub fn reserve_node(&mut self) -> NodeRef {
-        self.nodes.push(Node::Invalid);
+        self.nodes.push(Invalid{}.into());
         return NodeRef {
             index: (self.nodes.len() - 1) as u32,
         };
@@ -73,7 +78,7 @@ impl Ast {
     }
 
     pub fn replace_node(&mut self, noderef: NodeRef, node: Node) -> NodeRef {
-        *self.get_node_mut(noderef.index) = node;
+        *self.get_node_mut(&noderef) = node;
         return noderef;
     }
 
@@ -84,16 +89,23 @@ impl Ast {
         };
     }
 
-    pub fn get_node_mut<'a>(&'a mut self, index: u32) -> &'a mut Node {
-        return &mut self.nodes[index as usize];
+    pub fn get_node_mut<'a>(&'a mut self, noderef: &NodeRef) -> &'a mut Node {
+        return &mut self.nodes[noderef.index as usize];
     }
 
-    pub fn get_node<'a>(&'a self, index: u32) -> &'a Node {
-        return & self.nodes[index as usize];
+    pub fn get_node<'a>(&'a self, noderef: &NodeRef) -> &'a Node {
+        return &self.nodes[noderef.index as usize];
     }
 
     pub fn set_root(&mut self, n: NodeRef) {
         self.root_index = Some(n.index);
+    }
+
+    pub fn get_root_node<'a>(&'a self) -> Option<&'a Node> {
+        if let Some(n) = self.get_root() {
+            return Some(self.get_node(&n));
+        }
+        return None;
     }
 
     pub fn get_root(&self) -> Option<NodeRef> {
@@ -116,62 +128,119 @@ impl Ast {
 
         return SymbolRef { key };
     }
+
+    pub fn get_symbol(&self, symbolRef: &SymbolRef) -> Option<&String> {
+        self.symbols.get(&symbolRef.key)
+    }
 }
 
+#[enum_dispatch]
+pub trait NamedNode {
+    fn name(&self) -> &str;
+}
+
+macro_rules! node_type {
+    ($name:ident {$($field:ident: $t:ty,)*}) => {
+        #[derive(Debug)]
+        pub struct $name {
+            $(pub $field: $t),*
+        }
+
+        impl NamedNode for $name {
+            fn name(&self) -> &str { stringify!($name) }
+        }
+    }
+}
+
+node_type!(Invalid {
+});
+
+node_type!(ModuleFragment {
+    statementbody: NodeRef,
+});
+
+node_type!(StatementBody {
+    statements: Vec<NodeRef>,
+});
+
+node_type!(IntegerLiteral {
+    value: u64,
+    signed: bool,
+});
+
+node_type!(StringLiteral {
+    text: String,
+});
+
+node_type!(FunctionLiteral {
+    inputparams: Vec<NodeRef>,
+    outputparams: Vec<NodeRef>,
+    body: NodeRef,
+});
+
+node_type!(InputParameter {
+    symbol: SymbolRef,
+    typeexpr: NodeRef,
+});
+
+node_type!(OutputParameter {
+    typeexpr: NodeRef,
+});
+
+node_type!(BuiltInObjectReference {
+    object: BuiltInObject,
+});
+
+node_type!(SymbolReference {
+    symbol: SymbolRef,
+});
+
+node_type!(ReturnStatement {
+    expr: NodeRef,
+});
+
+node_type!(ArgumentList {
+    args: Vec<NodeRef>,
+});
+
+node_type!(CallOperation {
+    expr: NodeRef,
+    arglist: NodeRef,
+});
+
+node_type!(BinaryOperation {
+    // TODO: optype
+    lhs: NodeRef,
+    rhs: NodeRef,
+});
+
+node_type!(SymbolDeclaration {
+    symbol: SymbolRef,
+    typeexpr: Option<NodeRef>,
+    initexpr: NodeRef,
+});
+
+#[enum_dispatch(NamedNode)]
 #[derive(Debug)]
 pub enum Node {
     Invalid,
-    StatementBody {
-        statements: Vec<NodeRef>
-    },
-    IntegerLiteral {
-        value: u64,
-        signed: bool,
-    },
+    ModuleFragment,
+    StatementBody,
+    IntegerLiteral,
     // TODO: BigIntegerLiteral
-    StringLiteral {
-        text: String,
-    },
-    FunctionLiteral {
-        inputparams: Vec<NodeRef>,
-        outputparams: Vec<NodeRef>,
-        body: NodeRef,
-    },
-    InputParameter {
-        symbol: SymbolRef,
-        typeexpr: NodeRef,
-    },
-    OutputParameter {
-        typeexpr: NodeRef,
-    },
-    BuiltInObjectReference { // NOTE: This shortcuts having to evaluate built-ins as ordinary expressions
-        object: BuiltInObject,
-    },
-    SymbolReference {
-        symbol: SymbolRef,
-    },
-    ReturnStatement {
-        expr: NodeRef,
-    },
-    ArgumentList {
-        args: Vec<NodeRef>,
-    },
+    StringLiteral,
+    FunctionLiteral,
+    InputParameter,
+    OutputParameter,
+    BuiltInObjectReference, // NOTE: This shortcuts having to evaluate built-ins as ordinary expressions
+    SymbolReference,
+    ReturnStatement,
+    ArgumentList,
     // TODO: Can this be generalized to parameterized symbol reference?
     //  The same syntax is used for function calls, type parameteters etc
-    CallOperation {
-        expr: NodeRef,
-        arglist: NodeRef,
-    },
-    BinaryOperation {
-        // TODO: optype
-        lhs: NodeRef,
-        rhs: NodeRef,
-    },
-    SymbolDeclaration {
-        symbol: SymbolRef,
-        typeexpr: Option<NodeRef>,
-        initexpr: Option<NodeRef>,
-    }
+    CallOperation,
+    BinaryOperation,
+    SymbolDeclaration,
 }
 
 struct AstPrinter<'a> {
@@ -206,7 +275,7 @@ impl<'a> AstPrinter<'a> {
     }
 
     fn node_print(&mut self, noderef : &NodeRef) {
-        let node = self.ast.get_node(noderef.index);
+        let node = self.ast.get_node(noderef);
         let mut nodetext = format!("{:?}", node);
 
         // Make symbol references human readable
@@ -234,51 +303,54 @@ impl<'a> AstPrinter<'a> {
         println!("{:indent$}{}: {:?}", "", noderef.index, nodetext, indent=(self.left_padding + self.level * 4) as usize);
         
         // Recurse into subtree
-        match node {
-            Node::Invalid | 
-            Node::IntegerLiteral {..} |
-            Node::StringLiteral {..} |
-            Node::BuiltInObjectReference {..} |
-            Node::SymbolReference {..} => (),
-            Node::StatementBody {statements, ..} => {
-                for s in statements {
+        match &node {
+            Node::Invalid(_) => (),
+            Node::IntegerLiteral(_n) => (),
+            Node::StringLiteral(_n) => (),
+            Node::BuiltInObjectReference(_n) => (),
+            Node::SymbolReference(_n) => (),
+            Node::ModuleFragment(n) => {
+                self.print_child(&n.statementbody);
+            }
+            Node::StatementBody(n) => {
+                for s in &n.statements {
                     self.print_child(s);
                 }
             },
-            Node::FunctionLiteral {inputparams, outputparams, body} => {
-                for p in inputparams {
+            Node::FunctionLiteral(n) => {
+                for p in &n.inputparams {
                     self.print_child(p);
                 }
-                for p in outputparams {
+                for p in &n.outputparams {
                     self.print_child(p);
                 }
-                self.print_child(body);
+                self.print_child(&n.body);
             },
-            Node::InputParameter {typeexpr, ..} => {
-                self.print_child(typeexpr);
+            Node::InputParameter(n) => {
+                self.print_child(&n.typeexpr);
             },
-            Node::OutputParameter {typeexpr, ..} => {
-                self.print_child(typeexpr);
+            Node::OutputParameter(n) => {
+                self.print_child(&n.typeexpr);
             },
-            Node::ReturnStatement {expr, ..} => {
-                self.print_child(expr);
+            Node::ReturnStatement(n) => {
+                self.print_child(&n.expr);
             },
-            Node::ArgumentList {args, ..} => {
-                for a in args {
+            Node::ArgumentList(n) => {
+                for a in &n.args {
                     self.print_child(a);
                 }
             }
-            Node::CallOperation {expr, arglist, ..} => {
-                self.print_child(expr);
-                self.print_child(arglist);
+            Node::CallOperation(n) => {
+                self.print_child(&n.expr);
+                self.print_child(&n.arglist);
             },
-            Node::BinaryOperation {lhs, rhs, ..} => {
-                self.print_child(lhs);
-                self.print_child(rhs);
+            Node::BinaryOperation(n) => {
+                self.print_child(&n.lhs);
+                self.print_child(&n.rhs);
             }
-            Node::SymbolDeclaration {typeexpr, initexpr, ..} => {
-                self.print_optional_child(typeexpr);
-                self.print_optional_child(initexpr);
+            Node::SymbolDeclaration(n) => {
+                self.print_optional_child(&n.typeexpr);
+                self.print_child(&n.initexpr);
             }
         }
     }

@@ -6,7 +6,7 @@ pub trait TokenStream {
     fn get_token_string(&self, token: &Token) -> String;
 }
 
-// Implemtation for Scanners
+// Implementation for Scanners
 impl<T> TokenStream for T where T: Scanner {
     fn read_token(&mut self) -> Option<Token> {
         return Scanner::read_token(self);

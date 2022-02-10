@@ -17,6 +17,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "func" => TokenType::Func,
     "do" => TokenType::Do,
     "end" => TokenType::End,
+    "return" => TokenType::Return,
 };
 
 // TODO: This is not a good place for this, has nothing to do with the scanner
