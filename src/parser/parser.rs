@@ -6,6 +6,11 @@ use super::tokenstream::TokenStream;
 use super::ast;
 use super::ast::Ast;
 
+use crate::parser::stringstore::*;
+use crate::typesystem::*;
+
+use StringRef as SymbolRef;
+
 pub struct Parser<'a, T: TokenStream>
 {
     tokens: &'a mut T,
@@ -101,7 +106,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         return self.tokens.get_token_string(self.last_token.as_ref().unwrap());
     }
 
-    fn get_last_token_symbol(&mut self) -> ast::SymbolRef {
+    fn get_last_token_symbol(&mut self) -> SymbolRef {
         let text = self.get_last_token_text();
         return self.ast.add_symbol(&*text);
     }
@@ -256,6 +261,26 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         }.into()));
     }
 
+    fn accept_binaryoperator(&mut self) -> Option<ast::BinaryOperationType> {
+        if let Some(tt) = &self.current_token {
+            let r = match tt.tokentype {
+                TokenType::Plus => Some(ast::BinaryOperationType::Add),
+                TokenType::Minus => Some(ast::BinaryOperationType::Sub),
+                TokenType::Star => Some(ast::BinaryOperationType::Mul),
+                TokenType::Slash => Some(ast::BinaryOperationType::Div),
+                _ => None,
+            };
+
+            if r.is_some() {
+                self.advance();
+            }
+
+            return r;
+        }
+
+        return None;
+    }
+
     fn parse_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if self.accept(TokenType::StringLiteral) {
             let text = self.get_last_token_text();
@@ -293,7 +318,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             }
 
             // TODO: Hack! Hard-coded plus-expression, replace with shunting yard for all operators
-            if self.accept(TokenType::Plus) {
+            if let Some(op) = self.accept_binaryoperator() {
                 let node = self.ast.reserve_node();
                 let lhs = self.ast.add_node(ast::SymbolReference {
                     symbol: s,
@@ -301,6 +326,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
 
                 if let Some(n) = self.parse_expression()? {
                     return Ok(Some(self.ast.replace_node(node, ast::BinaryOperation {
+                        optype: op,
                         lhs: lhs,
                         rhs: n,
                     }.into())));
@@ -349,7 +375,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 if symbolstrings.last().filter(|s| *s == "u32").is_some() {
                     symbolstrings.pop();
                     return Ok(Some(self.ast.add_node(ast::BuiltInObjectReference {
-                        object: ast::BuiltInObject::PrimitiveType(ast::BuiltInPrimitiveType::U32)
+                        object: ast::BuiltInObject::PrimitiveType(PrimitiveType::U32)
                     }.into())));
                 }
             }
@@ -360,7 +386,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                     let node = self.ast.reserve_node();
 
                     let builtinfunc = self.ast.add_node(ast::BuiltInObjectReference {
-                        object: ast::BuiltInObject::Function(ast::BuiltInFunction::PrintFormat)
+                        object: ast::BuiltInObject::Function(BuiltInFunction::PrintFormat)
                     }.into());
 
                     self.expect(TokenType::OpeningParenthesis)?;
@@ -521,6 +547,11 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         }
         else {
             println!("Only parsed {} tokens..." , self.temp_tokencount);
+
+            println!("Unparsed tokens:");
+            while let Some(t) = self.tokens.read_token() {
+                println!("{:?}", t);
+            }
         }
 
         println!("AST:");

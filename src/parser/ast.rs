@@ -1,40 +1,23 @@
-use std::convert::From;
-
 use regex::Regex;
 use enum_dispatch::enum_dispatch;
 
 use std::str;
 use std::fmt;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum BuiltInFunction {
-    PrintFormat,
-}
+use crate::typesystem::*;
+use crate::parser::stringstore::*;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum BuiltInPrimitiveType {
-    U32,
-}
+use StringRef as SymbolRef;
 
 #[derive(Debug)]
 pub enum BuiltInObject {
     Function(BuiltInFunction),
-    PrimitiveType(BuiltInPrimitiveType)
+    PrimitiveType(PrimitiveType)
 }
 
 #[derive(Copy, Clone)]
 pub struct NodeRef {
     index: u32,
-}
-
-pub use u64 as SymbolKey;
-
-#[derive(Copy, Clone)]
-pub struct SymbolRef {
-    pub key: SymbolKey,
 }
 
 impl<'a> fmt::Debug for NodeRef {
@@ -43,17 +26,10 @@ impl<'a> fmt::Debug for NodeRef {
     }
 }
 
-impl<'a> fmt::Debug for SymbolRef {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return f.write_fmt(format_args!("<Symbol {}>", self.key))
-    }
-}
-
 pub struct Ast {
     nodes: Vec<Node>,
     root_index: Option<u32>,
-
-    symbols: HashMap<u64, String>,
+    symbols: StringStore,
 }
 
 impl Ast {
@@ -61,7 +37,7 @@ impl Ast {
         Ast {
             nodes: Vec::new(),
             root_index: None,
-            symbols: HashMap::new(),
+            symbols: StringStore::new(),
         }
     }
 
@@ -118,19 +94,11 @@ impl Ast {
     }
 
     pub fn add_symbol(&mut self, symbol: &str) -> SymbolRef {
-        let mut hasher = DefaultHasher::new();
-        symbol.hash(&mut hasher);
-        let key = hasher.finish();
-
-        if !self.symbols.contains_key(&key) {
-            self.symbols.insert(key, symbol.into());
-        }
-
-        return SymbolRef { key };
+        return self.symbols.insert(symbol);
     }
 
-    pub fn get_symbol(&self, symbolRef: &SymbolRef) -> Option<&String> {
-        self.symbols.get(&symbolRef.key)
+    pub fn get_symbol(&self, symbolref: &SymbolRef) -> Option<&String> {
+        return self.symbols.get(symbolref);
     }
 }
 
@@ -208,8 +176,16 @@ node_type!(CallOperation {
     arglist: NodeRef,
 });
 
+#[derive(Debug)]
+pub enum BinaryOperationType {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
 node_type!(BinaryOperation {
-    // TODO: optype
+    optype: BinaryOperationType,
     lhs: NodeRef,
     rhs: NodeRef,
 });
@@ -292,7 +268,7 @@ impl<'a> AstPrinter<'a> {
             for m in match_slices {
                 let mut buf = nodetext.into_bytes();
                 let key = str::from_utf8(&buf[m.1]).unwrap().parse::<u64>();
-                if let Some(s) = self.ast.symbols.get(&key.unwrap()) {
+                if let Some(s) = self.ast.symbols.get(&SymbolRef { key: key.unwrap() }) {
                     buf.splice(m.0, s.bytes());
                 }
                 

@@ -84,8 +84,8 @@ fn main() {
     let mut parser = parser::Parser::new(&mut scanner);
     parser.parse();
 
-    let mut treeWalker = interpreter::TreeWalker::new(&parser.ast);
-    treeWalker.interpret();
+    let mut treewalker = interpreter::TreeWalker::new(&parser.ast);
+    treewalker.interpret();
 
     // Print errors
     // TODO: Have to print in this order, since parse borrows scanner
