@@ -41,9 +41,13 @@ fn test_unexpected_sequence_2() {
 #[test]
 fn test_unexpected_sequence_3() {
     let errors = do_scan_with_errors("\0.\0");
-    expect_error_ids(&errors, &[
-        new_error_id(errors::InvalidSequece),
-        new_error_id(errors::InvalidSequece)]);
+    expect_error_ids(
+        &errors,
+        &[
+            new_error_id(errors::InvalidSequece),
+            new_error_id(errors::InvalidSequece),
+        ],
+    );
 }
 
 #[test]

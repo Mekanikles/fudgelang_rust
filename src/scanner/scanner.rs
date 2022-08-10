@@ -1,14 +1,14 @@
 use super::*;
 use crate::error;
 use crate::source;
+use phf::phf_map;
 use std::debug_assert;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use phf::phf_map;
 
-use std::io::BufReader;
 use std::io::BufRead;
+use std::io::BufReader;
 
 // Map with all scannable keywords
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
@@ -22,26 +22,26 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
 
 // TODO: This is not a good place for this, has nothing to do with the scanner
 pub struct LineInfo {
-    pub text : String,
-    pub line_start : usize,
-    pub row : u32,
+    pub text: String,
+    pub line_start: usize,
+    pub row: u32,
 }
 
 pub trait Scanner {
     fn get_errors(&self) -> &Vec<error::Error>;
     fn get_token_source_string(&self, token: &Token) -> String;
-    fn get_line_info(&self, filepos : u64) -> Option<LineInfo>;
+    fn get_line_info(&self, filepos: u64) -> Option<LineInfo>;
     fn read_token(&mut self) -> Option<Token>;
 }
 
 pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     source: &'a S,
     reader: source::LookAheadReader<R>,
-    allow_indentation : bool,
-    errors : error::ErrorManager,
+    allow_indentation: bool,
+    errors: error::ErrorManager,
 }
 
-impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {  
+impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R, S> {
     fn get_errors(&self) -> &Vec<error::Error> {
         return self.errors.get_errors();
     }
@@ -50,9 +50,9 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
         return self.get_source_string(token.source_span.pos, token.source_span.len);
     }
 
-    fn get_line_info(&self, filepos : u64) -> Option<LineInfo> {
+    fn get_line_info(&self, filepos: u64) -> Option<LineInfo> {
         let mut reader = BufReader::new(self.source.get_readable());
- 
+
         let mut seekpos = 0;
         let mut row = 0;
         let mut text = String::new();
@@ -61,12 +61,11 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 return None;
             }
             let eol = seekpos + bytes_read;
-            if eol > filepos as usize
-            {
+            if eol > filepos as usize {
                 return Some(LineInfo {
                     text,
-                    line_start : seekpos,
-                    row : row + 1,
+                    line_start: seekpos,
+                    row: row + 1,
                 });
             }
             seekpos = eol;
@@ -91,14 +90,13 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 if !self.allow_indentation {
                     self.errors.log_error(error::new_invalid_indentation_error(
                         indentation_token.source_span.pos,
-                        indentation_token.source_span.len as u64));
+                        indentation_token.source_span.len as u64,
+                    ));
                     continue;
-                }
-                else {
+                } else {
                     return Some(indentation_token);
                 }
-            }
-            else if self.allow_indentation {
+            } else if self.allow_indentation {
                 self.allow_indentation = false;
             }
 
@@ -116,13 +114,19 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'=' => return Some(self.produce_token_and_advance(TokenType::Equals)),
                 b'+' => return Some(self.produce_token_and_advance(TokenType::Plus)),
                 b'-' => match self.reader.lookahead() {
-                    Some(b'>') => return Some(self.produce_token_and_advance_n(TokenType::Arrow, 2)),
-                    _ => return Some(self.produce_token_and_advance(TokenType::Minus))
+                    Some(b'>') => {
+                        return Some(self.produce_token_and_advance_n(TokenType::Arrow, 2))
+                    }
+                    _ => return Some(self.produce_token_and_advance(TokenType::Minus)),
                 },
                 b'(' => return Some(self.produce_token_and_advance(TokenType::OpeningParenthesis)),
                 b')' => return Some(self.produce_token_and_advance(TokenType::ClosingParenthesis)),
-                b'[' => return Some(self.produce_token_and_advance(TokenType::OpeningSquareBracket)),
-                b']' => return Some(self.produce_token_and_advance(TokenType::ClosingSquareBracket)),
+                b'[' => {
+                    return Some(self.produce_token_and_advance(TokenType::OpeningSquareBracket))
+                }
+                b']' => {
+                    return Some(self.produce_token_and_advance(TokenType::ClosingSquareBracket))
+                }
                 b'{' => return Some(self.produce_token_and_advance(TokenType::OpeningCurlyBrace)),
                 b'}' => return Some(self.produce_token_and_advance(TokenType::ClosingCurlyBrace)),
                 b';' => return Some(self.produce_token_and_advance(TokenType::SemiColon)),
@@ -130,7 +134,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'/' => match self.reader.lookahead() {
                     Some(b'/') => return Some(self.produce_linecomment()),
                     Some(b'*') => return Some(self.produce_blockcomment()),
-                    _ => return Some(self.produce_token_and_advance(TokenType::Slash))
+                    _ => return Some(self.produce_token_and_advance(TokenType::Slash)),
                 },
                 b'*' => match self.reader.lookahead() {
                     Some(b'/') => {
@@ -142,9 +146,9 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                         self.reader.advance();
                         self.reader.advance();
                         continue;
-                    },
-                    _ => return Some(self.produce_token_and_advance(TokenType::Star))
-                }
+                    }
+                    _ => return Some(self.produce_token_and_advance(TokenType::Star)),
+                },
                 b'\n' => {
                     // TODO: Eat windows-style line breaks as one token
                     self.allow_indentation = true;
@@ -154,7 +158,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'\'' => return Some(self.produce_characterliteral()),
                 b'0'..=b'9' => return Some(self.produce_numericliteral()),
                 b'a'..=b'z' | b'A'..=b'Z' | b'_' => return Some(self.produce_identifier()),
-                _ => ()
+                _ => (),
             }
 
             // If we reach this point, we did not know what to do with this char
@@ -173,9 +177,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                         pos,
                         self.reader.pos() - pos,
                     ));
-                }
-                else
-                {
+                } else {
                     // TODO: Check that last error len matches current posision
                     //  there might be spacing in-between
                     self.errors.adjust_last_error_end(self.reader.pos());
@@ -262,7 +264,10 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return match self.read_utf8_char() {
             Some(n) => Some(n),
             None => {
-                self.errors.log_error(error::new_non_utf8_sequence_error(pos, self.reader.pos() - pos));
+                self.errors.log_error(error::new_non_utf8_sequence_error(
+                    pos,
+                    self.reader.pos() - pos,
+                ));
                 None
             }
         };
@@ -319,7 +324,8 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             // TODO: Add error reference to start of comment
             self.errors.log_error(error::new_unexpected_eof_error(
                 self.reader.pos(),
-                "Unexpected end of file inside block comment".into()));
+                "Unexpected end of file inside block comment".into(),
+            ));
         }
 
         return Token::new(
@@ -360,31 +366,33 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
     }
 
     // Produces an "invalid" identifier and logs an error
-    fn produce_non_ascii_identifier(&mut self, sourcepos : u64) -> Token {
+    fn produce_non_ascii_identifier(&mut self, sourcepos: u64) -> Token {
         // Error recovery: advance until end of non-ascii utf8 sequence
         while let Some(n) = self.reader.peek() {
             if (n as char).is_ascii() && !(n as char).is_ascii_alphanumeric() {
                 break;
             }
-            
+
             self.read_utf8_char_with_error();
         }
 
         self.errors.log_error(error::new_non_ascii_identifier_error(
-            sourcepos, 
+            sourcepos,
             self.reader.pos() - sourcepos,
-            self.get_source_string(sourcepos, (self.reader.pos() - sourcepos) as usize)));
-        
+            self.get_source_string(sourcepos, (self.reader.pos() - sourcepos) as usize),
+        ));
+
         return Token::new(
             TokenType::Identifier,
             sourcepos,
-            (self.reader.pos() - sourcepos) as usize);
+            (self.reader.pos() - sourcepos) as usize,
+        );
     }
 
     // Produce identifier starting at supplied source pos, continuing at the reader pos
-    fn produce_identifier_at_pos(&mut self, sourcepos : u64) -> Token {
+    fn produce_identifier_at_pos(&mut self, sourcepos: u64) -> Token {
         // TODO: This seems unnecessary
-        let mut string : String = String::new();
+        let mut string: String = String::new();
 
         while let Some(n) = self.reader.peek() {
             if !(n as char).is_ascii_alphanumeric() && n != b'_' {
@@ -401,34 +409,33 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         }
 
         // Everything was fine, check if this was a keyword
-        if let Some(tokentype) = KEYWORDS.get(&string)
-        {
+        if let Some(tokentype) = KEYWORDS.get(&string) {
             return Token::new(
-                *tokentype, 
+                *tokentype,
                 sourcepos,
-                (self.reader.pos() - sourcepos) as usize); 
+                (self.reader.pos() - sourcepos) as usize,
+            );
         }
 
         // If not a keyword, it is an identifier
         return Token::new(
             TokenType::Identifier,
             sourcepos,
-            (self.reader.pos() - sourcepos) as usize);
+            (self.reader.pos() - sourcepos) as usize,
+        );
     }
 
     // Produce identifier at reader pos
     fn produce_identifier(&mut self) -> Token {
         return self.produce_identifier_at_pos(self.reader.pos());
-    }  
+    }
 
     fn produce_stringliteral(&mut self) -> Token {
         let startpos = self.reader.pos();
         debug_assert!(self.reader.peek().unwrap() == b'\"');
         self.reader.advance();
 
-        while self.reader.peek().filter(
-            |c| *c != b'\"').is_some()
-        {
+        while self.reader.peek().filter(|c| *c != b'\"').is_some() {
             self.reader.advance();
         }
 
@@ -436,17 +443,17 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         if self.reader.peek().is_none() {
             self.errors.log_error(error::new_unexpected_eof_error(
                 self.reader.pos(),
-                "Unexpected end of file inside string literal".into()));
-        }
-        else
-        {
+                "Unexpected end of file inside string literal".into(),
+            ));
+        } else {
             self.reader.advance();
         }
 
         return Token::new(
             TokenType::StringLiteral,
             startpos,
-            (self.reader.pos() - startpos) as usize);
+            (self.reader.pos() - startpos) as usize,
+        );
     }
 
     fn produce_characterliteral(&mut self) -> Token {
@@ -454,9 +461,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         debug_assert!(self.reader.peek().unwrap() == b'\'');
         self.reader.advance();
 
-        while self.reader.peek().filter(
-            |c| *c != b'\'').is_some()
-        {
+        while self.reader.peek().filter(|c| *c != b'\'').is_some() {
             self.reader.advance();
         }
 
@@ -464,17 +469,17 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         if self.reader.peek().is_none() {
             self.errors.log_error(error::new_unexpected_eof_error(
                 self.reader.pos(),
-                "Unexpected end of file inside character literal".into()));
-        }
-        else
-        {
+                "Unexpected end of file inside character literal".into(),
+            ));
+        } else {
             self.reader.advance();
         }
 
         return Token::new(
             TokenType::CharacterLiteral,
             startpos,
-            (self.reader.pos() - startpos) as usize);
+            (self.reader.pos() - startpos) as usize,
+        );
     }
 
     fn produce_numericliteral(&mut self) -> Token {
@@ -482,11 +487,14 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         debug_assert!(self.reader.peek().unwrap().is_ascii_digit());
         self.reader.advance();
 
-        // Note: we eat all trailing alphanumericals in this function, parsing of the 
+        // Note: we eat all trailing alphanumericals in this function, parsing of the
         //  actual number and error reporting happens when constructing AST
 
-        while self.reader.peek().filter(
-            |c| c.is_ascii_alphanumeric() || *c == b'.').is_some()
+        while self
+            .reader
+            .peek()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == b'.')
+            .is_some()
         {
             self.reader.advance();
         }
@@ -494,7 +502,8 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return Token::new(
             TokenType::NumericLiteral,
             startpos,
-            (self.reader.pos() - startpos) as usize);
+            (self.reader.pos() - startpos) as usize,
+        );
     }
 
     fn produce_token_and_advance(&mut self, tokentype: TokenType) -> Token {
@@ -503,7 +512,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
         return token;
     }
 
-    fn produce_token_and_advance_n(&mut self, tokentype: TokenType, len : usize) -> Token {
+    fn produce_token_and_advance_n(&mut self, tokentype: TokenType, len: usize) -> Token {
         let token = Token::new(tokentype, self.reader.pos(), len);
         for _ in 0..len {
             self.reader.advance();

@@ -1,6 +1,6 @@
+use super::*;
 use crate::error;
 use crate::source::*;
-use super::*;
 
 pub fn expect_error_ids(errors: &Vec<error::Error>, expected_error_ids: &[error::ErrorId]) {
     for i in 0..expected_error_ids.len() {
@@ -49,12 +49,12 @@ pub fn verify_sparse_scanner_tokens<S: Scanner>(scanner: &mut S, expected_tokens
     }
 }
 
-pub fn verify_scanner_tokens_snapshot<S: Scanner>(scanner: &mut S) {  
+pub fn verify_scanner_tokens_snapshot<S: Scanner>(scanner: &mut S) {
     let mut scanned_tokens = Vec::new();
-    while let Some(t) = scanner.read_token() {     
+    while let Some(t) = scanner.read_token() {
         scanned_tokens.push(t);
-    } 
-    
+    }
+
     insta::assert_debug_snapshot!(scanned_tokens);
 }
 
@@ -73,7 +73,10 @@ pub fn verify_exact_scan(source: &str, expected_tokens: &[Token]) {
 }
 
 // Checks that scanner produces any tokens that matches the list
-pub fn verify_sparse_scan_with_errors(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
+pub fn verify_sparse_scan_with_errors(
+    source: &str,
+    expected_tokens: &[Token],
+) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
 
@@ -89,6 +92,6 @@ pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) {
 pub fn do_scan_with_errors(source: &str) -> Vec<error::Error> {
     let source = MemorySource::from_str(source);
     let mut scanner = ScannerImpl::new(&source);
-    while scanner.read_token().is_some() {};
+    while scanner.read_token().is_some() {}
     return scanner.get_errors().clone();
 }

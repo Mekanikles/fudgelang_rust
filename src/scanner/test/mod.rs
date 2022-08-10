@@ -5,17 +5,17 @@ use crate::source;
 mod utils;
 use utils::*;
 
+mod arithmetics;
 mod basic;
+mod brackets;
+mod characterliterals;
 mod comments;
 mod identifiers;
 mod indentation;
 mod keywords;
-mod arithmetics;
-mod brackets;
 mod misctokens;
-mod stringliterals;
 mod numericliterals;
-mod characterliterals;
+mod stringliterals;
 
 #[test]
 fn test_get_line_info_trivial() {
@@ -53,4 +53,3 @@ fn test_file_with_comments() {
 
     verify_scanner_tokens_snapshot(&mut scanner);
 }
-

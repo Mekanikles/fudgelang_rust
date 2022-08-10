@@ -9,21 +9,19 @@ use dyn_fmt::AsStrFormatExt;
 use StringKey as SymbolKey;
 
 pub struct TreeWalker<'a> {
-    ast : &'a ast::Ast,
+    ast: &'a ast::Ast,
     globals: HashMap<SymbolKey, Value>,
     functions: Vec<Function>,
     strings: Vec<String>,
     stackframes: Vec<StackFrame>,
 }
 
-struct StackFrame
-{
+struct StackFrame {
     variables: HashMap<SymbolKey, Value>,
     returnvalue: Option<Value>,
 }
 
-pub struct Function
-{
+pub struct Function {
     signature: FunctionSignature,
     body: ast::NodeRef,
 }
@@ -77,21 +75,25 @@ trait BinOp<Op, Rhs = Self> {
     fn perform(&self, rhs: &Rhs) -> Value;
 }
 
-fn perform_binop<T: BinOp<Add> + BinOp<Sub> + BinOp<Mul> + BinOp<Div>>(op: &ast::BinaryOperationType, lhs: &T, rhs: &T) -> Value {
+fn perform_binop<T: BinOp<Add> + BinOp<Sub> + BinOp<Mul> + BinOp<Div>>(
+    op: &ast::BinaryOperationType,
+    lhs: &T,
+    rhs: &T,
+) -> Value {
     return match op {
         ast::BinaryOperationType::Add => BinOp::<Add>::perform(lhs, rhs),
         ast::BinaryOperationType::Sub => BinOp::<Sub>::perform(lhs, rhs),
         ast::BinaryOperationType::Mul => BinOp::<Mul>::perform(lhs, rhs),
         ast::BinaryOperationType::Div => BinOp::<Div>::perform(lhs, rhs),
-    }
+    };
 }
 
 macro_rules! primitive_binop_impl {
     ($optrait:ty, $op:tt, $($t:tt,)*) => ($(
         impl $optrait for $t {
             #[inline]
-            fn perform(&self, rhs: &$t) -> Value { 
-                Value::Primitive(PrimitiveValue::$t($t(self.0 $op rhs.0))) 
+            fn perform(&self, rhs: &$t) -> Value {
+                Value::Primitive(PrimitiveValue::$t($t(self.0 $op rhs.0)))
             }
         }
     )*)
@@ -101,8 +103,8 @@ macro_rules! primitive_binop_unsupported {
     ($optrait:ty, $($t:ty,)*) => ($(
         impl $optrait for $t {
             #[inline]
-            fn perform(&self, _: &$t) -> Value { 
-                panic!("Binary operation {}, not supported for {}", stringify!($optrait), stringify!($t)) 
+            fn perform(&self, _: &$t) -> Value {
+                panic!("Binary operation {}, not supported for {}", stringify!($optrait), stringify!($t))
             }
         }
     )*)
@@ -127,7 +129,7 @@ return match (&lhsval, &rhsval) {
         (PrimitiveValue::U32(_), _) => unreachable!(),
 
         // TODO: Remove
-        _ => unreachable!(), 
+        _ => unreachable!(),
     }
     _ => panic!("Binary operation {:?} not supported for {:?}", binop.optype, lhsval),
 };*/
@@ -141,14 +143,15 @@ pub enum Value {
     Function(u64),
 }
 
-impl Value
-{
+impl Value {
     fn get_type(&self, tw: &TreeWalker) -> TypeId {
         match self {
             Value::Null => TypeId::Null,
             Value::Type(_) => TypeId::Type,
             Value::Primitive(p) => match p {
-                PrimitiveValue::Utf8StaticString(_) => TypeId::Primitive(PrimitiveType::StaticStringUtf8),
+                PrimitiveValue::Utf8StaticString(_) => {
+                    TypeId::Primitive(PrimitiveType::StaticStringUtf8)
+                }
                 PrimitiveValue::U8(_) => TypeId::Primitive(PrimitiveType::U8),
                 PrimitiveValue::U16(_) => TypeId::Primitive(PrimitiveType::U16),
                 PrimitiveValue::U32(_) => TypeId::Primitive(PrimitiveType::U32),
@@ -180,7 +183,7 @@ impl Value
                 PrimitiveValue::F32(v) => v.0.to_string(),
                 PrimitiveValue::F64(v) => v.0.to_string(),
             },
-            _ => panic!("Value not convertible to string: {:?}", &self)
+            _ => panic!("Value not convertible to string: {:?}", &self),
         }
     }
 
@@ -209,9 +212,9 @@ macro_rules! as_node {
     ($self:ident, $nodet:ident, $noderef:expr) => {
         match $self.ast.get_node($noderef) {
             ast::Node::$nodet(n) => n,
-            n => panic!("Could not cast node {:?} to {}!", n, stringify!($nodet))
+            n => panic!("Could not cast node {:?} to {}!", n, stringify!($nodet)),
         }
-    }
+    };
 }
 
 impl<'a> TreeWalker<'a> {
@@ -241,17 +244,27 @@ impl<'a> TreeWalker<'a> {
         let lhsval = self.evaluate_expression(&binop.lhs);
         let rhsval = self.evaluate_expression(&binop.rhs);
 
-        assert!(lhsval.match_type(&rhsval, &self), "Mismatching types! {:?} vs {:?}", lhsval, rhsval);
+        assert!(
+            lhsval.match_type(&rhsval, &self),
+            "Mismatching types! {:?} vs {:?}",
+            lhsval,
+            rhsval
+        );
 
         return match (&lhsval, &rhsval) {
             (Value::Primitive(l), Value::Primitive(r)) => match (l, r) {
-                (PrimitiveValue::U32(l2), PrimitiveValue::U32(r2)) => perform_binop(&binop.optype, l2, r2),
+                (PrimitiveValue::U32(l2), PrimitiveValue::U32(r2)) => {
+                    perform_binop(&binop.optype, l2, r2)
+                }
                 (PrimitiveValue::U32(_), _) => unreachable!(),
 
                 // TODO: Remove
-                _ => unreachable!(), 
-            }
-            _ => panic!("Binary operation {:?} not supported for {:?}", binop.optype, lhsval),
+                _ => unreachable!(),
+            },
+            _ => panic!(
+                "Binary operation {:?} not supported for {:?}",
+                binop.optype, lhsval
+            ),
         };
     }
 
@@ -270,27 +283,38 @@ impl<'a> TreeWalker<'a> {
             Value::Function(n) => {
                 let funcindex = *n as usize;
 
-                let inputparams = &self.functions[funcindex].signature.inputparams;  
+                let inputparams = &self.functions[funcindex].signature.inputparams;
                 assert!(args.len() == inputparams.len());
-        
+
                 // Check signature and build frames
-                let mut frame = StackFrame { variables: HashMap::new(), returnvalue: None };
+                let mut frame = StackFrame {
+                    variables: HashMap::new(),
+                    returnvalue: None,
+                };
                 for (i, arg) in args.iter().enumerate() {
                     assert!(arg.get_type(&self) == inputparams[i].1, "Type mismatch!");
                     frame.variables.insert(inputparams[i].0, arg.clone());
                 }
-        
+
                 // Call
                 self.stackframes.push(frame);
-                self.evaluate_statementbody(as_node!(self, StatementBody, &self.functions[funcindex].body));
+                self.evaluate_statementbody(as_node!(
+                    self,
+                    StatementBody,
+                    &self.functions[funcindex].body
+                ));
                 self.stackframes.pop().unwrap().returnvalue.clone()
-            },
+            }
             Value::BuiltInFunction(n) => {
                 // TODO
                 match n {
                     BuiltInFunction::PrintFormat => {
                         assert!(args.len() > 0);
-                        assert!(args[0].get_type(&self) == TypeId::Primitive(PrimitiveType::StaticStringUtf8), "Type mismatch!");
+                        assert!(
+                            args[0].get_type(&self)
+                                == TypeId::Primitive(PrimitiveType::StaticStringUtf8),
+                            "Type mismatch!"
+                        );
 
                         // TODO: Parse format string, for now, assume 1 int
                         let mut format_types = Vec::new();
@@ -302,7 +326,7 @@ impl<'a> TreeWalker<'a> {
                             assert!(arg.get_type(&self) == format_types[i], "Type mismatch!");
                             strargs.push(arg.to_string(self));
                         }
-                        
+
                         let fmt = args[0].to_string(self);
 
                         // Print
@@ -312,14 +336,12 @@ impl<'a> TreeWalker<'a> {
 
                 None
             }
-            _ => panic!("Expression was not a function: {:?}", callable)
+            _ => panic!("Expression was not a function: {:?}", callable),
         };
 
         if let Some(v) = returnvalue {
             return v;
-        }
-        else
-        {
+        } else {
             return create_null_value();
         }
     }
@@ -329,7 +351,7 @@ impl<'a> TreeWalker<'a> {
             inputparams: Vec::new(),
             outputparams: Vec::new(),
         };
-        
+
         for inparam in &fnliteral.inputparams {
             let n = as_node!(self, InputParameter, inparam);
 
@@ -338,7 +360,10 @@ impl<'a> TreeWalker<'a> {
             let typeval: Value = self.evaluate_expression(&n.typeexpr);
             let typeid = match typeval {
                 Value::Type(n) => n,
-                _ => panic!("Expected Type expression for input parameter, got {:?}", typeval)
+                _ => panic!(
+                    "Expected Type expression for input parameter, got {:?}",
+                    typeval
+                ),
             };
 
             signature.inputparams.push((n.symbol.key, typeid));
@@ -350,18 +375,21 @@ impl<'a> TreeWalker<'a> {
             let typeval: Value = self.evaluate_expression(&n.typeexpr);
             let typeid = match typeval {
                 Value::Type(n) => n,
-                _ => panic!("Expected Type expression for output parameter, got {:?}", typeval)
+                _ => panic!(
+                    "Expected Type expression for output parameter, got {:?}",
+                    typeval
+                ),
             };
 
             signature.outputparams.push(typeid);
         }
 
         let funcid: FunctionRef = self.functions.len() as u64;
-        self.functions.push(Function { 
+        self.functions.push(Function {
             signature: signature.clone(),
             body: fnliteral.body,
         });
-       
+
         return Value::Function(funcid);
     }
 
@@ -372,22 +400,35 @@ impl<'a> TreeWalker<'a> {
     }
 
     fn evaluate_symbolreference(&mut self, symref: &ast::SymbolReference) -> Value {
-        if let Some(v) = self.stackframes.last().unwrap().variables.get(&symref.symbol.key) {
+        if let Some(v) = self
+            .stackframes
+            .last()
+            .unwrap()
+            .variables
+            .get(&symref.symbol.key)
+        {
             return v.clone();
         }
         return self.globals[&symref.symbol.key].clone();
     }
 
     fn evaluate_symboldeclaration(&mut self, symdecl: &ast::SymbolDeclaration) {
-        assert!(!self.globals.contains_key(&symdecl.symbol.key), "Symbol {} is already defined!", self.ast.get_symbol(&symdecl.symbol).unwrap());
+        assert!(
+            !self.globals.contains_key(&symdecl.symbol.key),
+            "Symbol {} is already defined!",
+            self.ast.get_symbol(&symdecl.symbol).unwrap()
+        );
 
         // TODO: check type
         let _typeval: Option<Value> = match &symdecl.typeexpr {
             Some(n) => Some(self.evaluate_expression(n)),
-            _ => None
+            _ => None,
         };
 
-        assert!(!symdecl.typeexpr.is_some(), "Type definitions in declarations not yet supported!");
+        assert!(
+            !symdecl.typeexpr.is_some(),
+            "Type definitions in declarations not yet supported!"
+        );
 
         let initval = self.evaluate_expression(&symdecl.initexpr);
         self.globals.insert(symdecl.symbol.key, initval);
@@ -395,9 +436,12 @@ impl<'a> TreeWalker<'a> {
 }
 
 impl<'a> TreeWalker<'a> {
-    pub fn new(ast : &'a ast::Ast) -> Self {
+    pub fn new(ast: &'a ast::Ast) -> Self {
         // Make sure we always have a stackframe
-        let frame = StackFrame { variables: HashMap::new(), returnvalue: None };
+        let frame = StackFrame {
+            variables: HashMap::new(),
+            returnvalue: None,
+        };
 
         TreeWalker {
             ast: ast,
@@ -417,18 +461,24 @@ impl<'a> TreeWalker<'a> {
             ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
             ast::Node::CallOperation(n) => self.evaluate_calloperation(n),
             ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(n),
-            n => { panic!("Not an expression! Node: {:?}", ast::NamedNode::name(n));}
+            n => {
+                panic!("Not an expression! Node: {:?}", ast::NamedNode::name(n));
+            }
         }
     }
 
-    pub fn evaluate_statement(&mut self, node : &ast::NodeRef) {
+    pub fn evaluate_statement(&mut self, node: &ast::NodeRef) {
         return match self.ast.get_node(node) {
-            ast::Node::ModuleFragment(n) => self.evaluate_statementbody(as_node!(self, StatementBody, &n.statementbody)),
+            ast::Node::ModuleFragment(n) => {
+                self.evaluate_statementbody(as_node!(self, StatementBody, &n.statementbody))
+            }
             ast::Node::StatementBody(n) => self.evaluate_statementbody(n),
             ast::Node::SymbolDeclaration(n) => self.evaluate_symboldeclaration(n),
             ast::Node::ReturnStatement(n) => self.evaluate_returnstatement(n),
-            _ => { self.evaluate_expression(node); },
-        }
+            _ => {
+                self.evaluate_expression(node);
+            }
+        };
     }
 
     pub fn interpret(&mut self) {

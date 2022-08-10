@@ -1,5 +1,5 @@
-use crate::scanner::Token;
 use crate::scanner::Scanner;
+use crate::scanner::Token;
 
 pub trait TokenStream {
     fn read_token(&mut self) -> Option<Token>;
@@ -7,7 +7,10 @@ pub trait TokenStream {
 }
 
 // Implementation for Scanners
-impl<T> TokenStream for T where T: Scanner {
+impl<T> TokenStream for T
+where
+    T: Scanner,
+{
     fn read_token(&mut self) -> Option<Token> {
         return Scanner::read_token(self);
     }
@@ -16,5 +19,3 @@ impl<T> TokenStream for T where T: Scanner {
         return Scanner::get_token_source_string(self, token);
     }
 }
-
-

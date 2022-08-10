@@ -16,7 +16,7 @@ pub struct SourceSpan {
     pub len: usize,
 }
 
-pub trait Source<'a, R : Read> {
+pub trait Source<'a, R: Read> {
     fn get_name(&'a self) -> &'a str;
     fn get_readable(&'a self) -> R;
 }

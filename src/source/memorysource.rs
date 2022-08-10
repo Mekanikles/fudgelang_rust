@@ -25,13 +25,13 @@ impl MemorySource {
     }
     pub fn from_filepath<P: AsRef<Path>>(filename: P) -> MemorySource {
         let path = filename.as_ref();
-        let name : String = path.to_string_lossy().into();
+        let name: String = path.to_string_lossy().into();
         let mut file = File::open(filename).expect("File not found!");
         let mut data = Vec::new();
         match file.read_to_end(&mut data) {
-            Ok(n) if n > 0 => MemorySource { 
+            Ok(n) if n > 0 => MemorySource {
                 name: name,
-                bytes: data 
+                bytes: data,
             },
             _ => MemorySource {
                 name: name,

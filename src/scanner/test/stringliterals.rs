@@ -12,7 +12,8 @@ fn test_basic() {
 
 #[test]
 fn test_escape() {
-    verify_exact_scan("\"Hello \\0 \"", &[Token::new(TokenType::StringLiteral, 0, 11)]);
+    verify_exact_scan(
+        "\"Hello \\0 \"",
+        &[Token::new(TokenType::StringLiteral, 0, 11)],
+    );
 }
-
-

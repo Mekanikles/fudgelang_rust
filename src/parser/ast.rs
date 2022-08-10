@@ -1,18 +1,18 @@
-use regex::Regex;
 use enum_dispatch::enum_dispatch;
+use regex::Regex;
 
-use std::str;
 use std::fmt;
+use std::str;
 
-use crate::typesystem::*;
 use crate::parser::stringstore::*;
+use crate::typesystem::*;
 
 use StringRef as SymbolRef;
 
 #[derive(Debug)]
 pub enum BuiltInObject {
     Function(BuiltInFunction),
-    PrimitiveType(PrimitiveType)
+    PrimitiveType(PrimitiveType),
 }
 
 #[derive(Copy, Clone)]
@@ -22,7 +22,7 @@ pub struct NodeRef {
 
 impl<'a> fmt::Debug for NodeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return f.write_fmt(format_args!("Node {}", self.index))
+        return f.write_fmt(format_args!("Node {}", self.index));
     }
 }
 
@@ -42,7 +42,7 @@ impl Ast {
     }
 
     pub fn reserve_node(&mut self) -> NodeRef {
-        self.nodes.push(Invalid{}.into());
+        self.nodes.push(Invalid {}.into());
         return NodeRef {
             index: (self.nodes.len() - 1) as u32,
         };
@@ -86,9 +86,7 @@ impl Ast {
 
     pub fn get_root(&self) -> Option<NodeRef> {
         if let Some(i) = self.root_index {
-            return Some(NodeRef {
-                index: i,
-            });
+            return Some(NodeRef { index: i });
         }
         return None;
     }
@@ -108,7 +106,7 @@ pub trait NamedNode {
 }
 
 macro_rules! node_type {
-    ($name:ident {$($field:ident: $t:ty,)*}) => {
+    ($name:ident {$($field:ident: $t:ty $(,)?)*}) => {
         #[derive(Debug)]
         pub struct $name {
             $(pub $field: $t),*
@@ -120,8 +118,7 @@ macro_rules! node_type {
     }
 }
 
-node_type!(Invalid {
-});
+node_type!(Invalid {});
 
 node_type!(ModuleFragment {
     statementbody: NodeRef,
@@ -136,9 +133,7 @@ node_type!(IntegerLiteral {
     signed: bool,
 });
 
-node_type!(StringLiteral {
-    text: String,
-});
+node_type!(StringLiteral { text: String });
 
 node_type!(FunctionLiteral {
     inputparams: Vec<NodeRef>,
@@ -151,21 +146,15 @@ node_type!(InputParameter {
     typeexpr: NodeRef,
 });
 
-node_type!(OutputParameter {
-    typeexpr: NodeRef,
-});
+node_type!(OutputParameter { typeexpr: NodeRef });
 
 node_type!(BuiltInObjectReference {
     object: BuiltInObject,
 });
 
-node_type!(SymbolReference {
-    symbol: SymbolRef,
-});
+node_type!(SymbolReference { symbol: SymbolRef });
 
-node_type!(ReturnStatement {
-    expr: NodeRef,
-});
+node_type!(ReturnStatement { expr: NodeRef });
 
 node_type!(ArgumentList {
     args: Vec<NodeRef>,
@@ -232,7 +221,8 @@ impl Ast {
                 ast: self,
                 left_padding,
                 level: 0,
-            }.node_print(&r);
+            }
+            .node_print(&r);
         }
     }
 }
@@ -250,14 +240,14 @@ impl<'a> AstPrinter<'a> {
         self.level -= 1;
     }
 
-    fn node_print(&mut self, noderef : &NodeRef) {
+    fn node_print(&mut self, noderef: &NodeRef) {
         let node = self.ast.get_node(noderef);
         let mut nodetext = format!("{:?}", node);
 
         // Make symbol references human readable
         {
             let re = Regex::new(r"<Symbol (\d+)>").unwrap();
-            let mut match_slices = Vec::new(); 
+            let mut match_slices = Vec::new();
             for cap in re.captures_iter(&nodetext) {
                 if let Some(m1) = cap.get(0) {
                     if let Some(m2) = cap.get(1) {
@@ -271,13 +261,19 @@ impl<'a> AstPrinter<'a> {
                 if let Some(s) = self.ast.symbols.get(&SymbolRef { key: key.unwrap() }) {
                     buf.splice(m.0, s.bytes());
                 }
-                
+
                 nodetext = String::from_utf8(buf).unwrap();
             }
         }
 
-        println!("{:indent$}{}: {:?}", "", noderef.index, nodetext, indent=(self.left_padding + self.level * 4) as usize);
-        
+        println!(
+            "{:indent$}{}: {:?}",
+            "",
+            noderef.index,
+            nodetext,
+            indent = (self.left_padding + self.level * 4) as usize
+        );
+
         // Recurse into subtree
         match &node {
             Node::Invalid(_) => (),
@@ -292,7 +288,7 @@ impl<'a> AstPrinter<'a> {
                 for s in &n.statements {
                     self.print_child(s);
                 }
-            },
+            }
             Node::FunctionLiteral(n) => {
                 for p in &n.inputparams {
                     self.print_child(p);
@@ -301,16 +297,16 @@ impl<'a> AstPrinter<'a> {
                     self.print_child(p);
                 }
                 self.print_child(&n.body);
-            },
+            }
             Node::InputParameter(n) => {
                 self.print_child(&n.typeexpr);
-            },
+            }
             Node::OutputParameter(n) => {
                 self.print_child(&n.typeexpr);
-            },
+            }
             Node::ReturnStatement(n) => {
                 self.print_child(&n.expr);
-            },
+            }
             Node::ArgumentList(n) => {
                 for a in &n.args {
                     self.print_child(a);
@@ -319,7 +315,7 @@ impl<'a> AstPrinter<'a> {
             Node::CallOperation(n) => {
                 self.print_child(&n.expr);
                 self.print_child(&n.arglist);
-            },
+            }
             Node::BinaryOperation(n) => {
                 self.print_child(&n.lhs);
                 self.print_child(&n.rhs);
@@ -331,5 +327,3 @@ impl<'a> AstPrinter<'a> {
         }
     }
 }
-
-

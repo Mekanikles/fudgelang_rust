@@ -47,7 +47,7 @@ fn main() {
 
             total_scan_time = (total_scan_time + measurement).unwrap();
         }
-        
+
         println!(
             "Scanned {} tokens in {}, {} times. ({} per scan)",
             tokens.len(),
@@ -90,7 +90,7 @@ fn main() {
     // Print errors
     // TODO: Have to print in this order, since parse borrows scanner
     output::print_errors(parser.get_errors(), &source);
-    output::print_errors(scanner.get_errors(), &source);    
-    
+    output::print_errors(scanner.get_errors(), &source);
+
     println!("{}", Color::Green.bold().paint("Done"));
 }

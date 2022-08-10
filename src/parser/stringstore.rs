@@ -1,6 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
 use std::fmt;
 
@@ -13,12 +13,12 @@ pub struct StringRef {
 
 impl<'a> fmt::Debug for StringRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return f.write_fmt(format_args!("<{}>", self.key))
+        return f.write_fmt(format_args!("<{}>", self.key));
     }
 }
 
 pub struct StringStore {
-    strings: HashMap<u64, String>
+    strings: HashMap<u64, String>,
 }
 
 impl StringStore {

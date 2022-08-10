@@ -1,7 +1,7 @@
 pub mod parser;
 
-pub mod tokenstream;
 pub mod ast;
 pub mod stringstore;
+pub mod tokenstream;
 
 pub use parser::*;

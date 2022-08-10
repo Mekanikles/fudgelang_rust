@@ -7,7 +7,7 @@ pub use scannererrors::*;
 pub mod errors {
     // TODO: We might want to attribute "severity" to errors more dynamically
     //  (say, via some map), so that users can elevate warnings to errors etc
-    // The static division here might be better oriented towards recoverability, 
+    // The static division here might be better oriented towards recoverability,
     //  or category, rather than user-facing severity
     pub use FatalErrorType::*;
     pub use MajorErrorType::*;
@@ -138,8 +138,8 @@ pub struct ErrorData {
 }
 
 pub struct ErrorManager {
-    reached_error_limit : bool,
-    error_data : ErrorData,
+    reached_error_limit: bool,
+    error_data: ErrorData,
 }
 
 impl ErrorManager {
@@ -154,7 +154,7 @@ impl ErrorManager {
             },
         }
     }
-    
+
     pub fn reached_error_limit(&self) -> bool {
         return self.reached_error_limit;
     }
@@ -190,7 +190,7 @@ impl ErrorManager {
         return id;
     }
 
-    pub fn adjust_last_error_end(&mut self, end : u64) {
+    pub fn adjust_last_error_end(&mut self, end: u64) {
         let pos = self.error_data.errors.last_mut().unwrap().source_span.pos;
         self.error_data.errors.last_mut().unwrap().source_span.len = (end - pos) as usize;
     }

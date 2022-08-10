@@ -1,4 +1,3 @@
-
 use crate::parser::stringstore::*;
 
 use StringKey as SymbolKey;
@@ -19,8 +18,7 @@ pub enum PrimitiveType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionSignature
-{
+pub struct FunctionSignature {
     pub inputparams: Vec<(SymbolKey, TypeId)>,
     pub outputparams: Vec<TypeId>,
 }

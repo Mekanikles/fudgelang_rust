@@ -33,28 +33,32 @@ fn test_underscore_4() {
 
 #[test]
 fn test_underscore_5() {
-    verify_exact_scan("hel_ lo", &[
-        Token::new(TokenType::Identifier, 0, 4),
-        Token::new(TokenType::Identifier, 5, 2)]);
+    verify_exact_scan(
+        "hel_ lo",
+        &[
+            Token::new(TokenType::Identifier, 0, 4),
+            Token::new(TokenType::Identifier, 5, 2),
+        ],
+    );
 }
-
 
 #[test]
 fn test_non_ascii_1() {
-    let errors = verify_exact_scan_with_errors("Hallåj", &[Token::new(TokenType::Identifier, 0, 7)]);
+    let errors =
+        verify_exact_scan_with_errors("Hallåj", &[Token::new(TokenType::Identifier, 0, 7)]);
     expect_error_ids(&errors, &[new_error_id(errors::NonAsciiIdentifier)]);
 }
 
 #[test]
 fn test_non_ascii_2() {
     let errors = verify_exact_scan_with_errors("Hallå", &[Token::new(TokenType::Identifier, 0, 6)]);
-    expect_error_ids(&errors, &[new_error_id(errors::NonAsciiIdentifier)]); 
+    expect_error_ids(&errors, &[new_error_id(errors::NonAsciiIdentifier)]);
 }
 
 #[test]
 fn test_non_ascii_3() {
     let errors = verify_exact_scan_with_errors("Åland", &[Token::new(TokenType::Identifier, 0, 6)]);
-    expect_error_ids(&errors, &[new_error_id(errors::NonAsciiIdentifier)]); 
+    expect_error_ids(&errors, &[new_error_id(errors::NonAsciiIdentifier)]);
 }
 
 #[test]
