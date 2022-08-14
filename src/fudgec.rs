@@ -8,8 +8,6 @@ use structopt::StructOpt;
 
 use ansi_term::Colour as Color;
 
-mod output;
-
 #[derive(StructOpt)]
 struct CommandLineParameters {
     // Path to file
@@ -83,6 +81,7 @@ fn main() {
     let mut scanner = scanner::ScannerImpl::new(&source);
     let mut parser = parser::Parser::new(&mut scanner);
     parser.parse();
+    parser.print_ast();
 
     let mut treewalker = interpreter::TreeWalker::new(&parser.ast);
     treewalker.interpret();

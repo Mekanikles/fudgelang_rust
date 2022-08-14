@@ -75,14 +75,16 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         }
     }
 
-    fn expect(&mut self, t: TokenType) -> Result<(), error::ErrorId> {
-        if !self.accept(t) {
-            if let Some(t) = &self.current_token {
-                let span = t.source_span;
+    fn expect(&mut self, expected_token: TokenType) -> Result<(), error::ErrorId> {
+        if !self.accept(expected_token) {
+            if let Some(current_token) = &self.current_token {
+                let span = current_token.source_span;
+                let error = format!("Unexpected token! Expected '{:?}', got '{:?}'", 
+                    expected_token, current_token.tokentype);
                 return Err(self.log_error(error::Error::at_span(
                     errors::UnexpectedToken,
                     span,
-                    "Unexpected token!".into(),
+                    error,
                 ))?);
             } else {
                 return Err(self.log_error(error::Error::at_span(
@@ -90,11 +92,9 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                     // TODO: This is bad, but can be fixed by introducing EOS token
                     //  pointing to end of file
                     self.last_token.as_ref().unwrap().source_span,
-                    "Unexpected termination token!".into(),
+                    "Unexpected end of file!".into(),
                 ))?);
             }
-            // TODO: Add error recovery. Should we just bubble up errors to statement body, or nearest block/brackets?
-            //panic!("Unexpected token!");
         }
 
         return Ok(());
@@ -122,7 +122,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 return Ok(Some(
                     self.ast.replace_node(
                         node,
-                        ast::InputParameter {
+                        ast::nodes::InputParameter {
                             symbol,
                             typeexpr: n,
                         }
@@ -147,7 +147,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         if let Some(n) = self.parse_expression()? {
             return Ok(Some(
                 self.ast
-                    .replace_node(node, ast::OutputParameter { typeexpr: n }.into()),
+                    .replace_node(node, ast::nodes::OutputParameter { typeexpr: n }.into()),
             ));
         }
 
@@ -220,7 +220,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             if self.accept(TokenType::Do) {
                 // TODO: LB and Indent should probably not be hard requirements
                 self.expect(TokenType::LineBreak)?;
-                self.expect(TokenType::Indentation)?;
+                //self.expect(TokenType::Indentation)?; // Does not work for empty bodies
 
                 let body = self.parse_statementbody()?;
 
@@ -229,7 +229,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 return Ok(Some(
                     self.ast.replace_node(
                         node,
-                        ast::FunctionLiteral {
+                        ast::nodes::FunctionLiteral {
                             inputparams,
                             outputparams,
                             body,
@@ -266,7 +266,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
 
         return Ok(self
             .ast
-            .replace_node(node, ast::ArgumentList { args: args }.into()));
+            .replace_node(node, ast::nodes::ArgumentList { args: args }.into()));
     }
 
     fn accept_binaryoperator(&mut self) -> Option<ast::BinaryOperationType> {
@@ -293,14 +293,14 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         if self.accept(TokenType::StringLiteral) {
             let text = self.get_last_token_text();
             return Ok(Some(
-                self.ast.add_node(ast::StringLiteral { text: text }.into()),
+                self.ast.add_node(ast::nodes::StringLiteral { text: text }.into()),
             ));
         } else if self.accept(TokenType::NumericLiteral) {
             let text = self.get_last_token_text();
             // TODO: Support for other numericals
             return Ok(Some(
                 self.ast.add_node(
-                    ast::IntegerLiteral {
+                    ast::nodes::IntegerLiteral {
                         value: text.parse::<u64>().unwrap(),
                         signed: false,
                     }
@@ -314,7 +314,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             // Calls
             if self.accept(TokenType::OpeningParenthesis) {
                 let node = self.ast.reserve_node();
-                let symbol = self.ast.add_node(ast::SymbolReference { symbol: s }.into());
+                let symbol = self.ast.add_node(ast::nodes::SymbolReference { symbol: s }.into());
 
                 let arglist = self.parse_argumentlist()?;
 
@@ -323,7 +323,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 return Ok(Some(
                     self.ast.replace_node(
                         node,
-                        ast::CallOperation {
+                        ast::nodes::CallOperation {
                             expr: symbol,
                             arglist: arglist,
                         }
@@ -332,16 +332,16 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 ));
             }
 
-            // TODO: Hack! Hard-coded plus-expression, replace with shunting yard for all operators
+            // TODO: Replace with shunting yard for correct operator precedence
             if let Some(op) = self.accept_binaryoperator() {
                 let node = self.ast.reserve_node();
-                let lhs = self.ast.add_node(ast::SymbolReference { symbol: s }.into());
+                let lhs = self.ast.add_node(ast::nodes::SymbolReference { symbol: s }.into());
 
                 if let Some(n) = self.parse_expression()? {
                     return Ok(Some(
                         self.ast.replace_node(
                             node,
-                            ast::BinaryOperation {
+                            ast::nodes::BinaryOperation {
                                 optype: op,
                                 lhs: lhs,
                                 rhs: n,
@@ -359,7 +359,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 }
             } else {
                 return Ok(Some(
-                    self.ast.add_node(ast::SymbolReference { symbol: s }.into()),
+                    self.ast.add_node(ast::nodes::SymbolReference { symbol: s }.into()),
                 ));
             }
         } else if let Some(n) = self.parse_function_literal_or_type()? {
@@ -395,7 +395,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                     symbolstrings.pop();
                     return Ok(Some(
                         self.ast.add_node(
-                            ast::BuiltInObjectReference {
+                            ast::nodes::BuiltInObjectReference {
                                 object: ast::BuiltInObject::PrimitiveType(PrimitiveType::U32),
                             }
                             .into(),
@@ -413,7 +413,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                     let node = self.ast.reserve_node();
 
                     let builtinfunc = self.ast.add_node(
-                        ast::BuiltInObjectReference {
+                        ast::nodes::BuiltInObjectReference {
                             object: ast::BuiltInObject::Function(BuiltInFunction::PrintFormat),
                         }
                         .into(),
@@ -428,7 +428,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                     return Ok(Some(
                         self.ast.replace_node(
                             node,
-                            ast::CallOperation {
+                            ast::nodes::CallOperation {
                                 expr: builtinfunc,
                                 arglist: arglist,
                             }
@@ -454,18 +454,14 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         if self.accept(TokenType::Return) {
             let node = self.ast.reserve_node();
 
-            if let Some(n) = self.parse_expression()? {
-                return Ok(Some(
-                    self.ast
-                        .replace_node(node, ast::ReturnStatement { expr: n }.into()),
-                ));
-            } else {
-                return Err(self.log_error(error::Error::at_span(
-                    errors::ExpectedExpression,
-                    self.current_token.as_ref().unwrap().source_span,
-                    "Expected expression for return value".into(),
-                ))?);
-            }
+            let expr = self.parse_expression()?;
+
+            // TODO: Parse end of statement
+
+            return Ok(Some(
+                self.ast
+                    .replace_node(node, ast::nodes::ReturnStatement { expr }.into()),
+            ));
         }
 
         return Ok(None);
@@ -487,7 +483,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 return Ok(Some(
                     self.ast.replace_node(
                         node,
-                        ast::SymbolDeclaration {
+                        ast::nodes::SymbolDeclaration {
                             symbol: symbol,
                             typeexpr: None,
                             initexpr: n,
@@ -551,7 +547,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
 
         return Ok(self.ast.replace_node(
             node,
-            ast::StatementBody {
+            ast::nodes::StatementBody {
                 statements: statements,
             }
             .into(),
@@ -566,7 +562,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         let body = self.parse_statementbody()?;
         self.ast.replace_node(
             node,
-            ast::ModuleFragment {
+            ast::nodes::ModuleFragment {
                 statementbody: body,
             }
             .into(),
@@ -599,7 +595,10 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 println!("{:?}", t);
             }
         }
+    }
 
+    pub fn print_ast(&mut self) {
+        // TODO: Move to fudgec
         println!("AST:");
         self.ast.print(4);
     }

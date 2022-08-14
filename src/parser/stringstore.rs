@@ -13,7 +13,7 @@ pub struct StringRef {
 
 impl<'a> fmt::Debug for StringRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        return f.write_fmt(format_args!("<{}>", self.key));
+        return f.write_fmt(format_args!("<string key: {}>", self.key));
     }
 }
 

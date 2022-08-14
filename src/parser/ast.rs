@@ -1,4 +1,3 @@
-use enum_dispatch::enum_dispatch;
 use regex::Regex;
 
 use std::fmt;
@@ -42,7 +41,7 @@ impl Ast {
     }
 
     pub fn reserve_node(&mut self) -> NodeRef {
-        self.nodes.push(Invalid {}.into());
+        self.nodes.push(nodes::Invalid {}.into());
         return NodeRef {
             index: (self.nodes.len() - 1) as u32,
         };
@@ -100,71 +99,6 @@ impl Ast {
     }
 }
 
-#[enum_dispatch]
-pub trait NamedNode {
-    fn name(&self) -> &str;
-}
-
-macro_rules! node_type {
-    ($name:ident {$($field:ident: $t:ty $(,)?)*}) => {
-        #[derive(Debug)]
-        pub struct $name {
-            $(pub $field: $t),*
-        }
-
-        impl NamedNode for $name {
-            fn name(&self) -> &str { stringify!($name) }
-        }
-    }
-}
-
-node_type!(Invalid {});
-
-node_type!(ModuleFragment {
-    statementbody: NodeRef,
-});
-
-node_type!(StatementBody {
-    statements: Vec<NodeRef>,
-});
-
-node_type!(IntegerLiteral {
-    value: u64,
-    signed: bool,
-});
-
-node_type!(StringLiteral { text: String });
-
-node_type!(FunctionLiteral {
-    inputparams: Vec<NodeRef>,
-    outputparams: Vec<NodeRef>,
-    body: NodeRef,
-});
-
-node_type!(InputParameter {
-    symbol: SymbolRef,
-    typeexpr: NodeRef,
-});
-
-node_type!(OutputParameter { typeexpr: NodeRef });
-
-node_type!(BuiltInObjectReference {
-    object: BuiltInObject,
-});
-
-node_type!(SymbolReference { symbol: SymbolRef });
-
-node_type!(ReturnStatement { expr: NodeRef });
-
-node_type!(ArgumentList {
-    args: Vec<NodeRef>,
-});
-
-node_type!(CallOperation {
-    expr: NodeRef,
-    arglist: NodeRef,
-});
-
 #[derive(Debug)]
 pub enum BinaryOperationType {
     Add,
@@ -173,39 +107,230 @@ pub enum BinaryOperationType {
     Div,
 }
 
-node_type!(BinaryOperation {
-    optype: BinaryOperationType,
-    lhs: NodeRef,
-    rhs: NodeRef,
-});
+// Declares enums and data structs associated with ast nodes
+macro_rules! declare_nodes  {
+    // Main macro
+    ($($node_name:ident // Node name
+        $( // Optional
+            { // Node body
+                $($field:ident: $field_t:ty $(,)?)* // field
+            } $(,)?
+        )?,
+    )*) => {
+        pub trait NodeInfo {
+            fn id(&self) -> NodeId;
+            fn name(&self) -> &str;
+        }
 
-node_type!(SymbolDeclaration {
-    symbol: SymbolRef,
-    typeexpr: Option<NodeRef>,
-    initexpr: NodeRef,
-});
+        // Enum with ids
+        #[derive(Debug, Clone, PartialEq)]
+        pub enum NodeId {
+            $($node_name),*
+        }
 
-#[enum_dispatch(NamedNode)]
-#[derive(Debug)]
-pub enum Node {
+        // Node structs
+        pub mod nodes {
+            use super::*;
+            $(declare_nodes!(@node_struct 
+                $node_name {
+                    $($($field: $field_t),*)?
+                }
+            );)*
+        }
+
+        // Node union object
+        #[derive(Debug)]
+        pub enum Node {
+            $($node_name(nodes::$node_name)),*
+        }
+
+        // Trait implementations for Node
+        impl NodeInfo for Node {
+            fn id(&self) -> NodeId {
+                match (&self) {
+                    $(Node::$node_name(n) => n.id()),*
+                }
+            }
+            fn name(&self) -> &str {
+                match (&self) {
+                    $(Node::$node_name(n) => n.name()),*
+                }
+            }
+        }
+
+        pub fn visit_children<T>(node: &Node, func: T) where T: FnMut(&NodeRef) {
+            match &node {
+                $(Node::$node_name(n) => { n.visit_children(func); }),*
+            }
+        }
+    };
+
+    // Node struct definitions
+    (@node_struct $name:ident {$($field:ident: $t:ty $(,)?)*}) => {
+        #[derive(Debug)]
+        pub struct $name {
+            $(pub $field: $t),*
+        }
+
+        // Allow conversion to enum type from struct
+        impl Into<Node> for $name {
+            fn into(self) -> Node {
+                Node::$name(self)
+            }
+        }
+
+        impl NodeInfo for $name {
+            fn id(&self) -> NodeId { NodeId::$name }
+            fn name(&self) -> &str { stringify!($name) }
+        }
+    };
+}
+
+declare_nodes!(
     Invalid,
-    ModuleFragment,
-    StatementBody,
-    IntegerLiteral,
+    ModuleFragment {
+        statementbody: NodeRef,
+    },
+    StatementBody {
+        statements: Vec<NodeRef>,
+    },
+    IntegerLiteral {
+        value: u64,
+        signed: bool,
+    },
     // TODO: BigIntegerLiteral
-    StringLiteral,
-    FunctionLiteral,
-    InputParameter,
-    OutputParameter,
-    BuiltInObjectReference, // NOTE: This shortcuts having to evaluate built-ins as ordinary expressions
-    SymbolReference,
-    ReturnStatement,
-    ArgumentList,
+    StringLiteral { text: String },
+    FunctionLiteral {
+        inputparams: Vec<NodeRef>,
+        outputparams: Vec<NodeRef>,
+        body: NodeRef,
+    },
+    InputParameter {
+        symbol: SymbolRef,
+        typeexpr: NodeRef,
+    },
+    OutputParameter { typeexpr: NodeRef },
+    BuiltInObjectReference {
+        object: BuiltInObject,
+    },
+    SymbolReference { symbol: SymbolRef },
+    ReturnStatement { expr: Option<NodeRef> },
+    ArgumentList {
+        args: Vec<NodeRef>,
+    },
     // TODO: Can this be generalized to parameterized symbol reference?
-    //  The same syntax is used for function calls, type parameteters etc
-    CallOperation,
-    BinaryOperation,
-    SymbolDeclaration,
+    //  The same syntax is used for function calls, type parameteters etc 
+    CallOperation {
+        expr: NodeRef,
+        arglist: NodeRef,
+    },    
+    BinaryOperation {
+        optype: BinaryOperationType,
+        lhs: NodeRef,
+        rhs: NodeRef,
+    },
+    SymbolDeclaration {
+        symbol: SymbolRef,
+        typeexpr: Option<NodeRef>,
+        initexpr: NodeRef,
+    },
+);
+
+// Why no trait specializations :(
+trait ChildVisitor<FuncT> where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, func: FuncT);
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::Invalid where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut _func: FuncT) { panic!("Visited invalid node!"); }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::ModuleFragment where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { func(&self.statementbody); }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::StatementBody where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) {
+        for n in &self.statements {
+            func(n);
+        }
+    }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::IntegerLiteral where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut _func: FuncT) { }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::StringLiteral where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut _func: FuncT) { }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::FunctionLiteral where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) {
+        for n in &self.inputparams {
+            func(n);
+        }
+        for n in &self.outputparams {
+            func(n);
+        }
+        
+        func(&self.body);
+    }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::InputParameter where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { func(&self.typeexpr); }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::OutputParameter where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { func(&self.typeexpr); }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::BuiltInObjectReference where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut _func: FuncT) { }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::SymbolReference where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut _func: FuncT) { }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::ReturnStatement where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { 
+        if let Some(n) = &self.expr {
+            func(n);
+        }
+    }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::ArgumentList where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) {
+        for n in &self.args {
+            func(n);
+        }
+    }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::CallOperation where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { 
+        func(&self.expr);
+        func(&self.arglist);
+    }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::BinaryOperation where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { 
+        func(&self.lhs);
+        func(&self.rhs);
+    }
+}
+
+impl<FuncT> ChildVisitor<FuncT> for nodes::SymbolDeclaration where FuncT: FnMut(&NodeRef) {
+    fn visit_children(&self, mut func: FuncT) { 
+        if let Some(n) = &self.typeexpr {
+            func(n);
+        }
+        func(&self.initexpr);
+    }
 }
 
 struct AstPrinter<'a> {
@@ -228,25 +353,13 @@ impl Ast {
 }
 
 impl<'a> AstPrinter<'a> {
-    fn print_optional_child(&mut self, node: &Option<NodeRef>) {
-        if let Some(n) = node {
-            self.print_child(n);
-        }
-    }
-
-    fn print_child(&mut self, node: &NodeRef) {
-        self.level += 1;
-        self.node_print(node);
-        self.level -= 1;
-    }
-
     fn node_print(&mut self, noderef: &NodeRef) {
         let node = self.ast.get_node(noderef);
         let mut nodetext = format!("{:?}", node);
 
         // Make symbol references human readable
         {
-            let re = Regex::new(r"<Symbol (\d+)>").unwrap();
+            let re = Regex::new(r"<string key: (\d+)>").unwrap();
             let mut match_slices = Vec::new();
             for cap in re.captures_iter(&nodetext) {
                 if let Some(m1) = cap.get(0) {
@@ -275,55 +388,10 @@ impl<'a> AstPrinter<'a> {
         );
 
         // Recurse into subtree
-        match &node {
-            Node::Invalid(_) => (),
-            Node::IntegerLiteral(_n) => (),
-            Node::StringLiteral(_n) => (),
-            Node::BuiltInObjectReference(_n) => (),
-            Node::SymbolReference(_n) => (),
-            Node::ModuleFragment(n) => {
-                self.print_child(&n.statementbody);
-            }
-            Node::StatementBody(n) => {
-                for s in &n.statements {
-                    self.print_child(s);
-                }
-            }
-            Node::FunctionLiteral(n) => {
-                for p in &n.inputparams {
-                    self.print_child(p);
-                }
-                for p in &n.outputparams {
-                    self.print_child(p);
-                }
-                self.print_child(&n.body);
-            }
-            Node::InputParameter(n) => {
-                self.print_child(&n.typeexpr);
-            }
-            Node::OutputParameter(n) => {
-                self.print_child(&n.typeexpr);
-            }
-            Node::ReturnStatement(n) => {
-                self.print_child(&n.expr);
-            }
-            Node::ArgumentList(n) => {
-                for a in &n.args {
-                    self.print_child(a);
-                }
-            }
-            Node::CallOperation(n) => {
-                self.print_child(&n.expr);
-                self.print_child(&n.arglist);
-            }
-            Node::BinaryOperation(n) => {
-                self.print_child(&n.lhs);
-                self.print_child(&n.rhs);
-            }
-            Node::SymbolDeclaration(n) => {
-                self.print_optional_child(&n.typeexpr);
-                self.print_child(&n.initexpr);
-            }
-        }
+        visit_children(node, | noderef | {
+            self.level += 1;
+            self.node_print(noderef);
+            self.level -= 1;
+        })
     }
 }

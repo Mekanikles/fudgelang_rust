@@ -4,6 +4,8 @@ use crate::source;
 pub mod scannererrors;
 pub use scannererrors::*;
 
+use backtrace::Backtrace;
+
 pub mod errors {
     // TODO: We might want to attribute "severity" to errors more dynamically
     //  (say, via some map), so that users can elevate warnings to errors etc
@@ -108,6 +110,8 @@ pub struct Error {
     pub id: ErrorId,
     pub message: String,
     pub source_span: source::SourceSpan,
+
+    pub backtrace: Option<Backtrace>,
 }
 
 impl Error {
@@ -120,6 +124,7 @@ impl Error {
             id: new_error_id(t),
             message,
             source_span,
+            backtrace: None,
         }
     }
     pub fn at_pos<T: ErrorIdConstructor>(t: T, pos: u64, message: String) -> Error {
@@ -163,8 +168,10 @@ impl ErrorManager {
         return &self.error_data.errors;
     }
 
-    pub fn log_error(&mut self, error: Error) -> ErrorId {
+    pub fn log_error(&mut self, mut error: Error) -> ErrorId {
         let id = error.id;
+
+        error.backtrace = Some(Backtrace::new());
         self.error_data.errors.push(error);
 
         match id {

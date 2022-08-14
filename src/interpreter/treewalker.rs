@@ -218,29 +218,32 @@ macro_rules! as_node {
 }
 
 impl<'a> TreeWalker<'a> {
-    fn evaluate_integerliteral(&mut self, intlit: &ast::IntegerLiteral) -> Value {
+    fn evaluate_integerliteral(&mut self, intlit: &ast::nodes::IntegerLiteral) -> Value {
         return Value::Primitive(PrimitiveValue::U32(U32(intlit.value as u32)));
     }
 
-    fn evaluate_stringliteral(&mut self, strlit: &ast::StringLiteral) -> Value {
+    fn evaluate_stringliteral(&mut self, strlit: &ast::nodes::StringLiteral) -> Value {
         let id = self.strings.len() as u64;
         self.strings.push(strlit.text.clone());
         return Value::Primitive(PrimitiveValue::Utf8StaticString(Utf8StaticString(id)));
     }
 
-    fn evaluate_builtinref(&mut self, builtin: &ast::BuiltInObjectReference) -> Value {
+    fn evaluate_builtinref(&mut self, builtin: &ast::nodes::BuiltInObjectReference) -> Value {
         match &builtin.object {
             ast::BuiltInObject::Function(o) => return create_builtin_function(o),
             ast::BuiltInObject::PrimitiveType(o) => return create_primitive_type(o),
         };
     }
 
-    fn evaluate_returnstatement(&mut self, retstmt: &ast::ReturnStatement) {
-        let exprval = self.evaluate_expression(&retstmt.expr);
-        self.stackframes.last_mut().unwrap().returnvalue = Some(exprval);
+    fn evaluate_returnstatement(&mut self, retstmt: &ast::nodes::ReturnStatement) { 
+        self.stackframes.last_mut().unwrap().returnvalue =
+            match retstmt.expr {
+                Some(expr) => Some(self.evaluate_expression(&expr)),
+                _ => None
+            };
     }
 
-    fn evaluate_binaryoperation(&mut self, binop: &ast::BinaryOperation) -> Value {
+    fn evaluate_binaryoperation(&mut self, binop: &ast::nodes::BinaryOperation) -> Value {
         let lhsval = self.evaluate_expression(&binop.lhs);
         let rhsval = self.evaluate_expression(&binop.rhs);
 
@@ -268,7 +271,7 @@ impl<'a> TreeWalker<'a> {
         };
     }
 
-    fn evaluate_calloperation(&mut self, callop: &ast::CallOperation) -> Value {
+    fn evaluate_calloperation(&mut self, callop: &ast::nodes::CallOperation) -> Value {
         let callable = self.evaluate_expression(&callop.expr);
 
         // Build arguments
@@ -346,7 +349,7 @@ impl<'a> TreeWalker<'a> {
         }
     }
 
-    fn evaluate_functionliteral(&mut self, fnliteral: &ast::FunctionLiteral) -> Value {
+    fn evaluate_functionliteral(&mut self, fnliteral: &ast::nodes::FunctionLiteral) -> Value {
         let mut signature = FunctionSignature {
             inputparams: Vec::new(),
             outputparams: Vec::new(),
@@ -393,13 +396,13 @@ impl<'a> TreeWalker<'a> {
         return Value::Function(funcid);
     }
 
-    fn evaluate_statementbody(&mut self, body: &ast::StatementBody) {
+    fn evaluate_statementbody(&mut self, body: &ast::nodes::StatementBody) {
         for s in &body.statements {
             self.evaluate_statement(s);
         }
     }
 
-    fn evaluate_symbolreference(&mut self, symref: &ast::SymbolReference) -> Value {
+    fn evaluate_symbolreference(&mut self, symref: &ast::nodes::SymbolReference) -> Value {
         if let Some(v) = self
             .stackframes
             .last()
@@ -412,7 +415,7 @@ impl<'a> TreeWalker<'a> {
         return self.globals[&symref.symbol.key].clone();
     }
 
-    fn evaluate_symboldeclaration(&mut self, symdecl: &ast::SymbolDeclaration) {
+    fn evaluate_symboldeclaration(&mut self, symdecl: &ast::nodes::SymbolDeclaration) {
         assert!(
             !self.globals.contains_key(&symdecl.symbol.key),
             "Symbol {} is already defined!",
@@ -462,7 +465,7 @@ impl<'a> TreeWalker<'a> {
             ast::Node::CallOperation(n) => self.evaluate_calloperation(n),
             ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(n),
             n => {
-                panic!("Not an expression! Node: {:?}", ast::NamedNode::name(n));
+                panic!("Not an expression! Node: {:?}", ast::NodeInfo::name(n));
             }
         }
     }
