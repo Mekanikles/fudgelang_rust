@@ -72,6 +72,10 @@ impl Ast {
         return &self.nodes[noderef.index as usize];
     }
 
+    pub fn get_node_as<'a>(&'a self, noderef: &NodeRef) -> &'a Node {
+        return &self.nodes[noderef.index as usize];
+    }
+
     pub fn set_root(&mut self, n: NodeRef) {
         self.root_index = Some(n.index);
     }
@@ -96,6 +100,33 @@ impl Ast {
 
     pub fn get_symbol(&self, symbolref: &SymbolRef) -> Option<&String> {
         return self.symbols.get(symbolref);
+    }
+
+    pub fn find_node(&self, nodeid: NodeId) -> Option<NodeRef> {
+        fn search_subtree(ast: &Ast, noderef: &NodeRef, nodeid: NodeId) -> Option<NodeRef> {
+            let node = ast.get_node(noderef);
+            if node.id() == nodeid {
+                return Some(*noderef);
+            }
+
+            // Bleh
+            let mut found : Option<NodeRef> = None;
+            visit_children(node, | childref | {
+                if let Some(n) = search_subtree(ast, childref, nodeid) {
+                    found = Some(n);
+                    return false;
+                }
+                return true;
+            });
+
+            return found;
+        }
+
+        if let Some(root) = self.get_root() {
+            return search_subtree(self, &root, nodeid)
+        }
+
+        return None;
     }
 }
 
@@ -123,7 +154,7 @@ macro_rules! declare_nodes  {
         }
 
         // Enum with ids
-        #[derive(Debug, Clone, PartialEq)]
+        #[derive(Debug, Clone, Copy, PartialEq)]
         pub enum NodeId {
             $($node_name),*
         }
@@ -158,9 +189,17 @@ macro_rules! declare_nodes  {
             }
         }
 
-        pub fn visit_children<T>(node: &Node, func: T) where T: FnMut(&NodeRef) {
+        pub fn visit_children<T>(node: &Node, mut func: T) where T: FnMut(&NodeRef) -> bool {
             match &node {
-                $(Node::$node_name(n) => { n.visit_children(func); }),*
+                $(Node::$node_name(n) => {
+                    let mut children = Vec::new();
+                    n.collect_children(&mut children);
+                    for c in children {
+                        if !func(&c) {
+                            break;
+                        }
+                    }
+                }),*
             }
         }
     };
@@ -237,99 +276,99 @@ declare_nodes!(
 );
 
 // Why no trait specializations :(
-trait ChildVisitor<FuncT> where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, func: FuncT);
+trait ChildCollector {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>);
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::Invalid where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut _func: FuncT) { panic!("Visited invalid node!"); }
+impl ChildCollector for nodes::Invalid {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { panic!("Visited invalid node!"); }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::ModuleFragment where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { func(&self.statementbody); }
+impl ChildCollector for nodes::ModuleFragment {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { collector.push(self.statementbody); }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::StatementBody where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) {
+impl ChildCollector for nodes::StatementBody {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         for n in &self.statements {
-            func(n);
+            collector.push(*n);
         }
     }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::IntegerLiteral where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut _func: FuncT) { }
+impl ChildCollector for nodes::IntegerLiteral {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::StringLiteral where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut _func: FuncT) { }
+impl ChildCollector for nodes::StringLiteral {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::FunctionLiteral where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) {
+impl ChildCollector for nodes::FunctionLiteral {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         for n in &self.inputparams {
-            func(n);
+            collector.push(*n);
         }
         for n in &self.outputparams {
-            func(n);
+            collector.push(*n);
         }
         
-        func(&self.body);
+        collector.push(self.body);
     }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::InputParameter where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { func(&self.typeexpr); }
+impl ChildCollector for nodes::InputParameter {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { collector.push(self.typeexpr); }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::OutputParameter where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { func(&self.typeexpr); }
+impl ChildCollector for nodes::OutputParameter {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { collector.push(self.typeexpr); }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::BuiltInObjectReference where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut _func: FuncT) { }
+impl ChildCollector for nodes::BuiltInObjectReference {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::SymbolReference where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut _func: FuncT) { }
+impl ChildCollector for nodes::SymbolReference {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::ReturnStatement where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { 
+impl ChildCollector for nodes::ReturnStatement {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
         if let Some(n) = &self.expr {
-            func(n);
+            collector.push(*n);
         }
     }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::ArgumentList where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) {
+impl ChildCollector for nodes::ArgumentList {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         for n in &self.args {
-            func(n);
+            collector.push(*n);
         }
     }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::CallOperation where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { 
-        func(&self.expr);
-        func(&self.arglist);
+impl ChildCollector for nodes::CallOperation {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
+        collector.push(self.expr);
+        collector.push(self.arglist);
     }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::BinaryOperation where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { 
-        func(&self.lhs);
-        func(&self.rhs);
+impl ChildCollector for nodes::BinaryOperation {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
+        collector.push(self.lhs);
+        collector.push(self.rhs);
     }
 }
 
-impl<FuncT> ChildVisitor<FuncT> for nodes::SymbolDeclaration where FuncT: FnMut(&NodeRef) {
-    fn visit_children(&self, mut func: FuncT) { 
+impl ChildCollector for nodes::SymbolDeclaration {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
         if let Some(n) = &self.typeexpr {
-            func(n);
+            collector.push(*n);
         }
-        func(&self.initexpr);
+        collector.push(self.initexpr);
     }
 }
 
@@ -392,6 +431,7 @@ impl<'a> AstPrinter<'a> {
             self.level += 1;
             self.node_print(noderef);
             self.level -= 1;
+            return true;
         })
     }
 }

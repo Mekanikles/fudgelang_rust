@@ -1,4 +1,5 @@
 use crate::parser::stringstore::*;
+use phf::phf_map;
 
 use StringKey as SymbolKey;
 
@@ -16,6 +17,21 @@ pub enum PrimitiveType {
     F32,
     F64,
 }
+
+// Map with all adressable primitive types
+pub static PRIMITIVES : phf::Map<&'static str, PrimitiveType> = phf_map! {
+    "ssutf8" => PrimitiveType::StaticStringUtf8,
+    "u8" => PrimitiveType::U8,
+    "u16" => PrimitiveType::U16,
+    "u32" => PrimitiveType::U32,
+    "u64" => PrimitiveType::U64,
+    "s8" => PrimitiveType::S8,
+    "s16" => PrimitiveType::S16,
+    "s32" => PrimitiveType::S32,
+    "s64" => PrimitiveType::S64,
+    "f32" => PrimitiveType::F32,
+    "f64" => PrimitiveType::F64,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionSignature {

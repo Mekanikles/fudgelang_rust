@@ -87,9 +87,8 @@ fn main() {
     treewalker.interpret();
 
     // Print errors
-    // TODO: Have to print in this order, since parse borrows scanner
-    output::print_errors(parser.get_errors(), &source);
-    output::print_errors(scanner.get_errors(), &source);
+    output::print_errors(&parser.get_tokenstream_errors(), &source);
+    output::print_errors(&parser.get_parser_errors(), &source);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

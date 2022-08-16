@@ -32,8 +32,14 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         }
     }
 
-    pub fn get_errors(&self) -> &Vec<error::Error> {
+    pub fn get_parser_errors(&self) -> &Vec<error::Error> {
         return self.errors.get_errors();
+    }
+
+    // Bah, an error manager should really be passed into both scanner and parser
+    //  but mutable shared refs are a mess in rust
+    pub fn get_tokenstream_errors(&self) -> &Vec<error::Error> {
+        return self.tokens.get_errors();
     }
 
     pub fn log_error(&mut self, error: error::Error) -> Result<error::ErrorId, error::ErrorId> {
@@ -391,16 +397,21 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 .is_some()
             {
                 symbolstrings.pop();
-                if symbolstrings.last().filter(|s| *s == "u32").is_some() {
+                
+                if let Some(s) = symbolstrings.last() {
+                    let object = ast::BuiltInObject::PrimitiveType(PRIMITIVES[s]);
                     symbolstrings.pop();
                     return Ok(Some(
                         self.ast.add_node(
                             ast::nodes::BuiltInObjectReference {
-                                object: ast::BuiltInObject::PrimitiveType(PrimitiveType::U32),
+                                object,
                             }
                             .into(),
                         ),
                     ));
+                }
+                else {
+                    // TODO: Error
                 }
             } else if symbolstrings.last().filter(|s| *s == "output").is_some() {
                 symbolstrings.pop();
