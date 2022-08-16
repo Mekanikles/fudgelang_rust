@@ -235,12 +235,11 @@ impl<'a> TreeWalker<'a> {
         };
     }
 
-    fn evaluate_returnstatement(&mut self, retstmt: &ast::nodes::ReturnStatement) { 
-        self.stackframes.last_mut().unwrap().returnvalue =
-            match retstmt.expr {
-                Some(expr) => Some(self.evaluate_expression(&expr)),
-                _ => None
-            };
+    fn evaluate_returnstatement(&mut self, retstmt: &ast::nodes::ReturnStatement) {
+        self.stackframes.last_mut().unwrap().returnvalue = match retstmt.expr {
+            Some(expr) => Some(self.evaluate_expression(&expr)),
+            _ => None,
+        };
     }
 
     fn evaluate_binaryoperation(&mut self, binop: &ast::nodes::BinaryOperation) -> Value {

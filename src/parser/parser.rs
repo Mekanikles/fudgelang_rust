@@ -85,8 +85,10 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         if !self.accept(expected_token) {
             if let Some(current_token) = &self.current_token {
                 let span = current_token.source_span;
-                let error = format!("Unexpected token! Expected '{:?}', got '{:?}'", 
-                    expected_token, current_token.tokentype);
+                let error = format!(
+                    "Unexpected token! Expected '{:?}', got '{:?}'",
+                    expected_token, current_token.tokentype
+                );
                 return Err(self.log_error(error::Error::at_span(
                     errors::UnexpectedToken,
                     span,
@@ -151,10 +153,10 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         let node = self.ast.reserve_node();
 
         if let Some(n) = self.parse_expression()? {
-            return Ok(Some(
-                self.ast
-                    .replace_node(node, ast::nodes::OutputParameter { typeexpr: n }.into()),
-            ));
+            return Ok(Some(self.ast.replace_node(
+                node,
+                ast::nodes::OutputParameter { typeexpr: n }.into(),
+            )));
         }
 
         self.ast.undo_node_reservation(node);
@@ -299,7 +301,8 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         if self.accept(TokenType::StringLiteral) {
             let text = self.get_last_token_text();
             return Ok(Some(
-                self.ast.add_node(ast::nodes::StringLiteral { text: text }.into()),
+                self.ast
+                    .add_node(ast::nodes::StringLiteral { text: text }.into()),
             ));
         } else if self.accept(TokenType::NumericLiteral) {
             let text = self.get_last_token_text();
@@ -320,7 +323,9 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             // Calls
             if self.accept(TokenType::OpeningParenthesis) {
                 let node = self.ast.reserve_node();
-                let symbol = self.ast.add_node(ast::nodes::SymbolReference { symbol: s }.into());
+                let symbol = self
+                    .ast
+                    .add_node(ast::nodes::SymbolReference { symbol: s }.into());
 
                 let arglist = self.parse_argumentlist()?;
 
@@ -341,7 +346,9 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             // TODO: Replace with shunting yard for correct operator precedence
             if let Some(op) = self.accept_binaryoperator() {
                 let node = self.ast.reserve_node();
-                let lhs = self.ast.add_node(ast::nodes::SymbolReference { symbol: s }.into());
+                let lhs = self
+                    .ast
+                    .add_node(ast::nodes::SymbolReference { symbol: s }.into());
 
                 if let Some(n) = self.parse_expression()? {
                     return Ok(Some(
@@ -365,7 +372,8 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 }
             } else {
                 return Ok(Some(
-                    self.ast.add_node(ast::nodes::SymbolReference { symbol: s }.into()),
+                    self.ast
+                        .add_node(ast::nodes::SymbolReference { symbol: s }.into()),
                 ));
             }
         } else if let Some(n) = self.parse_function_literal_or_type()? {
@@ -397,20 +405,15 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 .is_some()
             {
                 symbolstrings.pop();
-                
+
                 if let Some(s) = symbolstrings.last() {
                     let object = ast::BuiltInObject::PrimitiveType(PRIMITIVES[s]);
                     symbolstrings.pop();
                     return Ok(Some(
-                        self.ast.add_node(
-                            ast::nodes::BuiltInObjectReference {
-                                object,
-                            }
-                            .into(),
-                        ),
+                        self.ast
+                            .add_node(ast::nodes::BuiltInObjectReference { object }.into()),
                     ));
-                }
-                else {
+                } else {
                     // TODO: Error
                 }
             } else if symbolstrings.last().filter(|s| *s == "output").is_some() {

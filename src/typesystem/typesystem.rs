@@ -19,7 +19,7 @@ pub enum PrimitiveType {
 }
 
 // Map with all adressable primitive types
-pub static PRIMITIVES : phf::Map<&'static str, PrimitiveType> = phf_map! {
+pub static PRIMITIVES: phf::Map<&'static str, PrimitiveType> = phf_map! {
     "ssutf8" => PrimitiveType::StaticStringUtf8,
     "u8" => PrimitiveType::U8,
     "u16" => PrimitiveType::U16,

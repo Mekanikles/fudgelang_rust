@@ -25,12 +25,14 @@ pub fn verify_ast(source: &str, expected: &NodeIdTree) -> ast::Ast {
 
     assert!(ast.get_root().is_some());
     let rootref = ast.get_root().unwrap();
-  
+
     // Rust cannot do recursive lambdas, booh
-    fn record_tree_recursively(ast: &ast::Ast, noderef: &ast::NodeRef) -> NodeIdTree
-    { 
-        let mut this = NodeIdTree { id: ast.get_node(noderef).id(), children: Vec::new() };
-        ast::visit_children(ast.get_node(noderef), | noderef | {
+    fn record_tree_recursively(ast: &ast::Ast, noderef: &ast::NodeRef) -> NodeIdTree {
+        let mut this = NodeIdTree {
+            id: ast.get_node(noderef).id(),
+            children: Vec::new(),
+        };
+        ast::visit_children(ast.get_node(noderef), |noderef| {
             this.children.push(record_tree_recursively(ast, noderef));
             return true;
         });
@@ -44,23 +46,26 @@ pub fn verify_ast(source: &str, expected: &NodeIdTree) -> ast::Ast {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct NodeIdTree
-{
+pub struct NodeIdTree {
     pub id: ast::NodeId,
     pub children: Vec<NodeIdTree>,
 }
 
 pub fn tree(id: ast::NodeId, children: &[NodeIdTree]) -> NodeIdTree {
-    NodeIdTree { id, children: children.to_vec() }
+    NodeIdTree {
+        id,
+        children: children.to_vec(),
+    }
 }
 
 pub fn leaf(id: ast::NodeId) -> NodeIdTree {
-    NodeIdTree { id, children: Vec::new() }
+    NodeIdTree {
+        id,
+        children: Vec::new(),
+    }
 }
 
 pub fn module_fragment_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
     use crate::parser::ast::NodeId::*;
     return tree(ModuleFragment, &[tree(StatementBody, body)]);
 }
-
-

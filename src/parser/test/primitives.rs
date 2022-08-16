@@ -1,5 +1,5 @@
-use crate::typesystem::*;
 use super::utils::*;
+use crate::typesystem::*;
 
 use crate::parser::ast;
 use crate::parser::ast::NodeId::*;
@@ -9,9 +9,7 @@ fn wrap_in_simple_declaration(typename: &str) -> String {
 }
 
 fn simple_simple_declaration_tree(body: &[NodeIdTree]) -> NodeIdTree {
-    return module_fragment_wrapper_tree(&[
-        tree(SymbolDeclaration, body)
-        ]);
+    return module_fragment_wrapper_tree(&[tree(SymbolDeclaration, body)]);
 }
 
 #[test]

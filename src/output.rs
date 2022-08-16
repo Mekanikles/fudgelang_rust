@@ -5,7 +5,7 @@ use std::io::Read;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFiles;
-use codespan_reporting::term::termcolor::{ColorChoice, BufferedStandardStream};
+use codespan_reporting::term::termcolor::{BufferedStandardStream, ColorChoice};
 
 pub fn print_errors<'a, R: Read, S: Source<'a, R>>(errors: &Vec<Error>, source: &'a S) {
     // TODO: If we only use memory sources, we don't have to
@@ -22,21 +22,21 @@ pub fn print_errors<'a, R: Read, S: Source<'a, R>>(errors: &Vec<Error>, source: 
                 .with_code(error_code(err.id))
                 .with_labels(vec![Label::primary(
                     file_id,
-                    err.source_span.pos as usize..
-                        (err.source_span.pos as usize + err.source_span.len),
+                    err.source_span.pos as usize
+                        ..(err.source_span.pos as usize + err.source_span.len),
                 )]);
 
             // Output error
             let mut writer = BufferedStandardStream::stdout(ColorChoice::Always);
             let config = codespan_reporting::term::Config::default();
-            let _ =
-                codespan_reporting::term::emit(&mut writer, &config, &files, &diagnostic);
+            let _ = codespan_reporting::term::emit(&mut writer, &config, &files, &diagnostic);
 
             // Output backtrace
             // TODO: Only in compiler dev mode
             if let Some(bt) = &err.backtrace {
                 let output = format!("{:?}", bt);
-                let filtered : Vec<&str> = output.lines()
+                let filtered: Vec<&str> = output
+                    .lines()
                     .filter(|i| i.contains("libfudgec"))
                     .filter(|i| !i.contains("ErrorManager"))
                     .filter(|i| !i.is_empty())

@@ -43,7 +43,7 @@ pub enum TokenType {
     NumericLiteral,
 }
 
-#[derive(PartialEq, Debug, Clone,  Copy)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Token {
     pub tokentype: TokenType,
     pub source_span: source::SourceSpan,

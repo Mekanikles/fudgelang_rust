@@ -110,8 +110,8 @@ impl Ast {
             }
 
             // Bleh
-            let mut found : Option<NodeRef> = None;
-            visit_children(node, | childref | {
+            let mut found: Option<NodeRef> = None;
+            visit_children(node, |childref| {
                 if let Some(n) = search_subtree(ast, childref, nodeid) {
                     found = Some(n);
                     return false;
@@ -123,7 +123,7 @@ impl Ast {
         }
 
         if let Some(root) = self.get_root() {
-            return search_subtree(self, &root, nodeid)
+            return search_subtree(self, &root, nodeid);
         }
 
         return None;
@@ -162,7 +162,7 @@ macro_rules! declare_nodes  {
         // Node structs
         pub mod nodes {
             use super::*;
-            $(declare_nodes!(@node_struct 
+            $(declare_nodes!(@node_struct
                 $node_name {
                     $($($field: $field_t),*)?
                 }
@@ -258,11 +258,11 @@ declare_nodes!(
         args: Vec<NodeRef>,
     },
     // TODO: Can this be generalized to parameterized symbol reference?
-    //  The same syntax is used for function calls, type parameteters etc 
+    //  The same syntax is used for function calls, type parameteters etc
     CallOperation {
         expr: NodeRef,
         arglist: NodeRef,
-    },    
+    },
     BinaryOperation {
         optype: BinaryOperationType,
         lhs: NodeRef,
@@ -281,11 +281,15 @@ trait ChildCollector {
 }
 
 impl ChildCollector for nodes::Invalid {
-    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { panic!("Visited invalid node!"); }
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {
+        panic!("Visited invalid node!");
+    }
 }
 
 impl ChildCollector for nodes::ModuleFragment {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { collector.push(self.statementbody); }
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.statementbody);
+    }
 }
 
 impl ChildCollector for nodes::StatementBody {
@@ -297,11 +301,11 @@ impl ChildCollector for nodes::StatementBody {
 }
 
 impl ChildCollector for nodes::IntegerLiteral {
-    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
 }
 
 impl ChildCollector for nodes::StringLiteral {
-    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
 }
 
 impl ChildCollector for nodes::FunctionLiteral {
@@ -312,29 +316,33 @@ impl ChildCollector for nodes::FunctionLiteral {
         for n in &self.outputparams {
             collector.push(*n);
         }
-        
+
         collector.push(self.body);
     }
 }
 
 impl ChildCollector for nodes::InputParameter {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { collector.push(self.typeexpr); }
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.typeexpr);
+    }
 }
 
 impl ChildCollector for nodes::OutputParameter {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { collector.push(self.typeexpr); }
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.typeexpr);
+    }
 }
 
 impl ChildCollector for nodes::BuiltInObjectReference {
-    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
 }
 
 impl ChildCollector for nodes::SymbolReference {
-    fn collect_children(&self, _collector: &mut Vec<NodeRef>) { }
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
 }
 
 impl ChildCollector for nodes::ReturnStatement {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         if let Some(n) = &self.expr {
             collector.push(*n);
         }
@@ -350,21 +358,21 @@ impl ChildCollector for nodes::ArgumentList {
 }
 
 impl ChildCollector for nodes::CallOperation {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         collector.push(self.expr);
         collector.push(self.arglist);
     }
 }
 
 impl ChildCollector for nodes::BinaryOperation {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         collector.push(self.lhs);
         collector.push(self.rhs);
     }
 }
 
 impl ChildCollector for nodes::SymbolDeclaration {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) { 
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         if let Some(n) = &self.typeexpr {
             collector.push(*n);
         }
@@ -427,7 +435,7 @@ impl<'a> AstPrinter<'a> {
         );
 
         // Recurse into subtree
-        visit_children(node, | noderef | {
+        visit_children(node, |noderef| {
             self.level += 1;
             self.node_print(noderef);
             self.level -= 1;
