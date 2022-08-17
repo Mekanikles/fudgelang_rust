@@ -7,6 +7,8 @@ use crate::source::*;
 
 use crate::output;
 
+use std::fmt;
+
 pub fn generate_ast(source: &str) -> ast::Ast {
     let source = MemorySource::from_str(source);
 
@@ -20,12 +22,7 @@ pub fn generate_ast(source: &str) -> ast::Ast {
     return parser.ast;
 }
 
-pub fn verify_ast(source: &str, expected: &NodeIdTree) -> ast::Ast {
-    let ast = generate_ast(source);
-
-    assert!(ast.get_root().is_some());
-    let rootref = ast.get_root().unwrap();
-
+pub fn generate_nodeid_tree(ast: &ast::Ast) -> NodeIdTree {
     // Rust cannot do recursive lambdas, booh
     fn record_tree_recursively(ast: &ast::Ast, noderef: &ast::NodeRef) -> NodeIdTree {
         let mut this = NodeIdTree {
@@ -39,13 +36,19 @@ pub fn verify_ast(source: &str, expected: &NodeIdTree) -> ast::Ast {
         return this;
     }
 
-    let tree = record_tree_recursively(&ast, &rootref);
+    assert!(ast.get_root().is_some());
+    let rootref = ast.get_root().unwrap();
+    return record_tree_recursively(&ast, &rootref);
+}
 
-    assert_eq!(tree, *expected);
+pub fn verify_ast(source: &str, expected: &NodeIdTree) -> ast::Ast {
+    let ast = generate_ast(source);
+
+    assert_eq!(generate_nodeid_tree(&ast), *expected);
     return ast;
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq)]
 pub struct NodeIdTree {
     pub id: ast::NodeId,
     pub children: Vec<NodeIdTree>,
@@ -62,6 +65,25 @@ pub fn leaf(id: ast::NodeId) -> NodeIdTree {
     NodeIdTree {
         id,
         children: Vec::new(),
+    }
+}
+
+impl<'a> fmt::Debug for NodeIdTree {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn recurse(node: &NodeIdTree, f: &mut fmt::Formatter<'_>, indent: u32) -> fmt::Result {
+            f.write_fmt(format_args!(
+                "\n{}|{:?}",
+                " ".repeat(indent as usize),
+                node.id,
+            ))?;
+            for child in &node.children {
+                recurse(child, f, indent + 1)?;
+            }
+
+            return Ok(());
+        }
+
+        return recurse(self, f, 0);
     }
 }
 

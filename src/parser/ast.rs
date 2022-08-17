@@ -102,7 +102,7 @@ impl Ast {
         return self.symbols.get(symbolref);
     }
 
-    pub fn find_node(&self, nodeid: NodeId) -> Option<NodeRef> {
+    pub fn find_first_node(&self, nodeid: NodeId) -> Option<NodeRef> {
         fn search_subtree(ast: &Ast, noderef: &NodeRef, nodeid: NodeId) -> Option<NodeRef> {
             let node = ast.get_node(noderef);
             if node.id() == nodeid {
@@ -130,7 +130,7 @@ impl Ast {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOperationType {
     Add,
     Sub,
@@ -159,8 +159,12 @@ macro_rules! declare_nodes  {
             $($node_name),*
         }
 
-        // Node structs
+        // Node implementations
         pub mod nodes {
+            pub trait NodeImpl {
+                fn id() -> NodeId;
+            }
+
             use super::*;
             $(declare_nodes!(@node_struct
                 $node_name {
@@ -221,6 +225,10 @@ macro_rules! declare_nodes  {
         impl NodeInfo for $name {
             fn id(&self) -> NodeId { NodeId::$name }
             fn name(&self) -> &str { stringify!($name) }
+        }
+
+        impl NodeImpl for $name {
+            fn id() -> NodeId { NodeId::$name }
         }
     };
 }
