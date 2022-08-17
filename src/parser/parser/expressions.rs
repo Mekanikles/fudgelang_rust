@@ -1,8 +1,25 @@
 use super::*;
 
+pub const fn binop_precedence(optype: &ast::BinaryOperationType) -> u32 {
+    use ast::BinaryOperationType::*;
+    match optype {
+        Add => 1,
+        Sub => 1,
+        Mul => 2,
+        Div => 2,
+    }
+}
+
+pub const fn has_higher_precedence(
+    a: &ast::BinaryOperationType,
+    b: &ast::BinaryOperationType,
+) -> bool {
+    binop_precedence(a) > binop_precedence(b)
+}
+
 impl<'a, T: TokenStream> Parser<'a, T> {
     pub fn parse_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
-        // Shunting yard algorithm
+        // For more info, see Shunting Yard Algorithm
 
         let mut exprstack: Vec<ast::NodeRef> = Vec::new();
         let mut binopstack: Vec<ast::BinaryOperationType> = Vec::new();
@@ -13,8 +30,38 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             return Ok(None);
         }
 
+        // Consume the last binary operator and two expressions and push the result on
+        //  the expression stack
+        fn consume_last_op(
+            ast: &mut ast::Ast,
+            exprstack: &mut Vec<ast::NodeRef>,
+            binopstack: &mut Vec<ast::BinaryOperationType>,
+        ) {
+            assert!(exprstack.len() > 1);
+            let rhs = exprstack.pop().unwrap();
+            let lhs = exprstack.pop().unwrap();
+            exprstack.push(
+                ast.add_node(
+                    ast::nodes::BinaryOperation {
+                        optype: binopstack.pop().unwrap(),
+                        lhs,
+                        rhs,
+                    }
+                    .into(),
+                ),
+            );
+        }
+
         // Parse entire expression, separating expressions and operators
         while let Some(optype) = self.accept_binaryoperator() {
+            // Bind expressions as long as the new operator has lower or same priority
+            // This ensures left-associativity since all available expressions are bound as soon as possible
+            while !binopstack.is_empty()
+                && !has_higher_precedence(&optype, binopstack.last().unwrap())
+            {
+                consume_last_op(&mut self.ast, &mut exprstack, &mut binopstack);
+            }
+
             binopstack.push(optype);
 
             if let Some(expr) = self.parse_primary_expression()? {
@@ -29,32 +76,13 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             }
         }
 
-        // Bind any remaining expressions left-to-right, for operator left-associativity
-        fn bind_remaining_ops(
-            ast: &mut ast::Ast,
-            exprstack: &mut Vec<ast::NodeRef>,
-            binopstack: &mut Vec<ast::BinaryOperationType>,
-        ) -> ast::NodeRef {
-            // Important to pop rhs first
-            if let Some(optype) = binopstack.pop() {
-                let node = ast.reserve_node();
-                let rhs = exprstack.pop().unwrap();
-                let lhs = bind_remaining_ops(ast, exprstack, binopstack);
-                return ast.replace_node(
-                    node,
-                    ast::nodes::BinaryOperation { optype, lhs, rhs }.into(),
-                );
-            } else {
-                assert!(exprstack.len() == 1);
-                return exprstack.pop().unwrap();
-            }
+        // At this point, we know that all remaining operations are in strict ascending priority order
+        // Bind them right-to-left
+        while !binopstack.is_empty() {
+            consume_last_op(&mut self.ast, &mut exprstack, &mut binopstack);
         }
 
-        return Ok(Some(bind_remaining_ops(
-            &mut self.ast,
-            &mut exprstack,
-            &mut binopstack,
-        )));
+        return Ok(exprstack.pop());
     }
 
     fn parse_primary_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {

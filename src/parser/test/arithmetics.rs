@@ -54,7 +54,24 @@ fn test_simple_parenthesis() {
 }
 
 #[test]
-fn test_binary_operation_order_ltr() {
+fn test_parenthesis_precedence() {
+    verify_ast(
+        "a + (b + c)",
+        &module_fragment_wrapper_tree(&[tree(
+            BinaryOperation,
+            &[
+                leaf(SymbolReference),
+                tree(
+                    BinaryOperation,
+                    &[leaf(SymbolReference), leaf(SymbolReference)],
+                ),
+            ],
+        )]),
+    );
+}
+
+#[test]
+fn test_all_binary_operations_order_ltr() {
     fn test_ltr_for_binary_op(opstr: &str) {
         let ast1 = generate_ast(&format!("a {} b {} c {} d", opstr, opstr, opstr));
         let ast2 = generate_ast(&format!("((a {} b) {} c) {} d", opstr, opstr, opstr));
@@ -68,7 +85,7 @@ fn test_binary_operation_order_ltr() {
 }
 
 #[test]
-fn test_operation_order_precedence_same1() {
+fn test_binary_operation_order_same_precedence1() {
     let ast1 = generate_ast("a + b - c + d");
     let ast2 = generate_ast("((a + b) - c) + d");
 
@@ -76,7 +93,7 @@ fn test_operation_order_precedence_same1() {
 }
 
 #[test]
-fn test_operation_order_precedence_same2() {
+fn test_binary_operation_order_same_precedence2() {
     let ast1 = generate_ast("a * b / c * d");
     let ast2 = generate_ast("((a * b) / c) * d");
 
@@ -84,9 +101,33 @@ fn test_operation_order_precedence_same2() {
 }
 
 #[test]
-fn test_operation_order_precedence_mixed1() {
-    let ast1 = generate_ast("a + b - c * d / c");
-    let ast2 = generate_ast("(a + b) - ((c * d) / c))");
+fn test_binary_operation_order_precedence_mixed1() {
+    let ast1 = generate_ast("a + b * c");
+    let ast2 = generate_ast("a + (b * c)");
+
+    assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
+}
+
+#[test]
+fn test_binary_operation_order_precedence_mixed2() {
+    let ast1 = generate_ast("a / b - c");
+    let ast2 = generate_ast("(a / b) - c");
+
+    assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
+}
+
+#[test]
+fn test_binary_operation_order_precedence_mixed3() {
+    let ast1 = generate_ast("a + b - c * d / e");
+    let ast2 = generate_ast("(a + b) - ((c * d) / e))");
+
+    assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
+}
+
+#[test]
+fn test_binary_operation_order_precedence_mixed4() {
+    let ast1 = generate_ast("a - b * c + d / e");
+    let ast2 = generate_ast("a - (b * c) + (d / e)");
 
     assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
 }
