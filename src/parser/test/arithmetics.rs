@@ -68,9 +68,25 @@ fn test_binary_operation_order_ltr() {
 }
 
 #[test]
-fn test_operation_order_precedence() {
+fn test_operation_order_precedence_same1() {
+    let ast1 = generate_ast("a + b - c + d");
+    let ast2 = generate_ast("((a + b) - c) + d");
+
+    assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
+}
+
+#[test]
+fn test_operation_order_precedence_same2() {
+    let ast1 = generate_ast("a * b / c * d");
+    let ast2 = generate_ast("((a * b) / c) * d");
+
+    assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
+}
+
+#[test]
+fn test_operation_order_precedence_mixed1() {
     let ast1 = generate_ast("a + b - c * d / c");
-    let ast2 = generate_ast("(((a + b) - c) * d) / c)");
+    let ast2 = generate_ast("(a + b) - ((c * d) / c))");
 
     assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
 }

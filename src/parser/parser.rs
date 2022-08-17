@@ -9,6 +9,7 @@ use crate::source::*;
 use crate::parser::stringstore::*;
 use crate::typesystem::*;
 
+mod builtins;
 mod expressions;
 
 use StringRef as SymbolRef;
