@@ -13,6 +13,10 @@ use std::io::BufReader;
 // Map with all scannable keywords
 static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "if" => TokenType::If,
+    "then" => TokenType::Then,
+    "else" => TokenType::Else,
+    "true" => TokenType::True,
+    "false" => TokenType::False,
     "def" => TokenType::Def,
     "func" => TokenType::Func,
     "do" => TokenType::Do,

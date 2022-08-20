@@ -241,6 +241,9 @@ declare_nodes!(
     StatementBody {
         statements: Vec<NodeRef>,
     },
+    BooleanLiteral {
+        value: bool,
+    },
     IntegerLiteral {
         value: u64,
         signed: bool,
@@ -261,6 +264,7 @@ declare_nodes!(
         object: BuiltInObject,
     },
     SymbolReference { symbol: SymbolRef },
+    IfStatement { condition: NodeRef, thenstmnt: NodeRef, elsestmnt: Option<NodeRef> },
     ReturnStatement { expr: Option<NodeRef> },
     ArgumentList {
         args: Vec<NodeRef>,
@@ -308,6 +312,10 @@ impl ChildCollector for nodes::StatementBody {
     }
 }
 
+impl ChildCollector for nodes::BooleanLiteral {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
+}
+
 impl ChildCollector for nodes::IntegerLiteral {
     fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
 }
@@ -347,6 +355,16 @@ impl ChildCollector for nodes::BuiltInObjectReference {
 
 impl ChildCollector for nodes::SymbolReference {
     fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
+}
+
+impl ChildCollector for nodes::IfStatement {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.condition);
+        collector.push(self.thenstmnt);
+        if let Some(n) = &self.elsestmnt {
+            collector.push(*n);
+        }
+    }
 }
 
 impl ChildCollector for nodes::ReturnStatement {

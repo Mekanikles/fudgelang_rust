@@ -33,3 +33,11 @@ fn test_all_builtin_primitive_declarations() {
         test_builtin_primitive_declaration(key, &PRIMITIVES[key]);
     }
 }
+
+#[test]
+fn test_boolean_literals() {
+    verify_ast(
+        "true\nfalse",
+        &module_fragment_wrapper_tree(&[leaf(BooleanLiteral), leaf(BooleanLiteral)]),
+    );
+}

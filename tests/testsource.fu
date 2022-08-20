@@ -1,7 +1,16 @@
 def u32 = #primitives.u32 // Comment test
+def bool = /* comment test */ #primitives.bool
 
-def print = /* comment test */ func(a : u32) do
-	#output.print_format("Ditt nummer är: {}", a)
+def print_true = func(a : u32) do
+	#output.print_format("Hurra! Ditt nummer är: {}", a)
 end
 
-print(2 * (123 + 2 - 1) / 3)
+def print_false = func(a : u32) do
+	#output.print_format("Buu. Ditt nummer är: {}", a)
+end
+
+if true then
+	print_true(2 * (123 + 2 - 1) / 3)
+else
+	print_false(2 * (123 + 2 - 1) / 3)
+end

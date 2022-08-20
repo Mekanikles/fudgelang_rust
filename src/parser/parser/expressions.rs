@@ -86,7 +86,17 @@ impl<'a, T: TokenStream> Parser<'a, T> {
     }
 
     fn parse_primary_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
-        if self.accept(TokenType::StringLiteral) {
+        if self.accept(TokenType::True) {
+            return Ok(Some(
+                self.ast
+                    .add_node(ast::nodes::BooleanLiteral { value: true }.into()),
+            ));
+        } else if self.accept(TokenType::False) {
+            return Ok(Some(
+                self.ast
+                    .add_node(ast::nodes::BooleanLiteral { value: false }.into()),
+            ));
+        } else if self.accept(TokenType::StringLiteral) {
             let text = self.get_last_token_text();
             return Ok(Some(
                 self.ast

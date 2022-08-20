@@ -6,6 +6,7 @@ use StringKey as SymbolKey;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrimitiveType {
     StaticStringUtf8,
+    Bool,
     U8,
     U16,
     U32,
@@ -21,6 +22,7 @@ pub enum PrimitiveType {
 // Map with all addressable primitive types
 pub static PRIMITIVES: phf::Map<&'static str, PrimitiveType> = phf_map! {
     "ssutf8" => PrimitiveType::StaticStringUtf8,
+    "bool" => PrimitiveType::Bool,
     "u8" => PrimitiveType::U8,
     "u16" => PrimitiveType::U16,
     "u32" => PrimitiveType::U32,

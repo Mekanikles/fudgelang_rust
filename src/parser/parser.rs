@@ -300,6 +300,81 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         return None;
     }
 
+    fn parse_if_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        if self.accept(TokenType::If) {
+            let node = self.ast.reserve_node();
+
+            if let Some(condition) = self.parse_expression()? {
+                let mut usingstatementbody = false;
+
+                // Then
+                let thenstmnt = if self.accept(TokenType::Then) {
+                    let body = self.parse_statementbody()?;
+                    usingstatementbody = true;
+                    Ok(body)
+                } else {
+                    if let Some(expr) = self.parse_expression()? {
+                        Ok(expr)
+                    } else {
+                        Err(self.log_error(error::Error::at_span(
+                            errors::ExpectedExpression,
+                            self.current_token.as_ref().unwrap().source_span,
+                            "Expected expression".into(),
+                        ))?)
+                    }
+                };
+
+                // Else
+                let elsestmnt = if self.accept(TokenType::Else) {
+                    if usingstatementbody {
+                        let body = self.parse_statementbody()?;
+                        self.expect(TokenType::End)?;
+                        Ok(Some(body))
+                    } else {
+                        if let Some(expr) = self.parse_expression()? {
+                            Ok(Some(expr))
+                        } else {
+                            Err(self.log_error(error::Error::at_span(
+                                errors::ExpectedExpression,
+                                self.current_token.as_ref().unwrap().source_span,
+                                "Expected expression".into(),
+                            ))?)
+                        }
+                    }
+                } else {
+                    if usingstatementbody {
+                        self.expect(TokenType::End)?;
+                    }
+                    Ok(None)
+                };
+
+                if let Err(id) = elsestmnt {
+                    return Err(id);
+                }
+
+                return Ok(Some(
+                    self.ast.replace_node(
+                        node,
+                        ast::nodes::IfStatement {
+                            condition,
+                            thenstmnt: thenstmnt.unwrap(),
+                            elsestmnt: elsestmnt.unwrap(),
+                        }
+                        .into(),
+                    ),
+                ));
+            } else {
+                return Err(self.log_error(error::Error::at_span(
+                    errors::ExpectedExpression,
+                    self.current_token.as_ref().unwrap().source_span,
+                    "Expected expression in conditional".into(),
+                ))?);
+            }
+        }
+
+        return Ok(None);
+    }
+
     fn parse_return_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if self.accept(TokenType::Return) {
             let node = self.ast.reserve_node();
@@ -355,6 +430,8 @@ impl<'a, T: TokenStream> Parser<'a, T> {
 
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if let Some(n) = self.parse_symbol_declaration()? {
+            return Ok(Some(n));
+        } else if let Some(n) = self.parse_if_statement()? {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_return_statement()? {
             return Ok(Some(n));

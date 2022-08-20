@@ -30,6 +30,10 @@ pub enum TokenType {
 
     // Keywords
     If,
+    Then,
+    Else,
+    True,
+    False,
     Def,
     Func,
     Do,

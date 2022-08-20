@@ -31,6 +31,8 @@ use u64 as FunctionRef;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Utf8StaticString(u64);
 #[derive(Debug, Clone, PartialEq)]
+pub struct Bool(bool);
+#[derive(Debug, Clone, PartialEq)]
 pub struct U8(u8);
 #[derive(Debug, Clone, PartialEq)]
 pub struct U16(u16);
@@ -54,6 +56,7 @@ pub struct F64(f64);
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveValue {
     Utf8StaticString(Utf8StaticString),
+    Bool(Bool),
     U8(U8),
     U16(U16),
     U32(U32),
@@ -152,6 +155,7 @@ impl Value {
                 PrimitiveValue::Utf8StaticString(_) => {
                     TypeId::Primitive(PrimitiveType::StaticStringUtf8)
                 }
+                PrimitiveValue::Bool(_) => TypeId::Primitive(PrimitiveType::Bool),
                 PrimitiveValue::U8(_) => TypeId::Primitive(PrimitiveType::U8),
                 PrimitiveValue::U16(_) => TypeId::Primitive(PrimitiveType::U16),
                 PrimitiveValue::U32(_) => TypeId::Primitive(PrimitiveType::U32),
@@ -172,6 +176,7 @@ impl Value {
         match self {
             Value::Primitive(p) => match p {
                 PrimitiveValue::Utf8StaticString(v) => tw.strings[v.0 as usize].clone(),
+                PrimitiveValue::Bool(v) => v.0.to_string(),
                 PrimitiveValue::U8(v) => v.0.to_string(),
                 PrimitiveValue::U16(v) => v.0.to_string(),
                 PrimitiveValue::U32(v) => v.0.to_string(),
@@ -222,6 +227,10 @@ impl<'a> TreeWalker<'a> {
         return Value::Primitive(PrimitiveValue::U32(U32(intlit.value as u32)));
     }
 
+    fn evaluate_booleanliteral(&mut self, intlit: &ast::nodes::BooleanLiteral) -> Value {
+        return Value::Primitive(PrimitiveValue::Bool(Bool(intlit.value)));
+    }
+
     fn evaluate_stringliteral(&mut self, strlit: &ast::nodes::StringLiteral) -> Value {
         let id = self.strings.len() as u64;
         self.strings.push(strlit.text.clone());
@@ -235,6 +244,39 @@ impl<'a> TreeWalker<'a> {
         };
     }
 
+    fn evaluate_ifstatement(&mut self, ifstmt: &ast::nodes::IfStatement) {
+        let condition = self.evaluate_expression(&ifstmt.condition);
+
+        let v = match condition {
+            Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
+            _ => None,
+        };
+
+        assert!(
+            v.is_some(),
+            "if conditional expression was not a bool value",
+        );
+
+        if v.unwrap() {
+            match self.ast.get_node(&ifstmt.thenstmnt) {
+                ast::Node::StatementBody(n) => {
+                    self.evaluate_statementbody(&n);
+                }
+                _ => {
+                    self.evaluate_expression(&ifstmt.thenstmnt);
+                }
+            };
+        } else if ifstmt.elsestmnt.is_some() {
+            match self.ast.get_node(&ifstmt.elsestmnt.unwrap()) {
+                ast::Node::StatementBody(n) => {
+                    self.evaluate_statementbody(&n);
+                }
+                _ => {
+                    self.evaluate_expression(&ifstmt.elsestmnt.unwrap());
+                }
+            };
+        }
+    }
     fn evaluate_returnstatement(&mut self, retstmt: &ast::nodes::ReturnStatement) {
         self.stackframes.last_mut().unwrap().returnvalue = match retstmt.expr {
             Some(expr) => Some(self.evaluate_expression(&expr)),
@@ -458,6 +500,7 @@ impl<'a> TreeWalker<'a> {
         match self.ast.get_node(node) {
             ast::Node::BuiltInObjectReference(n) => self.evaluate_builtinref(n),
             ast::Node::IntegerLiteral(n) => self.evaluate_integerliteral(n),
+            ast::Node::BooleanLiteral(n) => self.evaluate_booleanliteral(n),
             ast::Node::StringLiteral(n) => self.evaluate_stringliteral(n),
             ast::Node::FunctionLiteral(n) => self.evaluate_functionliteral(n),
             ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
@@ -476,6 +519,7 @@ impl<'a> TreeWalker<'a> {
             }
             ast::Node::StatementBody(n) => self.evaluate_statementbody(n),
             ast::Node::SymbolDeclaration(n) => self.evaluate_symboldeclaration(n),
+            ast::Node::IfStatement(n) => self.evaluate_ifstatement(n),
             ast::Node::ReturnStatement(n) => self.evaluate_returnstatement(n),
             _ => {
                 self.evaluate_expression(node);
