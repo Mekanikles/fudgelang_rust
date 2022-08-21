@@ -22,11 +22,16 @@ pub enum TokenType {
     Minus,
     Slash,
     Star,
+    GreaterThan,
+    LessThan,
 
     // n-char tokens
     LineBreak,
     Indentation,
     Comment,
+    CompareEq,
+    GreaterThanOrEq,
+    LessThanOrEq,
 
     // Keywords
     If,

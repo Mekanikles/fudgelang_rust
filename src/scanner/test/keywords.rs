@@ -33,14 +33,11 @@ fn test_delimited_keywords() {
 
 #[test]
 fn test_all_keywords() {
-    verify_exact_scan(
-        "if def func do end",
-        &[
-            Token::new(TokenType::If, 0, 2),
-            Token::new(TokenType::Def, 3, 3),
-            Token::new(TokenType::Func, 7, 4),
-            Token::new(TokenType::Do, 12, 2),
-            Token::new(TokenType::End, 15, 3),
-        ],
-    );
+    fn test_keyword(keystr: &str, tokentype: TokenType) {
+        verify_exact_scan(keystr, &[Token::new(tokentype, 0, keystr.len())]);
+    }
+
+    for key in KEYWORDS.keys() {
+        test_keyword(key, KEYWORDS[key]);
+    }
 }

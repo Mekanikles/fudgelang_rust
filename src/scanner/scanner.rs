@@ -11,7 +11,7 @@ use std::io::BufRead;
 use std::io::BufReader;
 
 // Map with all scannable keywords
-static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
+pub static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "if" => TokenType::If,
     "then" => TokenType::Then,
     "else" => TokenType::Else,
@@ -116,7 +116,12 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'.' => return Some(self.produce_token_and_advance(TokenType::Dot)),
                 b',' => return Some(self.produce_token_and_advance(TokenType::Comma)),
                 b':' => return Some(self.produce_token_and_advance(TokenType::Colon)),
-                b'=' => return Some(self.produce_token_and_advance(TokenType::Equals)),
+                b'=' => match self.reader.lookahead() {
+                    Some(b'=') => {
+                        return Some(self.produce_token_and_advance_n(TokenType::CompareEq, 2));
+                    }
+                    _ => return Some(self.produce_token_and_advance(TokenType::Equals)),
+                },
                 b'+' => return Some(self.produce_token_and_advance(TokenType::Plus)),
                 b'-' => match self.reader.lookahead() {
                     Some(b'>') => {
@@ -136,6 +141,20 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 b'}' => return Some(self.produce_token_and_advance(TokenType::ClosingCurlyBrace)),
                 b';' => return Some(self.produce_token_and_advance(TokenType::SemiColon)),
                 b'#' => return Some(self.produce_token_and_advance(TokenType::Hash)),
+                b'>' => match self.reader.lookahead() {
+                    Some(b'=') => {
+                        return Some(
+                            self.produce_token_and_advance_n(TokenType::GreaterThanOrEq, 2),
+                        )
+                    }
+                    _ => return Some(self.produce_token_and_advance(TokenType::GreaterThan)),
+                },
+                b'<' => match self.reader.lookahead() {
+                    Some(b'=') => {
+                        return Some(self.produce_token_and_advance_n(TokenType::LessThanOrEq, 2))
+                    }
+                    _ => return Some(self.produce_token_and_advance(TokenType::LessThan)),
+                },
                 b'/' => match self.reader.lookahead() {
                     Some(b'/') => return Some(self.produce_linecomment()),
                     Some(b'*') => return Some(self.produce_blockcomment()),

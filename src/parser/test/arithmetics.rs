@@ -11,6 +11,11 @@ static BINOPS: phf::Map<&'static str, ast::BinaryOperationType> = phf_map! {
     "-" => ast::BinaryOperationType::Sub,
     "*" => ast::BinaryOperationType::Mul,
     "/" => ast::BinaryOperationType::Div,
+    "==" => ast::BinaryOperationType::Equals,
+    ">" => ast::BinaryOperationType::GreaterThan,
+    ">=" => ast::BinaryOperationType::GreaterThanOrEq,
+    "<" => ast::BinaryOperationType::LessThan,
+    "<=" => ast::BinaryOperationType::LessThanOrEq,
 };
 
 #[test]
@@ -128,6 +133,14 @@ fn test_binary_operation_order_precedence_mixed3() {
 fn test_binary_operation_order_precedence_mixed4() {
     let ast1 = generate_ast("a - b * c + d / e");
     let ast2 = generate_ast("a - (b * c) + (d / e)");
+
+    assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
+}
+
+#[test]
+fn test_binary_operation_order_comparison() {
+    let ast1 = generate_ast("a < b + c");
+    let ast2 = generate_ast("a < (b + c)");
 
     assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
 }

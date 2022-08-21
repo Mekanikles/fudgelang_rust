@@ -287,6 +287,11 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 TokenType::Minus => Some(ast::BinaryOperationType::Sub),
                 TokenType::Star => Some(ast::BinaryOperationType::Mul),
                 TokenType::Slash => Some(ast::BinaryOperationType::Div),
+                TokenType::CompareEq => Some(ast::BinaryOperationType::Equals),
+                TokenType::GreaterThan => Some(ast::BinaryOperationType::GreaterThan),
+                TokenType::GreaterThanOrEq => Some(ast::BinaryOperationType::GreaterThanOrEq),
+                TokenType::LessThan => Some(ast::BinaryOperationType::LessThan),
+                TokenType::LessThanOrEq => Some(ast::BinaryOperationType::LessThanOrEq),
                 _ => None,
             };
 
@@ -300,69 +305,99 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         return None;
     }
 
-    fn parse_if_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+    // TODO: This is pretty messy. Is the grammar too complex?
+    fn parse_if_statement_or_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if self.accept(TokenType::If) {
             let node = self.ast.reserve_node();
 
             if let Some(condition) = self.parse_expression()? {
                 let mut usingstatementbody = false;
 
-                // Then
-                let thenstmnt = if self.accept(TokenType::Then) {
-                    let body = self.parse_statementbody()?;
+                let mut branches: Vec<(ast::NodeRef, ast::NodeRef)> = Vec::new();
+                let mut elsebranch: Option<ast::NodeRef> = None;
+
+                // Primary branch
+                if self.accept(TokenType::Then) {
+                    branches.push((condition, self.parse_statementbody()?));
                     usingstatementbody = true;
-                    Ok(body)
                 } else {
                     if let Some(expr) = self.parse_expression()? {
-                        Ok(expr)
+                        branches.push((condition, expr));
                     } else {
-                        Err(self.log_error(error::Error::at_span(
+                        return Err(self.log_error(error::Error::at_span(
                             errors::ExpectedExpression,
                             self.current_token.as_ref().unwrap().source_span,
                             "Expected expression".into(),
-                        ))?)
+                        ))?);
                     }
                 };
 
-                // Else
-                let elsestmnt = if self.accept(TokenType::Else) {
-                    if usingstatementbody {
-                        let body = self.parse_statementbody()?;
-                        self.expect(TokenType::End)?;
-                        Ok(Some(body))
-                    } else {
-                        if let Some(expr) = self.parse_expression()? {
-                            Ok(Some(expr))
+                // Secondary branches and final else
+                while self.accept(TokenType::Else) {
+                    if self.accept(TokenType::If) {
+                        // Else ifs
+                        if let Some(condition) = self.parse_expression()? {
+                            if usingstatementbody {
+                                branches.push((condition, self.parse_statementbody()?));
+                            } else {
+                                if let Some(expr) = self.parse_expression()? {
+                                    branches.push((condition, expr));
+                                } else {
+                                    return Err(self.log_error(error::Error::at_span(
+                                        errors::ExpectedExpression,
+                                        self.current_token.as_ref().unwrap().source_span,
+                                        "Expected expression".into(),
+                                    ))?);
+                                }
+                            }
                         } else {
-                            Err(self.log_error(error::Error::at_span(
+                            return Err(self.log_error(error::Error::at_span(
                                 errors::ExpectedExpression,
                                 self.current_token.as_ref().unwrap().source_span,
-                                "Expected expression".into(),
-                            ))?)
+                                "Expected expression in conditional".into(),
+                            ))?);
                         }
-                    }
-                } else {
-                    if usingstatementbody {
-                        self.expect(TokenType::End)?;
-                    }
-                    Ok(None)
-                };
+                    } else {
+                        // Final else
+                        if usingstatementbody {
+                            elsebranch = Some(self.parse_statementbody()?);
+                        } else {
+                            if let Some(expr) = self.parse_expression()? {
+                                elsebranch = Some(expr);
+                            } else {
+                                return Err(self.log_error(error::Error::at_span(
+                                    errors::ExpectedExpression,
+                                    self.current_token.as_ref().unwrap().source_span,
+                                    "Expected expression".into(),
+                                ))?);
+                            }
+                        }
 
-                if let Err(id) = elsestmnt {
-                    return Err(id);
+                        // Final else has to be last
+                        break;
+                    }
                 }
 
-                return Ok(Some(
-                    self.ast.replace_node(
-                        node,
+                if usingstatementbody {
+                    self.expect(TokenType::End)?;
+                }
+
+                return Ok(Some(self.ast.replace_node(
+                    node,
+                    if usingstatementbody {
                         ast::nodes::IfStatement {
-                            condition,
-                            thenstmnt: thenstmnt.unwrap(),
-                            elsestmnt: elsestmnt.unwrap(),
+                            branches,
+                            elsebranch,
                         }
-                        .into(),
-                    ),
-                ));
+                        .into()
+                    } else {
+                        ast::nodes::IfExpression {
+                            branches,
+                            elsebranch: elsebranch.unwrap(),
+                        }
+                        .into()
+                    },
+                )));
             } else {
                 return Err(self.log_error(error::Error::at_span(
                     errors::ExpectedExpression,
@@ -440,7 +475,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if let Some(n) = self.parse_symbol_declaration()? {
             return Ok(Some(n));
-        } else if let Some(n) = self.parse_if_statement()? {
+        } else if let Some(n) = self.parse_if_statement_or_expression()? {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_return_statement()? {
             return Ok(Some(n));

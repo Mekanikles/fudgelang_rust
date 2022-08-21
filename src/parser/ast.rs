@@ -136,6 +136,11 @@ pub enum BinaryOperationType {
     Sub,
     Mul,
     Div,
+    Equals,
+    LessThan,
+    LessThanOrEq,
+    GreaterThan,
+    GreaterThanOrEq,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -270,7 +275,8 @@ declare_nodes!(
         object: BuiltInObject,
     },
     SymbolReference { symbol: SymbolRef },
-    IfStatement { condition: NodeRef, thenstmnt: NodeRef, elsestmnt: Option<NodeRef> },
+    IfStatement { branches: Vec<(NodeRef, NodeRef)>, elsebranch: Option<NodeRef> },
+    IfExpression { branches: Vec<(NodeRef, NodeRef)>, elsebranch: NodeRef },
     ReturnStatement { expr: Option<NodeRef> },
     ArgumentList {
         args: Vec<NodeRef>,
@@ -366,11 +372,23 @@ impl ChildCollector for nodes::SymbolReference {
 
 impl ChildCollector for nodes::IfStatement {
     fn collect_children(&self, collector: &mut Vec<NodeRef>) {
-        collector.push(self.condition);
-        collector.push(self.thenstmnt);
-        if let Some(n) = &self.elsestmnt {
+        for case in &self.branches {
+            collector.push(case.0);
+            collector.push(case.1);
+        }
+        if let Some(n) = &self.elsebranch {
             collector.push(*n);
         }
+    }
+}
+
+impl ChildCollector for nodes::IfExpression {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        for case in &self.branches {
+            collector.push(case.0);
+            collector.push(case.1);
+        }
+        collector.push(self.elsebranch);
     }
 }
 

@@ -69,16 +69,32 @@ pub enum PrimitiveValue {
     F64(F64),
 }
 
+// This is ass, but I need to be able to specialize traits on the enum "variants"
 pub struct Add;
 pub struct Mul;
 pub struct Sub;
 pub struct Div;
+pub struct Equals;
+pub struct LessThan;
+pub struct LessThanOrEq;
+pub struct GeaterThan;
+pub struct GreaterThanOrEq;
 
 trait BinOp<Op, Rhs = Self> {
     fn perform(&self, rhs: &Rhs) -> Value;
 }
 
-fn perform_binop<T: BinOp<Add> + BinOp<Sub> + BinOp<Mul> + BinOp<Div>>(
+fn perform_binop<
+    T: BinOp<Add>
+        + BinOp<Sub>
+        + BinOp<Mul>
+        + BinOp<Div>
+        + BinOp<Equals>
+        + BinOp<LessThan>
+        + BinOp<LessThanOrEq>
+        + BinOp<GeaterThan>
+        + BinOp<GreaterThanOrEq>,
+>(
     op: &ast::BinaryOperationType,
     lhs: &T,
     rhs: &T,
@@ -88,6 +104,11 @@ fn perform_binop<T: BinOp<Add> + BinOp<Sub> + BinOp<Mul> + BinOp<Div>>(
         ast::BinaryOperationType::Sub => BinOp::<Sub>::perform(lhs, rhs),
         ast::BinaryOperationType::Mul => BinOp::<Mul>::perform(lhs, rhs),
         ast::BinaryOperationType::Div => BinOp::<Div>::perform(lhs, rhs),
+        ast::BinaryOperationType::Equals => BinOp::<Equals>::perform(lhs, rhs),
+        ast::BinaryOperationType::LessThan => BinOp::<LessThan>::perform(lhs, rhs),
+        ast::BinaryOperationType::LessThanOrEq => BinOp::<LessThanOrEq>::perform(lhs, rhs),
+        ast::BinaryOperationType::GreaterThan => BinOp::<GeaterThan>::perform(lhs, rhs),
+        ast::BinaryOperationType::GreaterThanOrEq => BinOp::<GreaterThanOrEq>::perform(lhs, rhs),
     };
 }
 
@@ -97,6 +118,17 @@ macro_rules! primitive_binop_impl {
             #[inline]
             fn perform(&self, rhs: &$t) -> Value {
                 Value::Primitive(PrimitiveValue::$t($t(self.0 $op rhs.0)))
+            }
+        }
+    )*)
+}
+
+macro_rules! primitive_comparison_impl {
+    ($optrait:ty, $op:tt, $($t:tt,)*) => ($(
+        impl $optrait for $t {
+            #[inline]
+            fn perform(&self, rhs: &$t) -> Value {
+                Value::Primitive(PrimitiveValue::Bool(Bool(self.0 $op rhs.0)))
             }
         }
     )*)
@@ -124,6 +156,21 @@ primitive_binop_unsupported!(BinOp<Mul>, Utf8StaticString,);
 
 primitive_binop_impl!(BinOp<Div>, /, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
 primitive_binop_unsupported!(BinOp<Div>, Utf8StaticString,);
+
+primitive_comparison_impl!(BinOp<Equals>, ==, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
+primitive_binop_unsupported!(BinOp<Equals>, Utf8StaticString,);
+
+primitive_comparison_impl!(BinOp<LessThan>, <, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
+primitive_binop_unsupported!(BinOp<LessThan>, Utf8StaticString,);
+
+primitive_comparison_impl!(BinOp<LessThanOrEq>, <=, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
+primitive_binop_unsupported!(BinOp<LessThanOrEq>, Utf8StaticString,);
+
+primitive_comparison_impl!(BinOp<GeaterThan>, >, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
+primitive_binop_unsupported!(BinOp<GeaterThan>, Utf8StaticString,);
+
+primitive_comparison_impl!(BinOp<GreaterThanOrEq>, >=, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
+primitive_binop_unsupported!(BinOp<GreaterThanOrEq>, Utf8StaticString,);
 
 /*
 return match (&lhsval, &rhsval) {
@@ -245,38 +292,69 @@ impl<'a> TreeWalker<'a> {
     }
 
     fn evaluate_ifstatement(&mut self, ifstmt: &ast::nodes::IfStatement) {
-        let condition = self.evaluate_expression(&ifstmt.condition);
+        for branch in &ifstmt.branches {
+            let condition = branch.0;
+            let body = branch.1;
 
-        let v = match condition {
-            Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
-            _ => None,
-        };
-
-        assert!(
-            v.is_some(),
-            "if conditional expression was not a bool value",
-        );
-
-        if v.unwrap() {
-            match self.ast.get_node(&ifstmt.thenstmnt) {
-                ast::Node::StatementBody(n) => {
-                    self.evaluate_statementbody(&n);
-                }
-                _ => {
-                    self.evaluate_expression(&ifstmt.thenstmnt);
-                }
+            let condvalue = self.evaluate_expression(&condition);
+            let boolvalue = match condvalue {
+                Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
+                _ => None,
             };
-        } else if ifstmt.elsestmnt.is_some() {
-            match self.ast.get_node(&ifstmt.elsestmnt.unwrap()) {
+
+            assert!(
+                boolvalue.is_some(),
+                "if conditional expression was not a bool value",
+            );
+
+            if boolvalue.unwrap() {
+                match self.ast.get_node(&body) {
+                    ast::Node::StatementBody(n) => {
+                        return self.evaluate_statementbody(&n);
+                    }
+                    _ => {
+                        panic!("Expected statement body");
+                    }
+                }
+            }
+        }
+
+        if ifstmt.elsebranch.is_some() {
+            match self.ast.get_node(&ifstmt.elsebranch.unwrap()) {
                 ast::Node::StatementBody(n) => {
                     self.evaluate_statementbody(&n);
                 }
                 _ => {
-                    self.evaluate_expression(&ifstmt.elsestmnt.unwrap());
+                    panic!("Expected statement body");
                 }
             };
         }
     }
+
+    fn evaluate_ifexpression(&mut self, ifstmt: &ast::nodes::IfExpression) -> Value {
+        for branch in &ifstmt.branches {
+            let condition = branch.0;
+            let body = branch.1;
+
+            let condvalue = self.evaluate_expression(&condition);
+            let boolvalue = match condvalue {
+                Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
+                _ => None,
+            };
+
+            assert!(
+                boolvalue.is_some(),
+                "if conditional expression was not a bool value",
+            );
+
+            if boolvalue.unwrap() {
+                return self.evaluate_expression(&body);
+            }
+        }
+
+        return self.evaluate_expression(&ifstmt.elsebranch);
+    }
+
     fn evaluate_returnstatement(&mut self, retstmt: &ast::nodes::ReturnStatement) {
         self.stackframes.last_mut().unwrap().returnvalue = match retstmt.expr {
             Some(expr) => Some(self.evaluate_expression(&expr)),
@@ -360,9 +438,11 @@ impl<'a> TreeWalker<'a> {
                             "Type mismatch!"
                         );
 
-                        // TODO: Parse format string, for now, assume 1 int
+                        // TODO: Parse format string, for now, assume all args are u32s
                         let mut format_types = Vec::new();
-                        format_types.push(TypeId::Primitive(PrimitiveType::U32));
+                        for _i in 0..args.len() {
+                            format_types.push(TypeId::Primitive(PrimitiveType::U32));
+                        }
 
                         // Check signature and build frames
                         let mut strargs = Vec::new();
@@ -506,6 +586,7 @@ impl<'a> TreeWalker<'a> {
             ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
             ast::Node::CallOperation(n) => self.evaluate_calloperation(n),
             ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(n),
+            ast::Node::IfExpression(n) => self.evaluate_ifexpression(n),
             n => {
                 panic!("Not an expression! Node: {:?}", ast::NodeInfo::name(n));
             }

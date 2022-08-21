@@ -1,12 +1,23 @@
 use super::*;
 
+pub enum OpPrecedence {
+    MulDiv,
+    AddSub,
+    Comparisons,
+}
+
 pub const fn binop_precedence(optype: &ast::BinaryOperationType) -> u32 {
     use ast::BinaryOperationType::*;
     match optype {
-        Add => 1,
-        Sub => 1,
-        Mul => 2,
-        Div => 2,
+        Add => OpPrecedence::AddSub as u32,
+        Sub => OpPrecedence::AddSub as u32,
+        Mul => OpPrecedence::MulDiv as u32,
+        Div => OpPrecedence::MulDiv as u32,
+        Equals => OpPrecedence::Comparisons as u32,
+        LessThan => OpPrecedence::Comparisons as u32,
+        LessThanOrEq => OpPrecedence::Comparisons as u32,
+        GreaterThan => OpPrecedence::Comparisons as u32,
+        GreaterThanOrEq => OpPrecedence::Comparisons as u32,
     }
 }
 
@@ -14,7 +25,7 @@ pub const fn has_higher_precedence(
     a: &ast::BinaryOperationType,
     b: &ast::BinaryOperationType,
 ) -> bool {
-    binop_precedence(a) > binop_precedence(b)
+    binop_precedence(a) < binop_precedence(b)
 }
 
 impl<'a, T: TokenStream> Parser<'a, T> {
