@@ -35,6 +35,7 @@ pub enum TokenType {
     True,
     False,
     Def,
+    Var,
     Func,
     Do,
     End,

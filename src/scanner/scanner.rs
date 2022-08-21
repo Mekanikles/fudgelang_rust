@@ -18,6 +18,7 @@ static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "true" => TokenType::True,
     "false" => TokenType::False,
     "def" => TokenType::Def,
+    "var" => TokenType::Var,
     "func" => TokenType::Func,
     "do" => TokenType::Do,
     "end" => TokenType::End,

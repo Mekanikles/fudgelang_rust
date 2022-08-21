@@ -138,6 +138,12 @@ pub enum BinaryOperationType {
     Div,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SymbolDeclarationType {
+    Def,
+    Var,
+}
+
 // Declares enums and data structs associated with ast nodes
 macro_rules! declare_nodes  {
     // Main macro
@@ -282,6 +288,7 @@ declare_nodes!(
     },
     SymbolDeclaration {
         symbol: SymbolRef,
+        decltype: SymbolDeclarationType,
         typeexpr: Option<NodeRef>,
         initexpr: NodeRef,
     },

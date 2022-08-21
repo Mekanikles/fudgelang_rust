@@ -393,7 +393,15 @@ impl<'a, T: TokenStream> Parser<'a, T> {
     }
 
     fn parse_symbol_declaration(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
-        if self.accept(TokenType::Def) {
+        let decltype = if self.accept(TokenType::Def) {
+            Some(ast::SymbolDeclarationType::Def)
+        } else if self.accept(TokenType::Var) {
+            Some(ast::SymbolDeclarationType::Var)
+        } else {
+            None
+        };
+
+        if let Some(decltype) = decltype {
             let node = self.ast.reserve_node();
 
             self.expect(TokenType::Identifier)?;
@@ -410,6 +418,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                         node,
                         ast::nodes::SymbolDeclaration {
                             symbol: symbol,
+                            decltype: decltype,
                             typeexpr: None,
                             initexpr: n,
                         }

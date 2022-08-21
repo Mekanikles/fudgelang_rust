@@ -5,7 +5,7 @@ use crate::parser::ast::NodeId::*;
 
 use phf::phf_map;
 
-// Map with all adressable binary operators
+// Map with all addressable binary operators
 static BINOPS: phf::Map<&'static str, ast::BinaryOperationType> = phf_map! {
     "+" => ast::BinaryOperationType::Add,
     "-" => ast::BinaryOperationType::Sub,

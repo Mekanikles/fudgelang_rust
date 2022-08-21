@@ -9,8 +9,10 @@ def print_false = func(a : u32) do
 	#output.print_format("Buu. Ditt nummer är: {}", a)
 end
 
+var a = 2 * (123 + 2 - 1) / 3
+
 if true then
-	print_true(2 * (123 + 2 - 1) / 3)
+	print_true(a)
 else
-	print_false(2 * (123 + 2 - 1) / 3)
+	print_false(a)
 end
