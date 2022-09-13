@@ -448,26 +448,115 @@ end
 /////////////////////////////
 
 // Explicit blocks, one line
-if call(func do return true end) then print "case true" else print "case false" end
+// TODO: Should this be allowed?
+//	Leaning towards no, makes block logic complex
+
+// 	Maybe only if block is not broken by linebreak
+if call(func do return true end) then print("case true") else print("case false") end
 
 // Single-expressions, one line
-if call(func => true) print "case true" else print "case false"
+if call(func => true) print("case true") else print("case false")
 
 // Explicit blocks, multiple lines
 if call(
-	func do 
+	func do
 		return true 
 	end,
-	func do 
+	func do
 		return true 
 	end)
-	print "case true"
+	print("case true")
 
 // Single-expressions, multiple lines
 if call(func => true)
 	print "case true"
 else if call(func => true)
 	print "case false"
+
+
+// IF
+
+// Statement version
+if a then
+	b
+end
+
+if a
+then
+	b
+end
+
+if a then
+	b = b * 2
+	return b
+else if c then
+	d = d * 2
+	return d
+end
+
+// Expression version
+if a => b 
+	else c
+
+// Function needs separator since func (a) is ambiguous
+func(a, b) => 
+	a + b
+
+switch x => 
+	case a => 5 
+	case b => 6 
+	case c => 7
+
+// Singular statement version. TODO: Necessary? Or the same as expression, with () return value
+//	-> Messy if different branches have different types
+if a
+	return b
+else if c
+	return d
+else
+	return e
+
+// Problem with single-statment version, ambiguous nested else:
+// -> Is it ambiguous though? 'Else' can just be eaten by the closest if
+if a => if b => c else d else e
+
+// Else-if expression
+if a => b else if c => d else e
+
+// Nested else-if expression
+if a => 
+	if b => 
+		c 
+		else if d => 
+			e 
+		else
+			f 
+	else
+		g
+
+// Multiline block if statement, then is placed on new line
+if a(b, c, 
+	d, e,
+	asdas,
+	asd,
+	asd)
+then
+	return b
+end
+
+// Multiline if expression
+if a(b,
+	c,
+	d,
+	e) => f
+
+// Multiline short-hand is statement is parsed but not allowed
+if a(b,
+	c,
+	d,
+	e)
+	return b
+
 
 /////////////////////////
 ///// Bracer blocks /////
@@ -486,18 +575,18 @@ if call(
 		return true 
 	})
 {
-	print "case true"
+	print("case true")
 }
 else
 {
-	print "case false"
+	print("case false")
 }
 
 // Single-expressions, multiple lines
 if call(func => true)
-	print "case true"
+	print("case true")
 else
-	print "case false"
+	print("case false")
 
 //////////////////////////////////////////////////////////
 

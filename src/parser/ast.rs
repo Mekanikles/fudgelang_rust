@@ -276,7 +276,6 @@ declare_nodes!(
     },
     SymbolReference { symbol: SymbolRef },
     IfStatement { branches: Vec<(NodeRef, NodeRef)>, elsebranch: Option<NodeRef> },
-    IfExpression { branches: Vec<(NodeRef, NodeRef)>, elsebranch: NodeRef },
     ReturnStatement { expr: Option<NodeRef> },
     ArgumentList {
         args: Vec<NodeRef>,
@@ -379,16 +378,6 @@ impl ChildCollector for nodes::IfStatement {
         if let Some(n) = &self.elsebranch {
             collector.push(*n);
         }
-    }
-}
-
-impl ChildCollector for nodes::IfExpression {
-    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
-        for case in &self.branches {
-            collector.push(case.0);
-            collector.push(case.1);
-        }
-        collector.push(self.elsebranch);
     }
 }
 

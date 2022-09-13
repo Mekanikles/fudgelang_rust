@@ -2,7 +2,7 @@ use super::utils::*;
 use crate::parser::ast::NodeId::*;
 
 #[test]
-fn test_statement_if_empty() {
+fn test_statement_empty_if() {
     verify_ast(
         "if a then\nend",
         &module_fragment_wrapper_tree(&[tree(
@@ -13,7 +13,7 @@ fn test_statement_if_empty() {
 }
 
 #[test]
-fn test_statement_if_then_else_empty() {
+fn test_statement_empty_if_then_else_empty() {
     verify_ast(
         "if a then\nelse\nend",
         &module_fragment_wrapper_tree(&[tree(
@@ -28,7 +28,7 @@ fn test_statement_if_then_else_empty() {
 }
 
 #[test]
-fn test_statement_if_else_if() {
+fn test_statement_empty_if_else_if() {
     verify_ast(
         "if a then\nelse if b\nend",
         &module_fragment_wrapper_tree(&[tree(
@@ -44,7 +44,7 @@ fn test_statement_if_else_if() {
 }
 
 #[test]
-fn test_statement_if_else_if_else() {
+fn test_statement_empty_if_else_if_else() {
     verify_ast(
         "if a then\nelse if b\nelse\nend",
         &module_fragment_wrapper_tree(&[tree(
@@ -61,7 +61,7 @@ fn test_statement_if_else_if_else() {
 }
 
 #[test]
-fn test_statement_if_chained_else_if() {
+fn test_statement_empty_if_chained_else_if() {
     verify_ast(
         "if a then\nelse if b\nelse if c\nelse if d\nend",
         &module_fragment_wrapper_tree(&[tree(
@@ -81,7 +81,7 @@ fn test_statement_if_chained_else_if() {
 }
 
 #[test]
-fn test_statement_if_chained_else_if_else() {
+fn test_statement_empty_if_chained_else_if_else() {
     verify_ast(
         "if a then\nelse if b\nelse if c\nelse if d\nelse\nend",
         &module_fragment_wrapper_tree(&[tree(
@@ -102,51 +102,57 @@ fn test_statement_if_chained_else_if_else() {
 }
 
 #[test]
-fn test_expression_if_simple() {
+fn test_statement_non_empty_if() {
+    let blockversion = "if a then\n\tb\nend";
+
     verify_ast(
-        "if a 0 else 2",
+        blockversion,
         &module_fragment_wrapper_tree(&[tree(
-            IfExpression,
+            IfStatement,
             &[
                 leaf(SymbolReference),
-                leaf(IntegerLiteral),
-                leaf(IntegerLiteral),
+                tree(StatementBody, &[leaf(SymbolReference)]),
             ],
         )]),
     );
 }
 
 #[test]
-fn test_expression_if_else_if_else() {
+fn test_statement_non_empty_if_else() {
+    let blockversion = "if a then\n\tb\nelse\n\tb\nend";
+
     verify_ast(
-        "if a 0 else if b 1 else 2",
+        blockversion,
         &module_fragment_wrapper_tree(&[tree(
-            IfExpression,
+            IfStatement,
             &[
                 leaf(SymbolReference),
-                leaf(IntegerLiteral),
-                leaf(SymbolReference),
-                leaf(IntegerLiteral),
-                leaf(IntegerLiteral),
+                tree(StatementBody, &[leaf(SymbolReference)]),
+                tree(StatementBody, &[leaf(SymbolReference)]),
             ],
         )]),
     );
 }
 
 #[test]
-fn test_expression_if_chained_else_if_else() {
+fn test_statement_non_empty_if_chained_else_if_else() {
+    let blockversion =
+        "if a then\n\te\nelse if b\n\te\nelse if c\n\te\nelse if d\n\te\nelse\n\te\nend";
+
     verify_ast(
-        "if a 0 else if b 1 else if c 2 else 3",
+        blockversion,
         &module_fragment_wrapper_tree(&[tree(
-            IfExpression,
+            IfStatement,
             &[
                 leaf(SymbolReference),
-                leaf(IntegerLiteral),
+                tree(StatementBody, &[leaf(SymbolReference)]),
                 leaf(SymbolReference),
-                leaf(IntegerLiteral),
+                tree(StatementBody, &[leaf(SymbolReference)]),
                 leaf(SymbolReference),
-                leaf(IntegerLiteral),
-                leaf(IntegerLiteral),
+                tree(StatementBody, &[leaf(SymbolReference)]),
+                leaf(SymbolReference),
+                tree(StatementBody, &[leaf(SymbolReference)]),
+                tree(StatementBody, &[leaf(SymbolReference)]),
             ],
         )]),
     );
