@@ -8,7 +8,7 @@ fn test_simple() {
 
 #[test]
 fn test_alphanumeric() {
-    verify_exact_scan(" Hello23", &[Token::new(TokenType::Identifier, 1, 7)]);
+    verify_exact_scan("Hello23", &[Token::new(TokenType::Identifier, 0, 7)]);
 }
 
 #[test]

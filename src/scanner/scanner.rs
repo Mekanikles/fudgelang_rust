@@ -43,6 +43,7 @@ pub struct ScannerImpl<'a, R: Read, S: source::Source<'a, R>> {
     source: &'a S,
     reader: source::LookAheadReader<R>,
     allow_indentation: bool,
+    output_padding: bool,
     errors: error::ErrorManager,
 }
 
@@ -103,12 +104,23 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
                 }
             } else if self.allow_indentation {
                 self.allow_indentation = false;
+                self.output_padding = true;
             }
 
-            // Consume unimportant whitespace
+            // Handle padding and whitespace
             if n == b' ' {
-                self.consume_spacing();
-                continue;
+                if self.output_padding {
+                    // Padding is only allowed directly after indendation
+                    let padding_token = self.produce_padding();
+                    self.output_padding = false;
+                    return Some(padding_token);
+                } else {
+                    // Consume unimportant whitespace
+                    self.consume_spacing();
+                    continue;
+                }
+            } else {
+                self.output_padding = false;
             }
 
             // Produce token
@@ -219,6 +231,7 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
             source: source,
             reader: source::LookAheadReader::new(source.get_readable()),
             allow_indentation: true,
+            output_padding: false,
             errors: error::ErrorManager::new(),
         }
     }
@@ -354,6 +367,18 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> ScannerImpl<'a, R, S> {
 
         return Token::new(
             TokenType::Comment,
+            startpos,
+            (self.reader.pos() - startpos) as usize,
+        );
+    }
+
+    fn produce_padding(&mut self) -> Token {
+        debug_assert!(self.reader.peek().unwrap() == b' ');
+        let startpos = self.reader.pos();
+        self.consume_spacing();
+
+        return Token::new(
+            TokenType::Padding,
             startpos,
             (self.reader.pos() - startpos) as usize,
         );
