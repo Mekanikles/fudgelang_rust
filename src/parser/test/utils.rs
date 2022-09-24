@@ -19,6 +19,8 @@ pub fn generate_ast(source: &str) -> ast::Ast {
     output::print_errors(&parser.get_tokenstream_errors(), &source);
     output::print_errors(&parser.get_parser_errors(), &source);
 
+    assert!(parser.get_tokenstream_errors().is_empty());
+    assert!(parser.get_parser_errors().is_empty());
     return parser.ast;
 }
 

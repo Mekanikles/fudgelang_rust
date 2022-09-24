@@ -12,6 +12,7 @@ pub mod errors {
     // The static division here might be better oriented towards recoverability,
     //  or category, rather than user-facing severity
     pub use FatalErrorType::*;
+    pub use LayoutErrorType::*;
     pub use MajorErrorType::*;
     pub use MinorErrorType::*;
 
@@ -34,9 +35,15 @@ pub mod errors {
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum MinorErrorType {
         NonAsciiIdentifier,
-        InvalidIndentation,
         ExpectedInputParameterDeclaration,
         ExpectedOutputParameterDeclaration,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    pub enum LayoutErrorType {
+        UnexpectedPadding,
+        UnexpectedIndentation,
+        InvalidIndentation,
     }
 }
 
@@ -49,6 +56,7 @@ pub enum ErrorId {
     FatalError(errors::FatalErrorType),
     MajorError(errors::MajorErrorType),
     MinorError(errors::MinorErrorType),
+    LayoutError(errors::LayoutErrorType),
 }
 
 pub trait ErrorIdConstructor {
@@ -73,6 +81,12 @@ impl ErrorIdConstructor for errors::MinorErrorType {
     }
 }
 
+impl ErrorIdConstructor for errors::LayoutErrorType {
+    fn create_id(&self) -> ErrorId {
+        ErrorId::LayoutError(*self)
+    }
+}
+
 pub fn new_error_id<T: ErrorIdConstructor>(t: T) -> ErrorId {
     t.create_id()
 }
@@ -88,6 +102,9 @@ pub fn error_label(id: ErrorId) -> &'static str {
         ErrorId::MinorError(_e) => {
             return "Error";
         }
+        ErrorId::LayoutError(_e) => {
+            return "Error";
+        }
     }
 }
 
@@ -101,6 +118,9 @@ pub fn error_code(id: ErrorId) -> String {
         }
         ErrorId::MinorError(e) => {
             return format!("C{:03}", e as i32);
+        }
+        ErrorId::LayoutError(e) => {
+            return format!("L{:03}", e as i32);
         }
     }
 }
@@ -188,6 +208,12 @@ impl ErrorManager {
                 }
             }
             ErrorId::MinorError(_e) => {
+                self.error_data.minor_error_count += 1;
+                if self.error_data.minor_error_count >= MINOR_ERROR_THRESHOLD {
+                    self.reached_error_limit = true;
+                }
+            }
+            ErrorId::LayoutError(_e) => {
                 self.error_data.minor_error_count += 1;
                 if self.error_data.minor_error_count >= MINOR_ERROR_THRESHOLD {
                     self.reached_error_limit = true;

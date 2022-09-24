@@ -14,6 +14,13 @@ mod expressions;
 
 use StringRef as SymbolRef;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct LineInfo {
+    start: u64,
+    indentation: u32,
+    padding: u32,
+}
+
 pub struct Parser<'a, T: TokenStream> {
     tokens: &'a mut T,
     current_token: Option<Token>,
@@ -21,6 +28,10 @@ pub struct Parser<'a, T: TokenStream> {
     temp_tokencount: u32,
     pub ast: Ast,
     errors: error::ErrorManager,
+    block_starts: Vec<LineInfo>,
+    current_line: LineInfo,
+    line_reported_layout_error: bool,
+    has_checked_layout: bool,
 }
 
 impl<'a, T: TokenStream> Parser<'a, T> {
@@ -32,6 +43,18 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             temp_tokencount: 0,
             ast: Ast::new(),
             errors: error::ErrorManager::new(),
+            block_starts: Vec::from([LineInfo {
+                start: 0,
+                indentation: 0,
+                padding: 0,
+            }]),
+            current_line: LineInfo {
+                start: 0,
+                indentation: 0,
+                padding: 0,
+            },
+            line_reported_layout_error: false,
+            has_checked_layout: false,
         }
     }
 
@@ -73,6 +96,26 @@ impl<'a, T: TokenStream> Parser<'a, T> {
     }
 
     fn accept(&mut self, t: TokenType) -> bool {
+        match &self.current_token {
+            Some(ct) if ct.tokentype == t => {
+                self.advance();
+
+                if !self.has_checked_layout {
+                    let lb = *self.block_starts.last().unwrap();
+                    // TODO: These can fail with a max error reached
+                    let _ = self.expect_indentation(self.current_line.indentation, &lb);
+                    let _ = self.expect_padding(self.current_line.padding, &lb);
+                    self.has_checked_layout = true;
+                }
+                return true;
+            }
+            _ => {
+                return false;
+            }
+        }
+    }
+
+    fn accept_no_layout_checks(&mut self, t: TokenType) -> bool {
         match &self.current_token {
             Some(ct) if ct.tokentype == t => {
                 self.advance();
@@ -120,6 +163,18 @@ impl<'a, T: TokenStream> Parser<'a, T> {
     fn get_last_token_symbol(&mut self) -> SymbolRef {
         let text = self.get_last_token_text();
         return self.ast.add_symbol(&*text);
+    }
+
+    fn block_start(&mut self) {
+        self.block_starts.push(LineInfo {
+            start: self.current_line.start,
+            indentation: self.current_line.indentation + 1,
+            padding: self.current_line.padding,
+        });
+    }
+
+    fn block_end(&mut self) {
+        self.block_starts.pop();
     }
 
     fn parse_input_parameter(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
@@ -229,12 +284,11 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             // If there is a body following, we are dealing with a function literal
             //  otherwise, a type literal
             if self.accept(TokenType::Do) {
-                // TODO: LB and Indent should probably not be hard requirements
-                self.expect(TokenType::LineBreak)?;
-                //self.expect(TokenType::Indentation)?; // Does not work for empty bodies
+                self.block_start();
 
                 let body = self.parse_statementbody()?;
 
+                self.block_end();
                 self.expect(TokenType::End)?;
 
                 return Ok(Some(
@@ -329,17 +383,31 @@ impl<'a, T: TokenStream> Parser<'a, T> {
 
             // Primary branch
             self.expect(TokenType::Then)?;
-            branches.push((condition, self.parse_statementbody()?));
+            {
+                self.block_start();
 
+                branches.push((condition, self.parse_statementbody()?));
+
+                self.block_end();
+            }
             // Secondary branches and final else
             while self.accept(TokenType::Else) {
                 if self.accept(TokenType::If) {
                     // Else ifs
                     let condition = self.expect_expression()?;
+
+                    self.block_start();
+
                     branches.push((condition, self.parse_statementbody()?));
+
+                    self.block_end();
                 } else {
+                    self.block_start();
+
                     // Final else
                     elsebranch = Some(self.parse_statementbody()?);
+
+                    self.block_end();
 
                     // Final else has to be last
                     break;
@@ -438,14 +506,79 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         return Ok(None);
     }
 
+    fn goto_next_layout_block(&mut self) {
+        let mut indentation = self.current_line.indentation;
+        let mut padding = self.current_line.padding;
+        // TODO: For now, ignore lines with only indentation and padding
+        //  (Should probably be a warning)
+        while self.accept_no_layout_checks(TokenType::LineBreak) {
+            self.line_reported_layout_error = false;
+            indentation = 0;
+            padding = 0;
+            if self.accept_no_layout_checks(TokenType::Indentation) {
+                indentation = self.last_token.unwrap().source_span.len as u32;
+            }
+            if self.accept_no_layout_checks(TokenType::Padding) {
+                padding = self.last_token.unwrap().source_span.len as u32;
+            }
+        }
+
+        self.current_line = LineInfo {
+            start: match self.current_token {
+                Some(n) => n.source_span.pos,
+                _ => 0,
+            }, // TODO
+            indentation,
+            padding,
+        };
+
+        self.has_checked_layout = false;
+    }
+
+    fn expect_indentation(
+        &mut self,
+        indentation: u32,
+        line_info: &LineInfo,
+    ) -> Result<(), error::ErrorId> {
+        if line_info.indentation != indentation {
+            self.line_reported_layout_error = true;
+            self.log_error(error::Error::at_span(
+                errors::UnexpectedIndentation,
+                self.last_token.as_ref().unwrap().source_span,
+                format!(
+                    "Mismatching indentation level, expected: {}, was {}",
+                    line_info.indentation, indentation
+                )
+                .into(),
+            ))?;
+        }
+        return Ok(());
+    }
+
+    fn expect_padding(&mut self, padding: u32, line_info: &LineInfo) -> Result<(), error::ErrorId> {
+        if line_info.padding != padding {
+            self.line_reported_layout_error = true;
+            self.log_error(error::Error::at_span(
+                errors::UnexpectedPadding,
+                self.last_token.as_ref().unwrap().source_span,
+                format!(
+                    "Unexpected padding, should be {}, was {}",
+                    line_info.padding, padding
+                )
+                .into(),
+            ))?;
+        }
+        return Ok(());
+    }
+
     fn parse_statementbody(&mut self) -> Result<ast::NodeRef, error::ErrorId> {
         let node = self.ast.reserve_node();
 
         let mut statements: Vec<ast::NodeRef> = Vec::new();
 
         while self.current_token.is_some() {
-            // TODO: For now, just eat all linebreaks and indentation between statements
-            while self.accept(TokenType::LineBreak) || self.accept(TokenType::Indentation) {}
+            // Jump to next line
+            self.goto_next_layout_block();
 
             match self.parse_statement() {
                 Err(error::ErrorId::FatalError(errors::ErrorLimitExceeded)) => {
