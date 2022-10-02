@@ -94,10 +94,11 @@ impl<'a, R: Read + Seek, S: source::Source<'a, R>> Scanner for ScannerImpl<'a, R
             if n == b'\t' {
                 let indentation_token = self.produce_indentation();
                 if !self.allow_indentation {
-                    self.errors.log_error(error::new_invalid_indentation_error(
-                        indentation_token.source_span.pos,
-                        indentation_token.source_span.len as u64,
-                    ));
+                    self.errors
+                        .log_error(error::new_unexpected_indentation_error(
+                            indentation_token.source_span.pos,
+                            indentation_token.source_span.len as u64,
+                        ));
                     continue;
                 } else {
                     return Some(indentation_token);

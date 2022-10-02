@@ -52,9 +52,9 @@ pub fn new_non_ascii_identifier_error(pos: u64, len: u64, identifier: String) ->
     )
 }
 
-pub fn new_invalid_indentation_error(pos: u64, len: u64) -> Error {
+pub fn new_unexpected_indentation_error(pos: u64, len: u64) -> Error {
     Error::at_span(
-        errors::InvalidIndentation,
+        errors::UnexpectedIndentation,
         source::SourceSpan {
             pos,
             len: len as usize,

@@ -43,7 +43,8 @@ pub mod errors {
     pub enum LayoutErrorType {
         UnexpectedPadding,
         UnexpectedIndentation,
-        InvalidIndentation,
+        MismatchedPadding,
+        MismatchedIndentation,
     }
 }
 

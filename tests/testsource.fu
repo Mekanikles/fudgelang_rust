@@ -18,8 +18,10 @@ var b = 42
 
 if a > b then
 	print_bigger(a, b)
-else if a < b
+else if a < b then
 	print_smaller(a, b)
-else
+else then
 	print_same(a, b)
 end
+
+if a > b then print_bigger(a, b) end

@@ -494,6 +494,15 @@ else if c then
 	return d
 end
 
+switch x in
+case a do
+	a
+case b do
+	b
+case c do
+	c
+end
+
 // Expression version
 if a => b 
 	else c
@@ -505,7 +514,7 @@ func(a, b) =>
 switch x => 
 	case a => 5 
 	case b => 6 
-	case c => 7
+	case c => 
 
 // Singular statement version. TODO: Necessary? Or the same as expression, with () return value
 //	-> Messy if different branches have different types

@@ -75,7 +75,7 @@ fn test_multiline() {
 #[test]
 fn test_invalid_1() {
     let errors = verify_exact_scan_with_errors(" \t", &[Token::new(TokenType::Padding, 0, 1)]);
-    expect_error_ids(&errors, &[new_error_id(errors::InvalidIndentation)]);
+    expect_error_ids(&errors, &[new_error_id(errors::UnexpectedIndentation)]);
 }
 
 #[test]
@@ -87,5 +87,5 @@ fn test_invalid_2() {
             Token::new(TokenType::Padding, 1, 1),
         ],
     );
-    expect_error_ids(&errors, &[new_error_id(errors::InvalidIndentation)]);
+    expect_error_ids(&errors, &[new_error_id(errors::UnexpectedIndentation)]);
 }

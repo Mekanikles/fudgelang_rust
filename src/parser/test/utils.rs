@@ -1,6 +1,7 @@
 use crate::parser::ast;
 use crate::parser::ast::NodeInfo;
 
+use crate::error;
 use crate::parser::*;
 use crate::scanner::*;
 use crate::source::*;
@@ -9,19 +10,30 @@ use crate::output;
 
 use std::fmt;
 
-pub fn generate_ast(source: &str) -> ast::Ast {
+pub fn generate_ast_with_errors(source: &str, print_errors: bool) -> (ast::Ast, Vec<error::Error>) {
     let source = MemorySource::from_str(source);
 
     let mut scanner = ScannerImpl::new(&source);
     let mut parser = parser::Parser::new(&mut scanner);
     parser.parse();
 
-    output::print_errors(&parser.get_tokenstream_errors(), &source);
-    output::print_errors(&parser.get_parser_errors(), &source);
+    if print_errors {
+        output::print_errors(&parser.get_tokenstream_errors(), &source);
+        output::print_errors(&parser.get_parser_errors(), &source);
+    }
 
-    assert!(parser.get_tokenstream_errors().is_empty());
-    assert!(parser.get_parser_errors().is_empty());
-    return parser.ast;
+    let mut errors: Vec<error::Error> = Vec::new();
+
+    errors.append(&mut parser.get_tokenstream_errors().to_owned());
+    errors.append(&mut parser.get_parser_errors().to_owned());
+
+    return (parser.ast, errors);
+}
+
+pub fn generate_ast(source: &str) -> ast::Ast {
+    let (ast, errors) = generate_ast_with_errors(source, true);
+    assert!(errors.is_empty());
+    return ast;
 }
 
 pub fn generate_nodeid_tree(ast: &ast::Ast) -> NodeIdTree {
@@ -45,7 +57,6 @@ pub fn generate_nodeid_tree(ast: &ast::Ast) -> NodeIdTree {
 
 pub fn verify_ast(source: &str, expected: &NodeIdTree) -> ast::Ast {
     let ast = generate_ast(source);
-
     assert_eq!(generate_nodeid_tree(&ast), *expected);
     return ast;
 }
