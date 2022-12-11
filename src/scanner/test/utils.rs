@@ -1,5 +1,6 @@
 use super::*;
 use crate::error;
+use crate::scanner::*;
 use crate::source::*;
 
 pub fn expect_error_ids(errors: &Vec<error::Error>, expected_error_ids: &[error::ErrorId]) {
@@ -21,9 +22,9 @@ pub fn expect_token(expected_tokens: &[Token], i: usize, scanned_token: &Token) 
     }
 }
 
-pub fn verify_exact_scanner_tokens<S: Scanner>(scanner: &mut S, expected_tokens: &[Token]) {
+pub fn verify_exact_scanner_tokens(scanner_result: &ScannerResult, expected_tokens: &[Token]) {
     let mut count = 0;
-    while let Some(t) = scanner.read_token() {
+    for t in &scanner_result.tokens {
         expect_token(expected_tokens, count, &t);
         count += 1;
     }
@@ -35,36 +36,25 @@ pub fn verify_exact_scanner_tokens<S: Scanner>(scanner: &mut S, expected_tokens:
     );
 }
 
-pub fn verify_sparse_scanner_tokens<S: Scanner>(scanner: &mut S, expected_tokens: &[Token]) {
-    let mut scanned_tokens = Vec::new();
-    while let Some(t) = scanner.read_token() {
-        scanned_tokens.push(t);
-    }
-
+pub fn verify_sparse_scanner_tokens(scanner_result: &ScannerResult, expected_tokens: &[Token]) {
     for t in expected_tokens {
         assert!(
-            scanned_tokens.iter().position(|e| e == t) != None,
+            scanner_result.tokens.iter().position(|e| e == t) != None,
             "Expected token not found in scan!"
         );
     }
 }
 
-pub fn verify_scanner_tokens_snapshot<S: Scanner>(scanner: &mut S) {
-    let mut scanned_tokens = Vec::new();
-    while let Some(t) = scanner.read_token() {
-        scanned_tokens.push(t);
-    }
-
-    insta::assert_debug_snapshot!(scanned_tokens);
+pub fn verify_scanner_tokens_snapshot(scanner_result: &ScannerResult) {
+    insta::assert_debug_snapshot!(scanner_result.tokens);
 }
 
 // Checks that the scanner produces an exact list of tokens
 pub fn verify_exact_scan_with_errors(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
-    let source = MemorySource::from_str(source);
-    let mut scanner = ScannerImpl::new(&source);
-
-    verify_exact_scanner_tokens(&mut scanner, expected_tokens);
-    return scanner.get_errors().clone();
+    let source = Source::from_str(source);
+    let scanner_result = scanner::tokenize(&source);
+    verify_exact_scanner_tokens(&scanner_result, expected_tokens);
+    return scanner_result.errors;
 }
 
 pub fn verify_exact_scan(source: &str, expected_tokens: &[Token]) {
@@ -77,11 +67,11 @@ pub fn verify_sparse_scan_with_errors(
     source: &str,
     expected_tokens: &[Token],
 ) -> Vec<error::Error> {
-    let source = MemorySource::from_str(source);
-    let mut scanner = ScannerImpl::new(&source);
+    let source = Source::from_str(source);
+    let scanner_result = scanner::tokenize(&source);
 
-    verify_sparse_scanner_tokens(&mut scanner, expected_tokens);
-    return scanner.get_errors().clone();
+    verify_sparse_scanner_tokens(&scanner_result, expected_tokens);
+    return scanner_result.errors;
 }
 
 pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) {
@@ -90,8 +80,19 @@ pub fn verify_sparse_scan(source: &str, expected_tokens: &[Token]) {
 }
 
 pub fn do_scan_with_errors(source: &str) -> Vec<error::Error> {
-    let source = MemorySource::from_str(source);
-    let mut scanner = ScannerImpl::new(&source);
-    while scanner.read_token().is_some() {}
-    return scanner.get_errors().clone();
+    let source = Source::from_str(source);
+    let scanner_result = scanner::tokenize(&source);
+    return scanner_result.errors;
+}
+
+pub fn get_scanner_result_from_file(file: &str) -> ScannerResult {
+    let source = Source::from_file(file);
+    let scanner_result = scanner::tokenize(&source);
+    return scanner_result;
+}
+
+pub fn get_scanner_result_from_bytes(bytes: &[u8]) -> ScannerResult {
+    let source = Source::from_bytes(bytes);
+    let scanner_result = scanner::tokenize(&source);
+    return scanner_result;
 }

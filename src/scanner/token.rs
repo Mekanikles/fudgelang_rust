@@ -1,4 +1,3 @@
-use super::*;
 use crate::source;
 use std::fmt;
 
@@ -69,13 +68,13 @@ impl Token {
     }
 }
 
-pub struct TokenDisplay<'a, S: Scanner> {
+pub struct TokenDisplay<'a> {
     pub token: &'a Token,
-    pub scanner: &'a S,
+    pub source: &'a source::Source,
 }
 
 // Debug formatter
-impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
+impl<'a> fmt::Debug for TokenDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token.tokentype {
             TokenType::Identifier
@@ -86,7 +85,7 @@ impl<'a, S: Scanner> fmt::Debug for TokenDisplay<'a, S> {
                 f.debug_tuple("")
                     .field(&self.token.source_span.pos)
                     .field(&self.token.source_span.len)
-                    .field(&self.scanner.get_token_source_string(self.token))
+                    .field(&self.source.get_span(&self.token.source_span))
                     .finish()
             }
             _ => {

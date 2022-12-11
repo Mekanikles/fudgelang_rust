@@ -1,6 +1,6 @@
 use super::*;
 
-impl<'a, T: TokenStream> Parser<'a, T> {
+impl<'a> Parser<'a> {
     pub fn parse_builtin_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if self.accept(TokenType::Hash) {
             let mut symbolstrings = Vec::new();
@@ -9,12 +9,12 @@ impl<'a, T: TokenStream> Parser<'a, T> {
 
             // TODO: What to do with whitespace between # and identifier?
             self.expect(TokenType::Identifier)?;
-            symbolstrings.push(self.get_last_token_text());
+            symbolstrings.push(self.get_last_token_text().to_string());
 
             // Eat dot-notated symbol expression
             while self.accept(TokenType::Dot) {
                 self.expect(TokenType::Identifier)?;
-                symbolstrings.push(self.get_last_token_text());
+                symbolstrings.push(self.get_last_token_text().to_string());
             }
 
             let endpos = self.last_token.as_ref().unwrap().source_span.pos
@@ -25,7 +25,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             // TODO: simplify
             if symbolstrings
                 .last()
-                .filter(|s| *s == "primitives")
+                .filter(|s| **s == "primitives")
                 .is_some()
             {
                 symbolstrings.pop();
@@ -40,11 +40,11 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 } else {
                     // TODO: Error
                 }
-            } else if symbolstrings.last().filter(|s| *s == "output").is_some() {
+            } else if symbolstrings.last().filter(|s| **s == "output").is_some() {
                 symbolstrings.pop();
                 if symbolstrings
                     .last()
-                    .filter(|s| *s == "print_format")
+                    .filter(|s| **s == "print_format")
                     .is_some()
                 {
                     symbolstrings.pop();

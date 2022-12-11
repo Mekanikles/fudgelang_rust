@@ -28,7 +28,7 @@ pub const fn has_higher_precedence(
     binop_precedence(a) < binop_precedence(b)
 }
 
-impl<'a, T: TokenStream> Parser<'a, T> {
+impl<'a> Parser<'a> {
     pub fn parse_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         // For more info, see Shunting Yard Algorithm
 
@@ -110,8 +110,12 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         } else if self.accept(TokenType::StringLiteral) {
             let text = self.get_last_token_text();
             return Ok(Some(
-                self.ast
-                    .add_node(ast::nodes::StringLiteral { text: text }.into()),
+                self.ast.add_node(
+                    ast::nodes::StringLiteral {
+                        text: text.to_string(),
+                    }
+                    .into(),
+                ),
             ));
         } else if self.accept(TokenType::NumericLiteral) {
             let text = self.get_last_token_text();

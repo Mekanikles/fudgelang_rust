@@ -1,9 +1,6 @@
-#[macro_use]
-extern crate tempus_fugit;
-
 use libfudgec::*;
 
-use scanner::Scanner;
+use crate::parser::tokenstream::TokenStream;
 use structopt::StructOpt;
 
 use ansi_term::Colour as Color;
@@ -14,9 +11,6 @@ struct CommandLineParameters {
     #[structopt(parse(from_os_str))]
     file: std::path::PathBuf,
 
-    #[structopt(short = "r", long = "bench-repeats", default_value = "0")]
-    bench_repeats: u64,
-
     #[structopt(short = "t", long = "output-tokens")]
     print_tokens: bool,
 }
@@ -24,71 +18,37 @@ struct CommandLineParameters {
 fn main() {
     let params = CommandLineParameters::from_args();
 
-    // Bench mode
-    if params.bench_repeats > 0 {
-        let repeats = params.bench_repeats;
-        let mut tokens = Vec::with_capacity(100000);
-
-        let mut total_scan_time = tempus_fugit::Measurement::zero();
-
-        let source = source::FileSource::from_filepath(params.file.clone());
-
-        for _i in 0..repeats {
-            // Scan all tokens
-            tokens.clear();
-            let mut scanner = scanner::ScannerImpl::new(&source);
-            let (_, measurement) = measure! {{
-                while let Some(t) = scanner.read_token() {
-                    tokens.push(t);
-                }
-            }};
-
-            total_scan_time = (total_scan_time + measurement).unwrap();
-        }
-
-        println!(
-            "Scanned {} tokens in {}, {} times. ({} per scan)",
-            tokens.len(),
-            total_scan_time,
-            repeats,
-            tempus_fugit::Measurement::from(
-                tempus_fugit::Duration::from(total_scan_time.clone()) / repeats as i32
-            )
-        );
-    }
-
-    let source = source::FileSource::from_filepath(params.file.clone());
+    let source = source::Source::from_file(params.file);
 
     // If printing tokens, do a separate scan for the print
     if params.print_tokens {
-        let mut scanner = scanner::ScannerImpl::new(&source);
+        let scanner_result = scanner::tokenize(&source);
 
         println!("Tokens:");
         print!("    ");
-        while let Some(t) = scanner.read_token() {
+        for t in scanner_result.tokens {
             print!(
                 "{:?}, ",
                 scanner::token::TokenDisplay {
                     token: &t,
-                    scanner: &scanner
+                    source: &source,
                 }
             );
         }
+
         println!("");
     }
 
     // Scan and parse
-    let mut scanner = scanner::ScannerImpl::new(&source);
-    let mut parser = parser::Parser::new(&mut scanner);
-    parser.parse();
-    parser.print_ast();
+    let scanner_result = scanner::tokenize(&source);
+    let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source));
 
-    let mut treewalker = interpreter::TreeWalker::new(&parser.ast);
+    let mut treewalker = interpreter::TreeWalker::new(&parser_result.ast);
     treewalker.interpret();
 
     // Print errors
-    output::print_errors(&parser.get_tokenstream_errors(), &source);
-    output::print_errors(&parser.get_parser_errors(), &source);
+    output::print_errors(&scanner_result.errors, &source);
+    output::print_errors(&parser_result.errors, &source);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

@@ -160,12 +160,12 @@ pub struct ErrorData {
     fatal_error_count: usize,
     major_error_count: usize,
     minor_error_count: usize,
-    errors: Vec<Error>,
+    pub errors: Vec<Error>,
 }
 
 pub struct ErrorManager {
     reached_error_limit: bool,
-    error_data: ErrorData,
+    pub error_data: ErrorData,
 }
 
 impl ErrorManager {

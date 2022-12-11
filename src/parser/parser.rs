@@ -29,8 +29,8 @@ enum LineState {
     AcceptingContent,
 }
 
-pub struct Parser<'a, T: TokenStream> {
-    tokens: &'a mut T,
+struct Parser<'a> {
+    tokens: &'a mut TokenStream<'a>,
     current_token: Option<Token>,
     last_token: Option<Token>,
     temp_tokencount: u32,
@@ -42,8 +42,23 @@ pub struct Parser<'a, T: TokenStream> {
     line_state: LineState,
 }
 
-impl<'a, T: TokenStream> Parser<'a, T> {
-    pub fn new(tokens: &'a mut T) -> Self {
+pub struct ParserResult {
+    pub ast: Ast,
+    pub errors: Vec<error::Error>,
+}
+
+pub fn parse<'a>(tokens: &'a mut TokenStream<'a>) -> ParserResult {
+    let mut parser = Parser::new(tokens);
+    parser.parse();
+
+    return ParserResult {
+        ast: parser.ast,
+        errors: parser.errors.error_data.errors,
+    };
+}
+
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a mut TokenStream<'a>) -> Self {
         Parser {
             tokens: tokens,
             current_token: None,
@@ -66,16 +81,6 @@ impl<'a, T: TokenStream> Parser<'a, T> {
             layout_checked_at_line_number: 0,
             line_state: LineState::AcceptingIndentationOrPadding,
         }
-    }
-
-    pub fn get_parser_errors(&self) -> &Vec<error::Error> {
-        return self.errors.get_errors();
-    }
-
-    // Bah, an error manager should really be passed into both scanner and parser
-    //  but mutable shared refs are a mess in rust
-    pub fn get_tokenstream_errors(&self) -> &Vec<error::Error> {
-        return self.tokens.get_errors();
     }
 
     pub fn log_error(&mut self, error: error::Error) -> Result<error::ErrorId, error::ErrorId> {
@@ -128,7 +133,7 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 }
             }
 
-            self.last_token = std::mem::replace(&mut self.current_token, t);
+            self.last_token = std::mem::replace(&mut self.current_token, t.cloned());
             break;
         }
     }
@@ -180,14 +185,14 @@ impl<'a, T: TokenStream> Parser<'a, T> {
         return Ok(());
     }
 
-    fn get_last_token_text(&mut self) -> String {
+    fn get_last_token_text(&self) -> &str {
         return self
             .tokens
             .get_token_string(self.last_token.as_ref().unwrap());
     }
 
     fn get_last_token_symbol(&mut self) -> SymbolRef {
-        let text = self.get_last_token_text();
+        let text = self.get_last_token_text().to_string();
         return self.ast.add_symbol(&*text);
     }
 
@@ -649,11 +654,5 @@ impl<'a, T: TokenStream> Parser<'a, T> {
                 println!("{:?}", t);
             }
         }
-    }
-
-    pub fn print_ast(&mut self) {
-        // TODO: Move to fudgec
-        println!("AST:");
-        self.ast.print(4);
     }
 }

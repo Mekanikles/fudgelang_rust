@@ -1,29 +1,26 @@
-use crate::scanner::Scanner;
 use crate::scanner::Token;
+use crate::source;
 
-use crate::error;
-
-pub trait TokenStream {
-    fn read_token(&mut self) -> Option<Token>;
-    fn get_token_string(&self, token: &Token) -> String;
-
-    fn get_errors(&self) -> &Vec<error::Error>;
+pub struct TokenStream<'a> {
+    tokens: &'a Vec<Token>,
+    source: &'a source::Source,
+    count: usize,
 }
 
-// Implementation for Scanners
-impl<T> TokenStream for T
-where
-    T: Scanner,
-{
-    fn read_token(&mut self) -> Option<Token> {
-        return Scanner::read_token(self);
+impl<'a> TokenStream<'a> {
+    pub fn new(tokens: &'a Vec<Token>, source: &'a source::Source) -> TokenStream<'a> {
+        return TokenStream {
+            tokens,
+            source,
+            count: 0,
+        };
     }
 
-    fn get_token_string(&self, token: &Token) -> String {
-        return Scanner::get_token_source_string(self, token);
+    pub fn read_token(&mut self) -> Option<&Token> {
+        self.count += 1;
+        return self.tokens.get(self.count - 1);
     }
-
-    fn get_errors(&self) -> &Vec<error::Error> {
-        return Scanner::get_errors(self);
+    pub fn get_token_string(&self, token: &Token) -> &str {
+        return std::str::from_utf8(self.source.get_span(&token.source_span)).unwrap();
     }
 }

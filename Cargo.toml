@@ -16,7 +16,6 @@ bench = false
 
 [dependencies]
 structopt = "0.3.13"
-tempus_fugit = "0.10"
 ansi_term = "0.12"
 codespan-reporting = "0.11"
 phf = { version = "0.9", features = ["macros"] }

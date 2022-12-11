@@ -1,21 +1,22 @@
-use std::io::Read;
+use crate::source::Source;
 
-pub struct LookAheadReader<R: Read> {
-    readable: R,
+pub struct LookAheadSourceReader<'a> {
+    source: &'a Source,
     pos: u64,
     current: Option<u8>,
     lookahead: Option<u8>,
 }
 
-impl<R: Read> LookAheadReader<R> {
-    pub fn new(mut readable: R) -> Self {
-        let current = readbyte(&mut readable);
-        let lookahead = current.and_then(|_| readbyte(&mut readable));
+impl<'a> LookAheadSourceReader<'a> {
+    pub fn new(source: &'a Source) -> Self {
+        let data = source.data();
+        let current = data.get(0);
+        let lookahead = current.and_then(|_| data.get(1));
         Self {
-            readable,
+            source,
             pos: 0,
-            current,
-            lookahead,
+            current: current.cloned(),
+            lookahead: lookahead.cloned(),
         }
     }
     pub fn advance(&mut self) {
@@ -24,7 +25,7 @@ impl<R: Read> LookAheadReader<R> {
         }
         self.pos += 1;
         self.current = self.lookahead;
-        self.lookahead = readbyte(&mut self.readable);
+        self.lookahead = self.source.data().get(self.pos as usize + 1).cloned();
     }
     pub fn pos(&self) -> u64 {
         self.pos
@@ -35,13 +36,8 @@ impl<R: Read> LookAheadReader<R> {
     pub fn lookahead(&self) -> Option<u8> {
         self.lookahead
     }
-}
 
-fn readbyte<R: Read>(reader: &mut R) -> Option<u8> {
-    let mut buf = [0; 1];
-    reader
-        .read(&mut buf)
-        .ok()
-        .filter(|&n| n > 0)
-        .map(|_| buf[0])
+    pub fn source(&self) -> &'a Source {
+        return self.source;
+    }
 }

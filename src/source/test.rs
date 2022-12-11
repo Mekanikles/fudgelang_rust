@@ -1,6 +1,4 @@
 use super::*;
-use std::io::Read;
-use std::io::Seek;
 
 fn expect_byte(expected_bytes: &[u8], i: usize, read_byte: u8) {
     if i < expected_bytes.len() {
@@ -10,8 +8,8 @@ fn expect_byte(expected_bytes: &[u8], i: usize, read_byte: u8) {
     }
 }
 
-fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_bytes: &[u8]) {
-    let mut reader = LookAheadReader::new(source.get_readable());
+fn verify_source<'a>(source: &Source, expected_bytes: &[u8]) {
+    let mut reader = LookAheadSourceReader::new(source);
     let mut count = 0;
     while let Some(n) = reader.peek() {
         assert_eq!(count, reader.pos());
@@ -29,19 +27,48 @@ fn verify_source<'a, R: Read + Seek, S: Source<'a, R>>(source: &'a S, expected_b
 }
 
 #[test]
-fn test_bufferedfilesource() {
-    let source = BufferedFileSource::from_filepath("testdata/singletoken.txt");
+fn test_filesouce() {
+    let source = Source::from_file("testdata/singletoken.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 
 #[test]
-fn test_memorysource() {
-    let source = MemorySource::from_bytes(&[0, 1, 2, 3, 4]);
+fn test_bytesource() {
+    let source = Source::from_bytes(&[0, 1, 2, 3, 4]);
     verify_source(&source, &[0, 1, 2, 3, 4]);
+}
 
-    let source = MemorySource::from_str("HejHoppFastStr");
+#[test]
+fn test_stringsource() {
+    let source = Source::from_str("HejHoppFastStr");
     verify_source(&source, "HejHoppFastStr".as_bytes());
 
-    let source = MemorySource::from_filepath("testdata/singletoken.txt");
+    let source = Source::from_file("testdata/singletoken.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
+}
+
+#[test]
+fn test_get_line_info_trivial() {
+    let source = Source::from_str("");
+
+    let lineinfo = source.get_line_info(0);
+    assert!(lineinfo.is_none());
+}
+
+#[test]
+fn test_get_line_info_simple() {
+    let source = Source::from_str("row1\nrow2\nrow3\nrow4");
+
+    let lineinfo = source.get_line_info(12).unwrap();
+    assert_eq!(lineinfo.text.trim(), "row3");
+    assert_eq!(lineinfo.row, 3);
+}
+
+#[test]
+fn test_get_line_info_complex() {
+    let source = Source::from_str("row1(ö)\x0d\nrow2(💩)\nrow3\nrow4");
+
+    let lineinfo = source.get_line_info(21).unwrap();
+    assert_eq!(lineinfo.text.trim(), "row3");
+    assert_eq!(lineinfo.row, 3);
 }

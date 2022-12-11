@@ -8,26 +8,26 @@ use crate::source::*;
 
 use crate::output;
 
+use crate::parser::tokenstream::TokenStream;
 use std::fmt;
 
 pub fn generate_ast_with_errors(source: &str, print_errors: bool) -> (ast::Ast, Vec<error::Error>) {
-    let source = MemorySource::from_str(source);
+    let source = Source::from_str(source);
 
-    let mut scanner = ScannerImpl::new(&source);
-    let mut parser = parser::Parser::new(&mut scanner);
-    parser.parse();
+    let scanner_result = scanner::tokenize(&source);
+    let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source));
 
     if print_errors {
-        output::print_errors(&parser.get_tokenstream_errors(), &source);
-        output::print_errors(&parser.get_parser_errors(), &source);
+        output::print_errors(&scanner_result.errors, &source);
+        output::print_errors(&parser_result.errors, &source);
     }
 
     let mut errors: Vec<error::Error> = Vec::new();
 
-    errors.append(&mut parser.get_tokenstream_errors().to_owned());
-    errors.append(&mut parser.get_parser_errors().to_owned());
+    errors.append(&mut scanner_result.errors.to_owned());
+    errors.append(&mut parser_result.errors.to_owned());
 
-    return (parser.ast, errors);
+    return (parser_result.ast, errors);
 }
 
 pub fn generate_ast(source: &str) -> ast::Ast {
