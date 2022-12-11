@@ -540,8 +540,64 @@ if a =>
 			e 
 		else
 			f 
-	else
+	else // <-- Wrong? Else if above is ambiguous
 		g
+
+// Ok, I think
+if a => if b => c 
+	else if d => e
+	else f else g
+
+// Ok, I think
+if a => 
+	if b => c 
+	else
+	if d => e
+	else f
+
+// Multiline versions
+call1(a1, b1, call2(a2, b2, call3(a3, b3, c3), c2), c1)
+
+// Ok, first expression continues on next indentation
+call1(a1, b1, 
+	call2(a2, b2, call3(a3, b3, c3), c2), c1)
+
+// Also ok, first expression keep all arguments on the correct "spine"
+call1(a1, b1, 
+	call2(a2, b2, call3(a3, b3, c3), c2),
+	c1)
+
+// Not ok, call2 is broken
+call1(a1, b1, 
+	call2(a2, b2, 
+	call3(a3, b3, c3), c2), c1)
+	
+// Maybe ok, call2 continuation is good, but c1 is potentially on the wrong level
+// TODO: Is this a special case where it's always ok to pad on the "tail" of an expression?
+//	Probably needs to be ok, otherwise trailing parentheses will be a mess
+call1(a1, b1, 
+	call2(a2, b2, 
+		call3(a3, b3, c3), c2), c1)
+
+// Definitely ok, call2 continuation is good, c1 continues call1
+call1(a1, b1, 
+	call2(a2, b2, 
+		call3(a3, b3, c3), c2),
+	c1)
+
+// Hm, this should be ok, but the padding becomes easy to confuse with indentation
+// NOTE: Parser needs to make sure padding is consistent for each "spine", and that padding
+//	never decreases when indentation happens
+call1(a1, 
+	  b1, 
+	  call2(a2, 
+		    b2, 
+		    call3(a3, 
+			      b3, 
+			      c3),
+		    c2),
+	  c1)
+
 
 // Multiline block if statement, then is placed on new line
 if a(b, c, 
@@ -607,7 +663,8 @@ func to_types(params_data : fmt_param[]) -> type(display)[] do
 	...
 end
 func printf(fmt : string, params : to_types($params_data)) 
-		where $params_data = parse_fmt_params(fmt) do
+	where $params_data = parse_fmt_params(fmt)
+do
 	var slice_pos = 0
 	for (param, param_data) in (params, params_data) do
 		#output.print(fmt[slice_pos..param_data.start]
@@ -618,7 +675,56 @@ func printf(fmt : string, params : to_types($params_data))
 end
 
 
+// This is weird, but seems to be according to rules if start of block is start of statement
+// NO: This is not according to the tules, the block header for `do`
+//  is not `def`
+def weird_case = 
+	func(x) -> 
+		bool
+do
+	blah()
+end
 
+// Versus
+// This needs to be the correct line split version of a def-function
+def weird_case = 
+	func(x) -> 
+		bool
+	do
+		blah()
+	end
+
+// To mitigate this, there is syntactic sugar for functions, like so
+func weird_case(x) -> bool do
+	blah()
+end
+
+func weird_case(x) ->
+	bool
+do
+	blah()
+end
+
+
+def complex_case = func(val : int,
+	callback : func(x : int) -> bool = 
+		func(x : int) -> bool
+	do
+		return x > 2
+	end, 
+	callback2 : func(x : int) -> bool = func(x : int) -> bool do
+		return x > 2
+	end)
+do
+	callback(val)
+	callback2(val)
+end
+
+callable(a, 
+	"asdasd
+	 asdasd
+	 asda",
+	b)
 
 
 
