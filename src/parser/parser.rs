@@ -93,6 +93,14 @@ impl<'a> Parser<'a> {
         return Ok(errorid);
     }
 
+    pub fn last_errorid(&self) -> Option<error::ErrorId> {
+        if let Some(e) = self.errors.error_data.errors.last() {
+            Some(e.id)
+        } else {
+            None
+        }
+    }
+
     fn advance(&mut self) {
         let mut current_line = &mut self.current_line;
         loop {
@@ -158,7 +166,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect(&mut self, expected_token: TokenType) -> Result<(), error::ErrorId> {
+    fn expect_nobreak(&mut self, expected_token: TokenType) -> Result<bool, error::ErrorId> {
         if !self.accept(expected_token) {
             if let Some(current_token) = &self.current_token {
                 let span = current_token.source_span;
@@ -166,11 +174,7 @@ impl<'a> Parser<'a> {
                     "Unexpected token! Expected '{:?}', got '{:?}'",
                     expected_token, current_token.tokentype
                 );
-                return Err(self.log_error(error::Error::at_span(
-                    errors::UnexpectedToken,
-                    span,
-                    error,
-                ))?);
+                self.log_error(error::Error::at_span(errors::UnexpectedToken, span, error))?;
             } else {
                 return Err(self.log_error(error::Error::at_span(
                     errors::UnexpectedEOF,
@@ -180,6 +184,16 @@ impl<'a> Parser<'a> {
                     "Unexpected end of file!".into(),
                 ))?);
             }
+
+            return Ok(false);
+        }
+
+        return Ok(true);
+    }
+
+    fn expect(&mut self, expected_token: TokenType) -> Result<(), error::ErrorId> {
+        if !self.expect_nobreak(expected_token)? {
+            return Err(self.last_errorid().unwrap());
         }
 
         return Ok(());
@@ -424,30 +438,27 @@ impl<'a> Parser<'a> {
 
                 self.block_end();
             }
-            // Secondary branches and final else
-            while self.accept(TokenType::Else) {
-                if self.accept(TokenType::If) {
-                    // Else ifs
-                    let condition = self.expect_expression()?;
 
-                    self.expect(TokenType::Then)?;
-                    self.block_start();
+            // Else-if branches
+            while self.accept(TokenType::ElseIf) {
+                let condition = self.expect_expression()?;
 
-                    branches.push((condition, self.parse_statementbody()?));
+                self.expect(TokenType::Then)?;
+                self.block_start();
 
-                    self.block_end();
-                } else {
-                    self.expect(TokenType::Then)?;
-                    self.block_start();
+                branches.push((condition, self.parse_statementbody()?));
 
-                    // Final else
-                    elsebranch = Some(self.parse_statementbody()?);
+                self.block_end();
+            }
 
-                    self.block_end();
+            // Final else
+            if self.accept(TokenType::Else) {
+                self.block_start();
 
-                    // Final else has to be last
-                    break;
-                }
+                // Final else
+                elsebranch = Some(self.parse_statementbody()?);
+
+                self.block_end();
             }
 
             self.expect(TokenType::End)?;
@@ -626,6 +637,16 @@ impl<'a> Parser<'a> {
             }
             .into(),
         );
+
+        // TODO: this sucks
+        if self.current_token.is_some() {
+            let span = self.current_token.unwrap().source_span;
+            self.log_error(error::Error::at_span(
+                errors::UnexpectedToken,
+                span,
+                "Unparsed token!".into(),
+            ))?;
+        }
 
         return Ok(());
     }

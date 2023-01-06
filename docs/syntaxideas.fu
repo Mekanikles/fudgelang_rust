@@ -419,15 +419,19 @@ end
 if !value
 	return false
 
-if a b
-else if c d
-else e
+if a
+	b
+else
+	if c d
+else
+	e
 
 if a then
 	b
-else if a2
-	if c // <- maybe prevent in non-block ifs: statement, not expression. Want it for return though...
+elseif a2
+	if c then
 		d
+	end
 else // <- problem, only indentation dictates flow
 	e
 
@@ -622,37 +626,6 @@ if a(b,
 	e)
 	return b
 
-
-/////////////////////////
-///// Bracer blocks /////
-/////////////////////////
-
-// Explicit blocks, one line
-if call(func { return true }) { print "case true" } else { print "case false" }
-
-// Single-expressions, one line
-if call(func => true) print "case true" else print "case false"
-
-// Explicit blocks, multiple lines
-if call(
-	func 
-	{
-		return true 
-	})
-{
-	print("case true")
-}
-else
-{
-	print("case false")
-}
-
-// Single-expressions, multiple lines
-if call(func => true)
-	print("case true")
-else
-	print("case false")
-
 //////////////////////////////////////////////////////////
 
 // Something something printf
@@ -676,8 +649,7 @@ end
 
 
 // This is weird, but seems to be according to rules if start of block is start of statement
-// NO: This is not according to the tules, the block header for `do`
-//  is not `def`
+// NO: This is not according to the rules, the block header for `do` is not `def`
 def weird_case = 
 	func(x) -> 
 		bool
@@ -725,6 +697,694 @@ callable(a,
 	 asdasd
 	 asda",
 	b)
+
+
+// Functions that return functions :(
+
+def myfunc = func(x) -> func(x) -> bool do
+	// Is the latter func a type defintion or a function definition?
+	// The "do" could belong to the latter func
+end
+
+
+
+// General
+//////////////////////////////////////////////////////////
+
+// Grammar Requirements:
+// 1. The grammar should not rely on whitespace for disambiguation.
+//  Reasons:
+//      * Whitespace (especially indentation and linebreaks) is often lost in translation.
+//      * Relying on whitespace makes an auto-formatter much more difficult.
+// 2. Two expressions cannot follow each other without a non-whitespace separator.
+//  Reasons:
+//      * Ambiguous for unary operators, e.g "5 -6", without significant whitespace.
+//      * Even if we considered whitespace, it makes the statement hard to read.
+//      * It makes multi-line expressions for expression 1 either
+//          - share the same "spine" as the following expression
+//          - or "hide" the second expressions as a part of the multi-line
+// 3. Regular blocks should not automatically yield the last statement as an expression for the whole block
+//  Reasons:
+//      * Forces block layouts on what could be light-weight inline expressions
+//      * Looks weird mixing statements and yielding expressions
+//      * Harder to distinguish a yielded expression from a statement without explicit statement-delimiters
+
+// Layout Requirements:
+// 1. Any two "layout sequencing tokens", i.e block headers, linkers, closers etc, in 
+//  a statement should always align, either horizontally, or vertically.
+// 2. Aligment is measured in indentation levels, a token on one indentation level
+//  can never align with a token on another.
+//  - For tab-lengths to be user-customizable, we can never rely on mixed
+//      indentation for alignment.
+// 3. Control flow should be identifiable on the left hand side of statements.
+//  - This means statements on separate lines and multi-line expressions clearly
+//      differentiated from indented code.
+// 4. Blocks with multi-statement bodies must have their bodies indented.
+//  - Statements do not have a delimiter (like ";"), so they need to be on different lines.
+
+
+// If-else
+//////////////////////////////////////////////////////////
+
+// Goals
+// * Support an expression version
+// * Ideally statement and expression versions look similar
+// * Ideally expression and statement versions share simliarities to function literals.
+
+// Requirements Analysis
+// * Grammar rules 1 + 2 force the separator to be different for single-statement/expression
+//  versions.
+// * Grammar rule 2 prevents "if a b" as a short hand expression.
+// * Grammar rule 3 and Layout rule 4 prevent regular "then-end" block versions for if-expressions.
+
+// Exploration...
+
+
+// What about post-fix forms for expression ifs? This works with python-style
+//  list comprehensions for "for" as well
+
+// A little bit harder to read, but avoids special characters for expression versions
+var hej = 5 if x else 6
+
+// Maybe this can work too, this would return an "int?". The "else none" is perhaps implicit.
+var hej = 5 if x
+
+// It does _not_ work for statements.
+return 5 if x // The return is not conditional here, the returned value is
+
+// We can just kill single-statement ifs, they've been nothing but trouble
+
+// Functions can use return directly for single expressions
+// Not sure I like this, kindof neat, but why only return? Works less well for ifs
+func hej(x) -> int
+	return x + 1
+	
+// Hm, maybe for if too?
+if x return 5
+
+
+vec = [[1,2,3], [4,5,6], [7,8,9]]
+var pyth = num for elem in vec for num in elem
+
+
+
+
+// There is a difference here, hej1 produces a flat list
+//  hej2 produces a list of lists
+var hej1 = 
+	for elem in vec 
+		for num in elem => 
+			num
+var hej2 = for elem in vec => for num in elem => num
+
+
+var hej2 = 
+	for elem in vec for num in elem if num > 5 => 
+			num
+
+
+
+[[row[i] for row in matrix] for i in range(4)]
+
+var hej3 = for i in range(4)
+	for row in matrix 
+	do row[i]
+
+
+var hej3 = row[i] for i in range(4) for row in matrix
+
+var hej = 5
+	if x
+	else 7
+	if y
+	else 3
+
+var hej =
+	if x produce 
+		do
+			print(5)
+			produce 6
+		end
+	else if y produce 7
+	else produce 3
+	
+var hej =
+	if x yield
+		do
+			print(5)
+			yield 6
+		end
+	else if y produce 7
+	else produce 3	
+	
+var hej =
+	if x do
+		begin
+			print(5)
+			yield 6
+		end
+	else if y => 7
+	else => 3
+
+// Can we use something else than "=>"? it does not follow keyword rules...
+
+def hej = 
+	func(x) 
+	where x is u64 
+	do return x + 1
+
+def hej = 
+	func(x) begin
+		print x
+		return x + 1
+	end
+	
+func hej(x)
+where x is u64 
+yield x + 1
+
+func hej2(x) where x is trait is x + 2
+
+if x > 0 then
+	print 5
+else
+	print 7
+end
+
+hej = if x > 0 return 5 else 6
+
+if x > 0 func return
+
+// Open-ended return is a problem
+if x > 0 then
+	return none
+end
+call(x)
+
+// Maybe expresssions should not have any of the indentation restrictinos that statements have
+// It leads to weird multi-line statements that are not block openers.
+// Not requiring expressions to be aligned allows easier use of "=>" instead of return/produce etc
+//  "return" for yielding expressions is a no-go since "if x return y" looks like a c-style shorthand if.
+// New proposed rules:
+// * Block opener must align with block header
+// * Block linker and footer must align with either block opener or block header
+// * Block openers are allowed to share indentation level with block header
+// * Multilines needs exactly 1 indentation. Multilines can further be broken down with new indentations.
+
+// We can differentiate between same-syntax statement-if and expression if by always choosing
+//  statement-if when possible
+// DON'T LIKE: It makes it too similar to the statement version with only a missing "end"
+//  it will be harder to catch errors here.
+var hej = 
+	if x > 0 then 
+		5
+	else then 
+		6
+
+if x > 0 then
+	return 5
+else if x < 0 then
+	return 6
+else then
+	return 7
+end
+
+def hej = func(x) => x + 1
+func hej(x) => x + 1
+
+func hej(x) -> none
+	where x is u64 
+	=> x + 1
+def hej = func(x) -> none
+	where x is u64
+	=> x + 1
+
+func hej(x)
+	where x is u64
+do
+	return x + 1
+end
+
+def hej = 
+	func(x)
+		where x is u64 
+	do
+		return x + 1
+	end
+
+var hej = 
+	match x in
+	case 5 then
+		print "hej"
+		return 5
+	case 4 then
+		print "hej"
+		return 4
+	else
+		print "hej"
+		return 5
+	end
+	
+var hej = 
+	match x =>
+	case 5 =>
+		5
+	case 4 =>
+		4
+	else =>
+		5
+
+var hej = match x => case 5 => 5 case 4 => 4 else => 5
+
+
+// What about just a cleaner Python? If we use postfix if/for expressions, we
+//  can use some kind of do-statement-body syntax for calculating a value
+// Then we need to solve labmda functions and statement bodies that return expressions
+
+// If expressinons and statements
+var hej = 1 if x > 0 else -1 if x < 0 else 0
+var hej = 
+	inexp do
+		if x > 0 then
+			return 1
+		elseif x < 0
+			return -1
+		else
+			return 0
+		end
+	end
+	
+// Supports C#-style if-casts as well?
+var hej = y if x is y : u64 else none
+
+// Maybe assignment?
+var hej = y if x + 1 as y > 0 else y + 1
+
+// For expressions and statements
+var hej = i for i in range(4)
+var hej = 
+	inexp do
+		uninitialized var res : int[4]
+		for i in range(4) do
+			res[i] = i
+		end
+	end
+
+// Functions and lambdas
+// Note that lambdas does not support generics
+//  in fact, this declaration is not complete if hej is not used in the same scope
+//  and the type of x can be deduced
+var hej = func(x) => x + 1
+var hej = 
+	func(x) do
+		return x + 1
+	end
+
+// This is more complete
+var hej = func(x : int) => x + 1
+var hej = 
+	func(x : int) do
+		return x + 1
+	end
+
+// Allowed, since hej is now a "generic" symbol
+func hej(x) do
+	return x + 1
+end
+
+var hej = [1, 2, 3, 4].map(func(x) => x + 1)
+
+var hej = [1, 2, 3, 4].map(
+	func(x) do 
+		return x + 1 
+	end)
+	
+// Pattern matching
+// No expression version, have to use inexp
+var hej = 
+	inexp do
+		match x with
+		case 5 then return 6
+		case 4 then return 7
+		else return 8
+		end
+	end
+
+
+// GAH! Post-fox If/for expression forms are not parseable without statement delimiters
+// Below, the if-statement will be parsed as the expression assigned to "hej"
+var hej = 42
+if hej == 42 then
+	return 0
+end
+
+// This cannot even be saved by linebreaks as delimiters, since the linebreak
+//  could be a multiline break. Hence Python's requirements for '()' around multi-line expressions
+
+// A possible solution would be to only parse multilines if the last token is an operator
+//  ruby-style
+// This feels very messy and easy for en error checker to misunderstand intent
+var hej = 42
+	if x else 43
+// Would be misunderstood
+
+
+// ANOTHER ATTEMPT WITHOUT POSTFIX OPERATORS
+
+// If-statement
+if x > 0 then
+	return 1
+else if x < 0 then
+	return -1
+else
+	return 0
+end
+
+// If-expression
+var foo = if x > 0 => 1 else if x < 0 => -1 else 0
+
+// To disambiguate nested ifs, "then" is optional directly after "else"
+// Compiler will warn if this style is used outside of this edge case
+if x > 0 then
+	return 1
+else then
+	if x < 0 then
+		return -1
+	else
+		return 0
+	end
+end
+
+// For-statement
+for x in range(4) do
+	...
+end
+
+// For-expression
+// Here, foo becomes a list of size 4
+var foo = for x in range(4) => x
+
+// For-expressions can be nested
+// Here, foo becomes a list of size 16
+var foo = for x in range(4) for y in range(4) => x + y
+
+// For-expressions can be filtered
+// Here, foo becomes a dynamic-length list since the filter is not evaulated compile-time
+var foo = for x in range(4) when x > 2 => x
+
+// Normal expressions can be filtered too!
+// Here, foo becomes an optional int
+var foo = x when x > 2
+
+// Match-statement
+match x with
+case > 0 then
+	return 1
+case < 0 then
+	return -1
+else
+	return 0
+end
+
+// Match-expression
+var foo = match x => case > 0 => 1 case < 0 => -1 else 0
+
+// Function statement
+func add(x, y) do
+	return x + y
+end
+
+// Function expression (lamdba)
+var add =
+	func(x, y) do
+		return x + y
+	end
+var foo = add(x, y)
+	
+// Function expression (lamdba), short-hand version
+var add = func(x, y) => 42
+var foo = add(x, y)
+
+
+
+
+
+
+
+
+
+
+
+
+
+// NOTE: Python style postfix if-expressions work better with indentation rules since the expression
+//  does not start with a keyword.
+// DON'T LIKE: That "elseif" does not work with this style, since it flips the order.
+//  Perhaps elseif can be ditched if we enforce "else then"...
+// ALTERNATIVE: Structure if-expressions like statements, but with a keyword to indicate
+//  a single expression. This is a bit awkward with indentation rules.
+//  But is more readable than postfix style.
+// Let's see if this work with "match" as well
+	
+// Pattern matching:
+
+match x
+case 5 then 
+	return 7
+case 4 then
+	return 9
+else
+	return 4
+end
+
+hej = 
+	match x 
+	case 5 produce 7 
+	case 4 produce 9 
+	else 4
+	
+if x then 
+	return 7
+elseif y then
+	return 5
+else
+	return 2
+end
+
+if x then 
+	return 7
+else if y then
+	return 5
+else then
+	return 2
+end
+
+return 
+	if call(y,
+		x)
+	=> 7 
+	else if y => 5
+	else => 2
+
+// Basic multi-statement version
+// * "then" is used to indicate multi-statement bodies, requires a single "end"
+// * To avoid branches with simultanous single/multi statement bodies
+//      we only put the "then" at the beginning, it applies for all bodies in the if-block
+if a then
+	a2
+	a3
+else
+	b2
+	b3
+end
+
+// If "then" is omitted, all bodies will only be a single statement
+//  * Bodies with multiple statements are not allowed here
+if a
+	a2
+else
+	b2
+	
+// Single-statement version can be used as an expression
+var foo =
+	if a
+		a2
+	else
+		b2
+
+// Following block-layout rules, the single statement version can be a one-liner
+//  * This will not work for "then" versions, since we need a new-line to separate statements
+var foo = if a a2 else b2
+
+// Expression-if must have else-branch, the code below will not compile
+var foo = if a a2
+
+// Putting the branch expression on the same line works
+if a a2
+else b2
+
+// Definitely not allowed for the "then" version since more statements cannot share that line,
+//  code below will not compile
+if a then a2
+else b2
+end
+
+// Breaking a line like this is not allowed, since "else" here is not aligned to any block header or sequencer
+var foo = if a a2
+	else b2
+	
+// The "else" branch will bind to the closest "if", the code below will cause an indentation error
+if a
+	if b
+		b2
+else
+	c2
+
+// To address this "dangling else" problem, we can introduce a "then" block for the inner if
+if a
+	if b then
+		b2
+	end
+else
+	c2
+	
+// This will not be a problem for expression-ifs, since "else" is always required
+if a
+	if b
+		b2
+	else
+		c2
+else
+	d2
+
+// "elseif" is its own keyword, otherwise we cannot distinguish "else if" as a sibling
+//      branch, or an "else" with a body leading with an "if"
+//  * There is also no way to disambiguate "else if", even if we always treat it as a sibling branch
+//  * NOTE: If the grammar forces "then" on each branch then this is no longer a problem, since the nested
+//      else-if is functionally the same as the sibling version for expression-ifs
+if a
+	a2
+elseif b
+	b2
+else
+	c
+	
+// Works the same for "then" version
+if a then
+	a2
+elseif b
+	b2
+else
+	c
+end
+
+// If-expression bodies can be complex ("last" here meaning yield last statement as expression)
+if a
+	last
+		b
+		b2
+	end
+else
+	c
+
+// This is not allowed according to layout rules since the "end" encroaches on the if-else block
+if a last
+	b
+	b2
+end
+else
+	c
+	
+// This is not allowed because "then" is not a block header in itself, unlike "last"
+//  It can only be used for block-sequencing
+if a
+	then
+		b2
+	end
+	
+// Try to abuse it
+if callf(a, b, c,
+	d, e, f)
+	action()
+end
+
+call(c)
+	.bind(f)
+	.bind(g)
+
+if mycond(a,
+		b,
+		c,
+		d)
+	if mycond(a
+			b,
+			c,
+			d)
+		myaction(a,
+				b,
+				c
+				d)
+	elseif mycond(a,
+			b,
+			c,
+			d)
+		myaction(a,
+				b,
+				c
+				d)
+	else
+		myaction(a,
+				b,
+				c
+				d)
+else
+	myaction(a,
+			b,
+			c
+			d)
+		
+if mycond(a,
+	b,
+	c,
+	d)
+	if mycond(a
+		b,
+		c,
+		d) myaction(a,
+			b,
+			c
+			d)
+	elseif mycond(a,
+		b,
+		c,
+		d)
+		myaction(a,
+			b,
+			c
+			d)
+	else
+		myaction(a,
+			b,
+			c
+			d)
+else
+	myaction(a,
+		b,
+		c
+		d)
+	
+
+
+
+
+// Proposed indentaiton rules:
+// * Blocks opening new statement bodies must have their bodies indented _exactly_ 1 block-indent
+// * Multi-line statements must indent the line continuation _at least_ 1 block-indent
+// * Keywords belonging to the same statement or primary expression must align
+//  either vertically or horizontally
+
+
+
 
 
 

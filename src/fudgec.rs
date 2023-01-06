@@ -13,6 +13,9 @@ struct CommandLineParameters {
 
     #[structopt(short = "t", long = "output-tokens")]
     print_tokens: bool,
+
+    #[structopt(short = "a", long = "output-ast")]
+    print_ast: bool,
 }
 
 fn main() {
@@ -20,17 +23,18 @@ fn main() {
 
     let source = source::Source::from_file(params.file);
 
-    // If printing tokens, do a separate scan for the print
-    if params.print_tokens {
-        let scanner_result = scanner::tokenize(&source);
+    // Scan and parse
+    let scanner_result = scanner::tokenize(&source);
 
+    // Print tokens
+    if params.print_tokens {
         println!("Tokens:");
         print!("    ");
-        for t in scanner_result.tokens {
+        for t in &scanner_result.tokens {
             print!(
                 "{:?}, ",
                 scanner::token::TokenDisplay {
-                    token: &t,
+                    token: t,
                     source: &source,
                 }
             );
@@ -39,16 +43,19 @@ fn main() {
         println!("");
     }
 
-    // Scan and parse
-    let scanner_result = scanner::tokenize(&source);
     let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source));
 
-    let mut treewalker = interpreter::TreeWalker::new(&parser_result.ast);
-    treewalker.interpret();
+    // Print ast
+    if params.print_ast {
+        parser_result.ast.print(0);
+    }
 
     // Print errors
     output::print_errors(&scanner_result.errors, &source);
     output::print_errors(&parser_result.errors, &source);
+
+    let mut treewalker = interpreter::TreeWalker::new(&parser_result.ast);
+    treewalker.interpret();
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

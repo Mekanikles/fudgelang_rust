@@ -291,6 +291,34 @@ impl<'a> TreeWalker<'a> {
         };
     }
 
+    fn evaluate_ifexpression(&mut self, ifexpr: &ast::nodes::IfExpression) -> Value {
+        let condition = &ifexpr.condexpr;
+        let trueexpr = &ifexpr.trueexpr;
+        let falseexpr = &ifexpr.falseexpr;
+
+        let condvalue = self.evaluate_expression(&condition);
+        let boolvalue = match condvalue {
+            Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
+            _ => None,
+        };
+
+        assert!(
+            boolvalue.is_some(),
+            "if conditional expression was not a bool value",
+        );
+
+        return match boolvalue.unwrap() {
+            true => self.evaluate_expression(trueexpr),
+            false => match falseexpr {
+                Some(n) => self.evaluate_expression(n),
+                None => {
+                    assert!(false, "Need to implement 'none'");
+                    self.evaluate_expression(trueexpr)
+                }
+            },
+        };
+    }
+
     fn evaluate_ifstatement(&mut self, ifstmt: &ast::nodes::IfStatement) {
         for branch in &ifstmt.branches {
             let condition = branch.0;
@@ -562,6 +590,7 @@ impl<'a> TreeWalker<'a> {
             ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
             ast::Node::CallOperation(n) => self.evaluate_calloperation(n),
             ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(n),
+            ast::Node::IfExpression(n) => self.evaluate_ifexpression(n),
             n => {
                 panic!("Not an expression! Node: {:?}", ast::NodeInfo::name(n));
             }

@@ -12,6 +12,7 @@ pub static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "if" => TokenType::If,
     "then" => TokenType::Then,
     "else" => TokenType::Else,
+    "elseif" => TokenType::ElseIf,
     "true" => TokenType::True,
     "false" => TokenType::False,
     "def" => TokenType::Def,
@@ -117,6 +118,9 @@ impl<'a> Scanner<'a> {
                 b'=' => match self.reader.lookahead() {
                     Some(b'=') => {
                         return Some(self.produce_token_and_advance_n(TokenType::CompareEq, 2));
+                    }
+                    Some(b'>') => {
+                        return Some(self.produce_token_and_advance_n(TokenType::FatArrow, 2));
                     }
                     _ => return Some(self.produce_token_and_advance(TokenType::Equals)),
                 },

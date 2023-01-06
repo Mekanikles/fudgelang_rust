@@ -96,6 +96,39 @@ impl<'a> Parser<'a> {
         return Ok(exprstack.pop());
     }
 
+    fn parse_if_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        if self.accept(TokenType::If) {
+            let node = self.ast.reserve_node();
+
+            let condexpr = self.expect_expression()?;
+
+            // Fat arrow is not required to parse, but required by grammar
+            self.expect_nobreak(TokenType::FatArrow)?;
+
+            let trueexpr = self.expect_expression()?;
+
+            let mut falseexpr: Option<ast::NodeRef> = None;
+
+            if self.accept(TokenType::Else) {
+                falseexpr = Some(self.expect_expression()?);
+            }
+
+            return Ok(Some(
+                self.ast.replace_node(
+                    node,
+                    ast::nodes::IfExpression {
+                        condexpr,
+                        trueexpr,
+                        falseexpr,
+                    }
+                    .into(),
+                ),
+            ));
+        }
+
+        return Ok(None);
+    }
+
     fn parse_primary_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if self.accept(TokenType::True) {
             return Ok(Some(
@@ -165,6 +198,8 @@ impl<'a> Parser<'a> {
                         .add_node(ast::nodes::SymbolReference { symbol: s }.into()),
                 ));
             }
+        } else if let Some(n) = self.parse_if_expression()? {
+            return Ok(Some(n));
         } else if let Some(n) = self.parse_function_literal_or_type()? {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_builtin_expression()? {

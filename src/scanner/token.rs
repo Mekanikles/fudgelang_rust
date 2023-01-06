@@ -1,5 +1,6 @@
 use crate::source;
 use std::fmt;
+use std::str;
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 pub enum TokenType {
@@ -17,6 +18,7 @@ pub enum TokenType {
     OpeningCurlyBrace,
     ClosingCurlyBrace,
     Arrow,
+    FatArrow,
     Plus,
     Minus,
     Slash,
@@ -37,6 +39,7 @@ pub enum TokenType {
     If,
     Then,
     Else,
+    ElseIf,
     True,
     False,
     Def,
@@ -85,7 +88,7 @@ impl<'a> fmt::Debug for TokenDisplay<'a> {
                 f.debug_tuple("")
                     .field(&self.token.source_span.pos)
                     .field(&self.token.source_span.len)
-                    .field(&self.source.get_span(&self.token.source_span))
+                    .field(&str::from_utf8(&self.source.get_span(&self.token.source_span)).unwrap())
                     .finish()
             }
             _ => {
