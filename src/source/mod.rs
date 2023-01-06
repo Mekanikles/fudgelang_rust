@@ -75,10 +75,12 @@ impl Source {
         let mut seekpos = 0;
         let mut row = 0;
         let mut text = String::new();
-        while let Ok(bytes_read) = (&self.data[..]).read_line(&mut text) {
+
+        while let Ok(bytes_read) = (&self.data[seekpos..]).read_line(&mut text) {
             if bytes_read == 0 {
                 return None;
             }
+
             let eol = seekpos + bytes_read;
             if eol > filepos as usize {
                 return Some(LineInfo {
