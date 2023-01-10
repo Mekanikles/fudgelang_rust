@@ -62,3 +62,25 @@ pub fn new_unexpected_indentation_error(pos: u64, len: u64) -> Error {
         "Indentations are only allowed at the start of a line or immediately after other indentations".into(),
     )
 }
+
+pub fn new_padding_not_supported_error(pos: u64, len: u64) -> Error {
+    Error::at_span(
+        errors::PaddingNotSupported,
+        source::SourceSpan {
+            pos,
+            len: len as usize,
+        },
+        "Indentation/Padding with spaces is not allowed".into(),
+    )
+}
+
+pub fn new_trailing_whitespace_error(pos: u64, len: u64) -> Error {
+    Error::at_span(
+        errors::TrailingWhitespace,
+        source::SourceSpan {
+            pos,
+            len: len as usize,
+        },
+        "Trailing whitespace is not allowed".into(),
+    )
+}

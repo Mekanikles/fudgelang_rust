@@ -124,7 +124,7 @@ fn test_binary_operation_order_precedence_mixed2() {
 #[test]
 fn test_binary_operation_order_precedence_mixed3() {
     let ast1 = generate_ast("a + b - c * d / e");
-    let ast2 = generate_ast("(a + b) - ((c * d) / e))");
+    let ast2 = generate_ast("(a + b) - ((c * d) / e)");
 
     assert_eq!(generate_nodeid_tree(&ast1), generate_nodeid_tree(&ast2));
 }

@@ -103,7 +103,7 @@ impl<'a> Parser<'a> {
             let condexpr = self.expect_expression()?;
 
             // Fat arrow is not required to parse, but required by grammar
-            self.expect_nobreak(TokenType::FatArrow)?;
+            self.expect_nobreak(TokenType::FatArrow, TokenLayoutType::None)?;
 
             let trueexpr = self.expect_expression()?;
 

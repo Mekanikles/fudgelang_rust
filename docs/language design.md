@@ -32,8 +32,8 @@ end       // Layout Block ends on this line
 
 The grammar is, however, still independent of indentation or line breaks. This is to avoid ambiguous execution flow if such formatting is somehow lost or distorted.
 
-Not many languages enforce indentation while not using it for grammar. This might be seen as en example of harmful [Syntactic Salt](https://wiki.c2.com/?SyntacticSalt) but we justify it with:
- * Clearer error messaging. The error reporter can more easiy pinpoint problems and recover if there are clear indentation rules for code.
+Not many languages enforce indentation while not using it for grammar. This might be seen as an example of harmful [Syntactic Salt](https://wiki.c2.com/?SyntacticSalt) but we justify it with:
+ * Clearer error messaging. The error reporter can more easily pinpoint problems and recover if there are clear layout rules for code.
  * Cleaner code across multiple collaborators.
  * No unintentional mixing of tabs and spaces.
  * It allows for things like indented multi-line strings to be unambiguous in terms of whitespace.

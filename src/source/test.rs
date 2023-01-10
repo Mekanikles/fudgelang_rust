@@ -27,7 +27,7 @@ fn verify_source<'a>(source: &Source, expected_bytes: &[u8]) {
 }
 
 #[test]
-fn test_filesouce() {
+fn test_filesource() {
     let source = Source::from_file("testdata/singletoken.txt");
     verify_source(&source, "HejHoppFastFile".as_bytes());
 }
@@ -42,9 +42,6 @@ fn test_bytesource() {
 fn test_stringsource() {
     let source = Source::from_str("HejHoppFastStr");
     verify_source(&source, "HejHoppFastStr".as_bytes());
-
-    let source = Source::from_file("testdata/singletoken.txt");
-    verify_source(&source, "HejHoppFastFile".as_bytes());
 }
 
 #[test]

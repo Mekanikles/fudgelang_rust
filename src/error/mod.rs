@@ -41,10 +41,11 @@ pub mod errors {
 
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum LayoutErrorType {
-        UnexpectedPadding,
+        PaddingNotSupported,
+        TrailingWhitespace,
         UnexpectedIndentation,
-        MismatchedPadding,
         MismatchedIndentation,
+        MismatchedAlignment,
     }
 }
 

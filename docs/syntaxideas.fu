@@ -1054,26 +1054,15 @@ var hej = 42
 // If-statement
 if x > 0 then
 	return 1
-else if x < 0 then
+elseif x < 0 then
 	return -1
 else
 	return 0
 end
 
 // If-expression
-var foo = if x > 0 => 1 else if x < 0 => -1 else 0
-
-// To disambiguate nested ifs, "then" is optional directly after "else"
-// Compiler will warn if this style is used outside of this edge case
-if x > 0 then
-	return 1
-else then
-	if x < 0 then
-		return -1
-	else
-		return 0
-	end
-end
+// Using else if will not be allowed
+var foo = if x > 0 => 1 elseif x < 0 => -1 else 0
 
 // For-statement
 for x in range(4) do
@@ -1372,10 +1361,6 @@ else
 		b,
 		c
 		d)
-	
-
-
-
 
 // Proposed indentaiton rules:
 // * Blocks opening new statement bodies must have their bodies indented _exactly_ 1 block-indent

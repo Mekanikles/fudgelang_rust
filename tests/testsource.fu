@@ -2,7 +2,7 @@ def u32 = #primitives.u32 // Comment test
 def bool = /* comment test */ #primitives.bool
 
 def print_compare = func(a : u32, b : u32) do
-	var msg = 
+	var msg =
 		if      a > b => "Hurra! Ditt nummer, {}, är större än {}"
 		else if a < b => "Buu. Ditt nummer, {}, är mindre än {}"
 		else             "Va? Ditt nummer, {} är ju samma som {}"

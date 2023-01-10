@@ -31,7 +31,6 @@ pub struct ScannerResult {
 struct Scanner<'a> {
     reader: source::LookAheadSourceReader<'a>,
     allow_indentation: bool,
-    output_padding: bool,
     errors: error::ErrorManager,
 }
 
@@ -61,8 +60,7 @@ impl<'a> Scanner<'a> {
     fn new(source: &'a source::Source) -> Scanner<'a> {
         Scanner {
             reader: LookAheadSourceReader::new(&source),
-            allow_indentation: false,
-            output_padding: false,
+            allow_indentation: true,
             errors: error::ErrorManager::new(),
         }
     }
@@ -77,38 +75,35 @@ impl<'a> Scanner<'a> {
             }
 
             // Indentation management
-            if n == b'\t' {
-                let indentation_token = self.produce_indentation();
-                if !self.allow_indentation {
-                    self.errors
-                        .log_error(error::new_unexpected_indentation_error(
-                            indentation_token.source_span.pos,
-                            indentation_token.source_span.len as u64,
-                        ));
-                    continue;
-                } else {
+            if self.allow_indentation {
+                if let Some(indentation_token) = self.try_produce_indentation() {
                     return Some(indentation_token);
                 }
-            } else if self.allow_indentation {
+
                 self.allow_indentation = false;
-                self.output_padding = true;
             }
 
-            // Handle padding and whitespace
+            // Handle spaces
             if n == b' ' {
-                if self.output_padding {
-                    // Padding is only allowed directly after indendation
-                    let padding_token = self.produce_padding();
-                    self.output_padding = false;
-                    return Some(padding_token);
-                } else {
-                    // Consume unimportant whitespace
-                    self.consume_spacing();
-                    continue;
+                let pos = self.reader.pos();
+                self.consume_spacing();
+
+                // Non-padding whitespace is ignored but not allowed at the end of lines
+                // TODO: This does not cater for all new-line cases
+                // TODO2: This should probably cover all whitespace (tabs as well)
+                let p = self.reader.peek();
+                if p == Some(b'\n') || p == None {
+                    self.errors.log_error(error::new_trailing_whitespace_error(
+                        pos,
+                        self.reader.pos() - pos,
+                    ));
                 }
-            } else {
-                self.output_padding = false;
+
+                continue;
             }
+
+            // After first non-whitespace, we are not longer dealing with indentation
+            self.allow_indentation = false;
 
             // Produce token
             match n {
@@ -335,18 +330,6 @@ impl<'a> Scanner<'a> {
         );
     }
 
-    fn produce_padding(&mut self) -> Token {
-        debug_assert!(self.reader.peek().unwrap() == b' ');
-        let startpos = self.reader.pos();
-        self.consume_spacing();
-
-        return Token::new(
-            TokenType::Padding,
-            startpos,
-            (self.reader.pos() - startpos) as usize,
-        );
-    }
-
     fn consume_spacing(&mut self) {
         debug_assert!(self.reader.peek().unwrap() == b' ');
         self.reader.advance();
@@ -359,22 +342,38 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn produce_indentation(&mut self) -> Token {
+    fn try_produce_indentation(&mut self) -> Option<Token> {
         let startpos = self.reader.pos();
-        debug_assert!(self.reader.peek().unwrap() == b'\t');
-        self.reader.advance();
-
+        let mut space_count = 0;
         while let Some(n) = self.reader.peek() {
-            if n != b'\t' {
+            let is_tab = n == b'\t';
+            let is_space = n == b' ';
+
+            if is_space {
+                space_count += 1;
+            } else if !is_tab {
                 break;
             }
+
             self.reader.advance();
         }
-        return Token::new(
-            TokenType::Indentation,
-            startpos,
-            (self.reader.pos() - startpos) as usize,
-        );
+
+        let length = self.reader.pos() - startpos;
+        if length > 0 {
+            // Spaces are not allowed in indentation
+            if space_count > 0 {
+                self.errors
+                    .log_error(error::new_padding_not_supported_error(startpos, length));
+            }
+
+            return Some(Token::new(
+                TokenType::Indentation,
+                startpos,
+                length as usize,
+            ));
+        }
+
+        return None;
     }
 
     // Produces an "invalid" identifier and logs an error

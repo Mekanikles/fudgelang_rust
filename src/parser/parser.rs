@@ -19,14 +19,13 @@ struct LineInfo {
     start_pos: u64,
     line_number: u64,
     indentation: u32,
-    padding: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum LineState {
-    AcceptingIndentationOrPadding,
-    AcceptingPadding,
-    AcceptingContent,
+struct BlockInfo {
+    line: LineInfo,
+    start_pos: u64,
+    in_body: bool,
 }
 
 struct Parser<'a> {
@@ -36,10 +35,10 @@ struct Parser<'a> {
     temp_tokencount: u32,
     pub ast: Ast,
     errors: error::ErrorManager,
-    block_starts: Vec<LineInfo>,
+    blocks: Vec<BlockInfo>,
     current_line: LineInfo,
-    layout_checked_at_line_number: u64,
-    line_state: LineState,
+    next_token_is_statement_start: bool,
+    need_normal_layout_check: bool,
 }
 
 pub struct ParserResult {
@@ -57,6 +56,16 @@ pub fn parse<'a>(tokens: &'a mut TokenStream<'a>) -> ParserResult {
     };
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum TokenLayoutType {
+    BlockStart,
+    BlockBodyOpen,
+    BlockLinker,
+    BlockElse,
+    BlockBodyClose,
+    None,
+}
+
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a mut TokenStream<'a>) -> Self {
         Parser {
@@ -66,20 +75,14 @@ impl<'a> Parser<'a> {
             temp_tokencount: 0,
             ast: Ast::new(),
             errors: error::ErrorManager::new(),
-            block_starts: Vec::from([LineInfo {
-                start_pos: 0,
-                line_number: 1,
-                indentation: 0,
-                padding: 0,
-            }]),
+            blocks: Vec::new(),
             current_line: LineInfo {
                 start_pos: 0,
                 line_number: 1,
                 indentation: 0,
-                padding: 0,
             },
-            layout_checked_at_line_number: 0,
-            line_state: LineState::AcceptingIndentationOrPadding,
+            next_token_is_statement_start: false,
+            need_normal_layout_check: false,
         }
     }
 
@@ -103,6 +106,8 @@ impl<'a> Parser<'a> {
 
     fn advance(&mut self) {
         let mut current_line = &mut self.current_line;
+
+        let mut found_newline = false;
         loop {
             let t = self.tokens.read_token();
 
@@ -116,25 +121,13 @@ impl<'a> Parser<'a> {
                         continue;
                     }
                     TokenType::LineBreak => {
-                        self.line_state = LineState::AcceptingIndentationOrPadding;
                         current_line.line_number += 1;
                         current_line.indentation = 0;
-                        current_line.padding = 0;
+                        found_newline = true;
                         continue;
                     }
                     TokenType::Indentation => {
-                        assert!(self.line_state == LineState::AcceptingIndentationOrPadding);
                         current_line.indentation = t.unwrap().source_span.len as u32;
-                        self.line_state = LineState::AcceptingPadding;
-                        continue;
-                    }
-                    TokenType::Padding => {
-                        assert!(
-                            self.line_state == LineState::AcceptingPadding
-                                || self.line_state == LineState::AcceptingIndentationOrPadding
-                        );
-                        current_line.padding = t.unwrap().source_span.len as u32;
-                        self.line_state = LineState::AcceptingContent;
                         continue;
                     }
                     _ => (),
@@ -144,17 +137,84 @@ impl<'a> Parser<'a> {
             self.last_token = std::mem::replace(&mut self.current_token, t.cloned());
             break;
         }
+
+        // Track line starting pos
+        if found_newline && self.current_token.is_some() {
+            current_line.start_pos = self.current_token.unwrap().source_span.pos;
+            self.need_normal_layout_check = true;
+        }
     }
 
     fn accept(&mut self, t: TokenType) -> bool {
+        let result = self.accept_with_layout(
+            t,
+            if self.next_token_is_statement_start {
+                TokenLayoutType::BlockStart
+            } else {
+                TokenLayoutType::None
+            },
+        );
+        if result {
+            self.next_token_is_statement_start = false;
+        }
+        return result;
+    }
+
+    fn accept_with_layout(&mut self, tokentype: TokenType, layouttype: TokenLayoutType) -> bool {
         match &self.current_token {
-            Some(ct) if ct.tokentype == t => {
-                if self.layout_checked_at_line_number < self.current_line.line_number {
-                    let lb = *self.block_starts.last().unwrap();
-                    // TODO: These can fail with a max error reached
-                    let _ = self.expect_indentation(self.current_line.indentation, &lb);
-                    let _ = self.expect_padding(self.current_line.padding, &lb);
-                    self.layout_checked_at_line_number = self.current_line.line_number;
+            Some(ct) if ct.tokentype == tokentype => {
+                // TODO: These can fail with a max error reached
+                if let Some(lb) = self.blocks.last() {
+                    if layouttype == TokenLayoutType::BlockBodyOpen
+                        || layouttype == TokenLayoutType::BlockLinker
+                        || layouttype == TokenLayoutType::BlockBodyClose
+                        || layouttype == TokenLayoutType::BlockElse
+                    {
+                        // Body open needs to align either horizontally or vertically
+                        let aligns_horizontally = self.current_line == lb.line;
+                        let aligns_vertically = lb.start_pos == lb.line.start_pos
+                            && self.current_line.indentation == lb.line.indentation;
+                        if !aligns_horizontally && !aligns_vertically {
+                            let _ = self.log_error(error::Error::at_span(
+                                errors::MismatchedAlignment,
+                                ct.source_span,
+                                format!(
+                                    "Block body keywords needs to align to block starter either horizontally or vertically!"
+                                )
+                                .into(),
+                            ));
+                        }
+                    } else if self.need_normal_layout_check {
+                        // Everything except the body-keywords have to be either on the same
+                        //  line as the block start, or 1 indentation under it
+                        // We only need to check this once for each new line
+                        if lb.line.line_number < self.current_line.line_number {
+                            let _ = self.expect_indentation(
+                                self.current_line.indentation,
+                                lb.line.indentation + 1,
+                            );
+                        }
+
+                        self.need_normal_layout_check = false;
+                    }
+                } else {
+                    // File-level tokens are not indented
+                    let _ = self.expect_indentation(self.current_line.indentation, 0);
+                }
+
+                if layouttype == TokenLayoutType::BlockStart {
+                    self.block_start();
+                } else if layouttype == TokenLayoutType::BlockBodyClose {
+                    self.block_end();
+                } else if layouttype == TokenLayoutType::BlockBodyOpen {
+                    self.blocks.last_mut().unwrap().in_body = true;
+                } else if layouttype == TokenLayoutType::BlockLinker {
+                    self.block_end();
+                    self.block_start();
+                } else if layouttype == TokenLayoutType::BlockElse {
+                    self.block_end();
+                    self.block_start();
+                    self.blocks.last_mut().unwrap().in_body = true;
                 }
 
                 self.advance();
@@ -166,8 +226,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect_nobreak(&mut self, expected_token: TokenType) -> Result<bool, error::ErrorId> {
-        if !self.accept(expected_token) {
+    fn expect_nobreak(
+        &mut self,
+        expected_token: TokenType,
+        layouttype: TokenLayoutType,
+    ) -> Result<bool, error::ErrorId> {
+        if !self.accept_with_layout(expected_token, layouttype) {
             if let Some(current_token) = &self.current_token {
                 let span = current_token.source_span;
                 let error = format!(
@@ -192,7 +256,15 @@ impl<'a> Parser<'a> {
     }
 
     fn expect(&mut self, expected_token: TokenType) -> Result<(), error::ErrorId> {
-        if !self.expect_nobreak(expected_token)? {
+        self.expect_with_layout(expected_token, TokenLayoutType::None)
+    }
+
+    fn expect_with_layout(
+        &mut self,
+        expected_token: TokenType,
+        layouttype: TokenLayoutType,
+    ) -> Result<(), error::ErrorId> {
+        if !self.expect_nobreak(expected_token, layouttype)? {
             return Err(self.last_errorid().unwrap());
         }
 
@@ -211,17 +283,19 @@ impl<'a> Parser<'a> {
     }
 
     fn block_start(&mut self) {
-        let current_block = self.block_starts.last().unwrap();
-        self.block_starts.push(LineInfo {
-            start_pos: current_block.start_pos,
-            line_number: current_block.line_number,
-            indentation: current_block.indentation + 1,
-            padding: current_block.padding,
+        self.blocks.push(BlockInfo {
+            line: self.current_line,
+            start_pos: if let Some(t) = self.current_token {
+                t.source_span.pos
+            } else {
+                0
+            },
+            in_body: false,
         });
     }
 
     fn block_end(&mut self) {
-        self.block_starts.pop();
+        self.blocks.pop();
     }
 
     fn parse_input_parameter(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
@@ -330,14 +404,10 @@ impl<'a> Parser<'a> {
 
             // If there is a body following, we are dealing with a function literal
             //  otherwise, a type literal
-            if self.accept(TokenType::Do) {
-                self.block_start();
-
+            if self.accept_with_layout(TokenType::Do, TokenLayoutType::BlockBodyOpen) {
                 let body = self.parse_statementbody()?;
 
-                self.block_end();
-
-                self.expect(TokenType::End)?;
+                self.expect_with_layout(TokenType::End, TokenLayoutType::BlockBodyClose)?;
 
                 return Ok(Some(
                     self.ast.replace_node(
@@ -430,38 +500,27 @@ impl<'a> Parser<'a> {
             let mut elsebranch: Option<ast::NodeRef> = None;
 
             // Primary branch
-            self.expect(TokenType::Then)?;
+            self.expect_with_layout(TokenType::Then, TokenLayoutType::BlockBodyOpen)?;
             {
-                self.block_start();
-
                 branches.push((condition, self.parse_statementbody()?));
-
-                self.block_end();
             }
 
             // Else-if branches
-            while self.accept(TokenType::ElseIf) {
+            while self.accept_with_layout(TokenType::ElseIf, TokenLayoutType::BlockLinker) {
                 let condition = self.expect_expression()?;
 
                 self.expect(TokenType::Then)?;
-                self.block_start();
 
                 branches.push((condition, self.parse_statementbody()?));
-
-                self.block_end();
             }
 
             // Final else
-            if self.accept(TokenType::Else) {
-                self.block_start();
-
+            if self.accept_with_layout(TokenType::Else, TokenLayoutType::BlockElse) {
                 // Final else
                 elsebranch = Some(self.parse_statementbody()?);
-
-                self.block_end();
             }
 
-            self.expect(TokenType::End)?;
+            self.expect_with_layout(TokenType::End, TokenLayoutType::BlockBodyClose)?;
 
             return Ok(Some(
                 self.ast.replace_node(
@@ -541,6 +600,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        self.next_token_is_statement_start = true;
+        let res = self.parse_statement_inner();
+        self.next_token_is_statement_start = false;
+
+        // Bleh, try to close block if it was opened
+        if if let Ok(n) = res { n.is_some() } else { true } {
+            self.block_end();
+        }
+        return res;
+    }
+
+    fn parse_statement_inner(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if let Some(n) = self.parse_symbol_declaration()? {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_if_statement()? {
@@ -556,30 +627,15 @@ impl<'a> Parser<'a> {
     fn expect_indentation(
         &mut self,
         indentation: u32,
-        line_info: &LineInfo,
+        expected: u32,
     ) -> Result<(), error::ErrorId> {
-        if line_info.indentation != indentation {
+        if indentation != expected {
             self.log_error(error::Error::at_span(
                 errors::MismatchedIndentation,
                 self.current_token.as_ref().unwrap().source_span,
                 format!(
                     "Mismatched indentation level, expected: {}, was {}",
-                    line_info.indentation, indentation
-                )
-                .into(),
-            ))?;
-        }
-        return Ok(());
-    }
-
-    fn expect_padding(&mut self, padding: u32, line_info: &LineInfo) -> Result<(), error::ErrorId> {
-        if line_info.padding != padding {
-            self.log_error(error::Error::at_span(
-                errors::MismatchedPadding,
-                self.current_token.as_ref().unwrap().source_span,
-                format!(
-                    "Mismatched padding, should be {}, was {}",
-                    line_info.padding, padding
+                    expected, indentation
                 )
                 .into(),
             ))?;

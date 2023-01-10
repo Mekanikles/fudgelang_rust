@@ -63,5 +63,5 @@ This choice would also require the user to differentiate between tabs and spaces
 * Poor editor support.
 * Requires users to differentiate between tabs and spaces.
 
->Even though it cannot support vertical alignment, *Tabs Only* seems like the prudent choise for `Fudge`. The inconsistencies of *Spaces Only* or the workarounds needed for *Mixed Tabs And Spaces* are hard to motivate. Possibly we can still support some vertical alignment by allowing arbitrary runs of spaces to exist within a line, just not directly after indentation.
+>Even though it cannot support vertical alignment, *Tabs Only* seems like the prudent choise for `Fudge`. The inconsistencies of *Spaces Only* or the workarounds needed for *Mixed Tabs And Spaces* feels hard to motivate. Possibly we can still support some vertical alignment by allowing arbitrary runs of spaces to exist within a line, just not directly after indentation.
 

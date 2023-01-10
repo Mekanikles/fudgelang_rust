@@ -15,7 +15,7 @@ fn test_statement_empty_if() {
 #[test]
 fn test_statement_empty_if_then_else_empty() {
     verify_ast(
-        "if a then\nelse then\nend",
+        "if a then\nelse\nend",
         &module_fragment_wrapper_tree(&[tree(
             IfStatement,
             &[
@@ -30,7 +30,7 @@ fn test_statement_empty_if_then_else_empty() {
 #[test]
 fn test_statement_empty_if_else_if() {
     verify_ast(
-        "if a then\nelse if b then\nend",
+        "if a then\nelseif b then\nend",
         &module_fragment_wrapper_tree(&[tree(
             IfStatement,
             &[
@@ -46,7 +46,7 @@ fn test_statement_empty_if_else_if() {
 #[test]
 fn test_statement_empty_if_else_if_else() {
     verify_ast(
-        "if a then\nelse if b then\nelse then\nend",
+        "if a then\nelseif b then\nelse\nend",
         &module_fragment_wrapper_tree(&[tree(
             IfStatement,
             &[
@@ -63,7 +63,7 @@ fn test_statement_empty_if_else_if_else() {
 #[test]
 fn test_statement_empty_if_chained_else_if() {
     verify_ast(
-        "if a then\nelse if b then\nelse if c then\nelse if d then\nend",
+        "if a then\nelseif b then\nelseif c then\nelseif d then\nend",
         &module_fragment_wrapper_tree(&[tree(
             IfStatement,
             &[
@@ -83,7 +83,7 @@ fn test_statement_empty_if_chained_else_if() {
 #[test]
 fn test_statement_empty_if_chained_else_if_else() {
     verify_ast(
-        "if a then\nelse if b then\nelse if c then\nelse if d then\nelse then\nend",
+        "if a then\nelseif b then\nelseif c then\nelseif d then\nelse\nend",
         &module_fragment_wrapper_tree(&[tree(
             IfStatement,
             &[
@@ -119,7 +119,7 @@ fn test_statement_non_empty_if() {
 
 #[test]
 fn test_statement_non_empty_if_else() {
-    let blockversion = "if a then\n\tb\nelse then\n\tb\nend";
+    let blockversion = "if a then\n\tb\nelse\n\tb\nend";
 
     verify_ast(
         blockversion,
@@ -137,7 +137,7 @@ fn test_statement_non_empty_if_else() {
 #[test]
 fn test_statement_non_empty_if_chained_else_if_else() {
     let blockversion =
-        "if a then\n\te\nelse if b then\n\te\nelse if c then\n\te\nelse if d then\n\te\nelse then\n\te\nend";
+        "if a then\n\te\nelseif b then\n\te\nelseif c then\n\te\nelseif d then\n\te\nelse\n\te\nend";
 
     verify_ast(
         blockversion,

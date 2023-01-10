@@ -4,14 +4,15 @@ use crate::scanner::*;
 use crate::source::*;
 
 pub fn expect_error_ids(errors: &Vec<error::Error>, expected_error_ids: &[error::ErrorId]) {
-    for i in 0..expected_error_ids.len() {
-        assert_eq!(errors[i].id, expected_error_ids[i]);
-    }
     assert_eq!(
         errors.len(),
         expected_error_ids.len(),
-        "Found more errors than expected!"
+        "Found a different error count than expected!"
     );
+
+    for i in 0..expected_error_ids.len() {
+        assert_eq!(errors[i].id, expected_error_ids[i]);
+    }
 }
 
 pub fn expect_token(expected_tokens: &[Token], i: usize, scanned_token: &Token) {

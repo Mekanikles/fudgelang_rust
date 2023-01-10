@@ -29,7 +29,6 @@ pub enum TokenType {
     // n-char tokens
     LineBreak,
     Indentation,
-    Padding,
     Comment,
     CompareEq,
     GreaterThanOrEq,

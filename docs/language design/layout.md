@@ -1,5 +1,5 @@
 # Layout
-Syntax for building layout blocks in code is core to the readability of the language. `Fudge` should not rely on linebreaks and [Indentation](indentation.md) to disambiguate grammar, so unlike other languages with significant whitespace, we also need to decide how to open/close layout blocks. 
+Syntax for building layout blocks in code is core to the readability of the language. `Fudge` should not rely on line-breaks and [Indentation](indentation.md) to disambiguate grammar (TODO: add link to reasoning for this), so unlike other languages with significant whitespace, we also need to decide how to open/close layout blocks. 
 
 It's also important for the `Fudge` language design that code looks as similar as possible across different code repositories, so given a block layout style, it should not invite style discussions around placement of tokens.
 
