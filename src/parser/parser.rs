@@ -146,7 +146,7 @@ impl<'a> Parser<'a> {
     }
 
     fn accept(&mut self, t: TokenType) -> bool {
-        let result = self.accept_with_layout(
+        return self.accept_with_layout(
             t,
             if self.next_token_is_statement_start {
                 TokenLayoutType::BlockStart
@@ -154,10 +154,6 @@ impl<'a> Parser<'a> {
                 TokenLayoutType::None
             },
         );
-        if result {
-            self.next_token_is_statement_start = false;
-        }
-        return result;
     }
 
     fn accept_with_layout(&mut self, tokentype: TokenType, layouttype: TokenLayoutType) -> bool {
@@ -204,8 +200,6 @@ impl<'a> Parser<'a> {
 
                 if layouttype == TokenLayoutType::BlockStart {
                     self.block_start();
-                } else if layouttype == TokenLayoutType::BlockBodyClose {
-                    self.block_end();
                 } else if layouttype == TokenLayoutType::BlockBodyOpen {
                     self.blocks.last_mut().unwrap().in_body = true;
                 } else if layouttype == TokenLayoutType::BlockLinker {
@@ -216,6 +210,9 @@ impl<'a> Parser<'a> {
                     self.block_start();
                     self.blocks.last_mut().unwrap().in_body = true;
                 }
+
+                // Even if we did not use this, we don't want it to "leak" to the next token
+                self.next_token_is_statement_start = false;
 
                 self.advance();
                 return true;
@@ -295,6 +292,7 @@ impl<'a> Parser<'a> {
     }
 
     fn block_end(&mut self) {
+        debug_assert!(self.blocks.len() > 0);
         self.blocks.pop();
     }
 
@@ -600,13 +598,18 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        let statement_start_pos = self.current_token.unwrap().source_span.pos;
         self.next_token_is_statement_start = true;
         let res = self.parse_statement_inner();
-        self.next_token_is_statement_start = false;
 
-        // Bleh, try to close block if it was opened
-        if if let Ok(n) = res { n.is_some() } else { true } {
-            self.block_end();
+        // Close the last block if any block was left opened since this statement start
+        if let Some(lb) = self.blocks.last() {
+            if lb.start_pos >= statement_start_pos {
+                self.block_end();
+            }
+        } else {
+            // If nothing as parsed, we want to clear this
+            self.next_token_is_statement_start = false;
         }
         return res;
     }
@@ -703,6 +706,8 @@ impl<'a> Parser<'a> {
                 "Unparsed token!".into(),
             ))?;
         }
+
+        debug_assert!(self.blocks.is_empty());
 
         return Ok(());
     }
