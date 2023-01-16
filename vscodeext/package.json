@@ -1,0 +1,36 @@
+{
+	"name": "fudge-lang",
+	"displayName": "Fudge Language Support",
+	"description": "Fudge Language Support for Visual Studio Code",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.72.0"
+	},
+	"dependencies": {
+		"vscode-languageclient": "^7.0.0"
+	},
+	"categories": [
+		"Programming Languages"
+	],
+	"contributes": {
+		"languages": [
+			{
+				"id": "fudge",
+				"aliases": [ "Fudge", "fudge" ],
+				"extensions": [ ".fu" ],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "fudge",
+				"scopeName": "source.fudge",
+				"path": "./syntaxes/fudge.tmLanguage.json"
+			}
+		]
+	},
+	"activationEvents": [
+		"onLanguage:fudge"
+	],
+	"main": "./src/extension.js"
+}

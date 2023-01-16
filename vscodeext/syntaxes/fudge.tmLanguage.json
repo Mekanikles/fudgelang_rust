@@ -1,0 +1,60 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Fudge",
+	"patterns": [
+		{ "include": "#keywords" },
+		{ "include": "#comments" },
+		{ "include": "#strings" }
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.control.fudge",
+					"match": "\\b(if|for|return|do|then|end|var|const|def|func)\\b"
+				}
+			]
+		},
+		"strings": {
+			"name": "string.quoted.double.fudge",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.fudge",
+					"match": "\\\\."
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"include": "#comments-block"
+				},
+				{
+					"include": "#comments-line"
+				}
+			]
+		},
+		"comments-line": {
+			"match": "\\/\\/.*?$",
+			"name": "comment.line.double-slash.fudge"
+		},
+		"comments-block": {
+			"begin": "\\/\\*",
+			"end": "\\*\\/",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.comment.fudge"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.comment.fudge"
+				}
+			},
+			"name": "comment.block.fudge"
+		}
+	},
+	"scopeName": "source.fudge"
+}
