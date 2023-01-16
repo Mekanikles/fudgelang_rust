@@ -3,6 +3,7 @@ name = "fudgelang-cli"
 version = "0.1.0"
 authors = ["Joel Lennartsson <joel.andreas.lennartsson@gmail.com>"]
 edition = "2018"
+default-run = "fudgec"
 
 [[bin]]
 name = "fudgec"

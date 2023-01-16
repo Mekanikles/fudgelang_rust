@@ -2,5 +2,10 @@
 
 members = [
     "libfudge",
-    "fudgecli"
+    "fudgecli",
+    "fudgelsp"
 ]
+
+[profile.release]
+debug = true
+panic = 'abort'
