@@ -635,7 +635,10 @@ impl<'a> Parser<'a> {
         if indentation != expected {
             self.log_error(error::Error::at_span(
                 errors::MismatchedIndentation,
-                self.current_token.as_ref().unwrap().source_span,
+                SourceSpan {
+                    pos: self.current_token.as_ref().unwrap().source_span.pos - indentation as u64,
+                    len: indentation as usize,
+                },
                 format!(
                     "Mismatched indentation level, expected: {}, was {}",
                     expected, indentation
