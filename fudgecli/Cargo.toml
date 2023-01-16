@@ -1,0 +1,15 @@
+[package]
+name = "fudgelang-cli"
+version = "0.1.0"
+authors = ["Joel Lennartsson <joel.andreas.lennartsson@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "fudgec"
+path = "src/fudgec.rs"
+bench = false
+
+[dependencies]
+fudgelang-lib = { path = "../libfudge" }
+ansi_term = "0.12"
+structopt = "0.3.13"

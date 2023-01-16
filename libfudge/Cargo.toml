@@ -1,0 +1,31 @@
+[package]
+name = "fudgelang-lib"
+version = "0.1.0"
+authors = ["Joel Lennartsson <joel.andreas.lennartsson@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "libfudgec"
+path = "src/libfudgec.rs"
+bench = false
+
+[dependencies]
+phf = { version = "0.9", features = ["macros"] }
+regex = "1"
+dyn-fmt = "0.3.0"
+backtrace = "0.3"
+# TODO: Only needed for test output
+codespan-reporting = "0.11"
+
+[dev-dependencies]
+criterion = "0.3"
+# TODO: We can probably get rid of this
+insta = "1.7"
+
+[profile.release]
+debug = true
+panic = 'abort'
+
+[[bench]]
+name = "scanner_benchmark"
+harness = false

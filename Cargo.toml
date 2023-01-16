@@ -1,37 +1,6 @@
-[package]
-name = "fudgelang_rust"
-version = "0.1.0"
-authors = ["Joel Lennartsson <joel.andreas.lennartsson@gmail.com>"]
-edition = "2018"
+[workspace]
 
-[lib]
-name = "libfudgec"
-path = "src/libfudgec.rs"
-bench = false
-
-[[bin]]
-name = "fudgec"
-path = "src/fudgec.rs"
-bench = false
-
-[dependencies]
-structopt = "0.3.13"
-ansi_term = "0.12"
-codespan-reporting = "0.11"
-phf = { version = "0.9", features = ["macros"] }
-regex = "1"
-dyn-fmt = "0.3.0"
-backtrace = "0.3"
-
-[dev-dependencies]
-criterion = "0.3"
-insta = "1.7"
-
-[profile.release]
-debug = true
-panic = 'abort'
-
-[[bench]]
-name = "scanner_benchmark"
-harness = false
-
+members = [
+    "libfudge",
+    "fudgecli"
+]

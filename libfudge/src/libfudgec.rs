@@ -6,5 +6,5 @@ pub mod typesystem;
 
 pub mod error;
 
-// TODO: Should probably not be here, maybe helper print functions?
+// Hm, this doesn't quite belong here, but is nice to have for tests
 pub mod output;
