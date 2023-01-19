@@ -7,12 +7,12 @@
 		{
 			"type": "lldb",
 			"request": "launch",
-			"name": "Debug executable 'fudgelang_rust'",
+			"name": "Debug executable 'fudgec'",
 			"cargo": {
 				"args": [
 					"build",
 					"--bin=fudgec",
-					"--package=fudgelang_rust"
+					"--package=fudgelang-cli"
 				],
 				"filter": {
 					"name": "fudgec",
@@ -23,21 +23,12 @@
 			"cwd": "${workspaceFolder}"
 		},
 		{
-			"type": "lldb",
+			"name": "Extension",
+			"type": "extensionHost",
 			"request": "launch",
-			"name": "Debug unit tests in executable 'fudgelang_rust'",
-			"cargo": {
-				"args": [
-					"test",
-					"--no-run",
-				],
-				"filter": {
-					"name": "libfudgec",
-					"kind": "lib",
-				}
-			},
-			"args": [],
-			"cwd": "${workspaceFolder}"
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}/vscodeext"
+			]
 		}
 	]
 }

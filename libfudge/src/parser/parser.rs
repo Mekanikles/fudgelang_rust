@@ -720,7 +720,7 @@ impl<'a> Parser<'a> {
 
         match self.parse_fragment() {
             Err(error::ErrorId::FatalError(errors::ErrorLimitExceeded)) => {
-                println!("Parsing stopped, error limit exceeed");
+                eprintln!("Parsing stopped, error limit exceeed");
                 return;
             }
             Err(e) => {
@@ -730,13 +730,13 @@ impl<'a> Parser<'a> {
         }
 
         if self.tokens.read_token() == None {
-            println!("Parsed all {} tokens successfully!", self.temp_tokencount);
+            eprintln!("Parsed all {} tokens successfully!", self.temp_tokencount);
         } else {
-            println!("Only parsed {} tokens...", self.temp_tokencount);
+            eprintln!("Only parsed {} tokens...", self.temp_tokencount);
 
-            println!("Unparsed tokens:");
+            eprintln!("Unparsed tokens:");
             while let Some(t) = self.tokens.read_token() {
-                println!("{:?}", t);
+                eprintln!("{:?}", t);
             }
         }
     }
