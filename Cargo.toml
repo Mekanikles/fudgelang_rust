@@ -3,7 +3,7 @@
 members = [
     "libfudge",
     "fudgecli",
-    "fudgelsp"
+    "fudgels"
 ]
 
 [profile.release]

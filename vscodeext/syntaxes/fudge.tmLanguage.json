@@ -11,7 +11,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.fudge",
-					"match": "\\b(if|for|return|do|then|end|var|const|def|func)\\b"
+					"match": "\\b(if|for|return|do|then|else|end|var|const|def|func)\\b"
 				}
 			]
 		},

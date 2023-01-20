@@ -1,12 +1,12 @@
 [package]
-name = "fudgelang-lsp"
+name = "fudgelang-ls"
 version = "0.1.0"
 authors = ["Joel Lennartsson <joel.andreas.lennartsson@gmail.com>"]
 edition = "2018"
 
 [[bin]]
-name = "fudgelsp"
-path = "src/fudgelsp.rs"
+name = "fudgels"
+path = "src/fudgels.rs"
 bench = false
 
 [dependencies]

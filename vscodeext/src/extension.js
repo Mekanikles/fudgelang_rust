@@ -18,7 +18,7 @@ function activate(context) {
 	const traceOutputChannel = vscode.window.createOutputChannel("Fudge Language Server trace");
 
 	// TODO!
-	let serverPath = path.join('/Users', 'joel', 'Projects', 'fudgelang_rust', 'target', 'debug', 'fudgelsp');
+	let serverPath = path.join('/Users', 'joel', 'Projects', 'fudgelang_rust', 'target', 'debug', 'fudgels');
 
 	// Executable
 	const run = {

@@ -84,9 +84,10 @@ trait RopeExt {
 
 impl RopeExt for ropey::Rope {
     fn offset_to_position(&self, offset: usize) -> Position {
-        let line = self.char_to_line(offset);
+        let char_pos = self.byte_to_char(offset);
+        let line = self.char_to_line(char_pos);
         let first_char = self.line_to_char(line);
-        let column = offset - first_char;
+        let column = char_pos - first_char;
         return Position::new(line as u32, column as u32);
     }
 }
