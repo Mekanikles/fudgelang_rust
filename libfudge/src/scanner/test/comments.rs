@@ -56,9 +56,9 @@ fn test_block_trivial() {
 }
 
 #[test]
-#[should_panic]
 fn test_block_incomplete() {
-    verify_exact_scan("/*", &[]);
+    let errors = verify_exact_scan_with_errors("/*", &[Token::new(TokenType::Comment, 0, 2)]);
+    expect_error_ids(&errors, &[new_error_id(errors::UnexpectedEOF)]);
 }
 
 #[test]
@@ -98,7 +98,52 @@ fn test_block_nested_trivial() {
 }
 
 #[test]
-#[should_panic]
 fn test_block_nested_incomplete() {
-    verify_exact_scan("/*/**/", &[Token::new(TokenType::Comment, 0, 8)]);
+    let errors = verify_exact_scan_with_errors("/*/**/", &[Token::new(TokenType::Comment, 0, 6)]);
+    expect_error_ids(&errors, &[new_error_id(errors::UnexpectedEOF)]);
+}
+
+#[test]
+fn test_block_with_string() {
+    verify_exact_scan("/*\"text\"*/", &[Token::new(TokenType::Comment, 0, 10)]);
+}
+
+#[test]
+fn test_block_with_unmatched_string() {
+    let errors = verify_exact_scan_with_errors("/*\"text", &[Token::new(TokenType::Comment, 0, 7)]);
+    expect_error_ids(
+        &errors,
+        &[
+            new_error_id(errors::UnexpectedEOF),
+            new_error_id(errors::UnexpectedEOF),
+        ],
+    );
+}
+
+#[test]
+fn test_block_with_block_end_inside_string() {
+    verify_exact_scan("/*\"*/\"*/", &[Token::new(TokenType::Comment, 0, 8)]);
+}
+
+#[test]
+fn test_block_with_block_end_inside_unmatched_string() {
+    let errors =
+        verify_exact_scan_with_errors("/*\"*/test", &[Token::new(TokenType::Comment, 0, 9)]);
+    expect_error_ids(
+        &errors,
+        &[
+            new_error_id(errors::UnexpectedEOF),
+            new_error_id(errors::UnexpectedEOF),
+        ],
+    );
+}
+
+#[test]
+fn test_block_with_unmatched_string_inside_line_comment() {
+    verify_exact_scan("/*//\"text\n*/", &[Token::new(TokenType::Comment, 0, 12)]);
+}
+
+#[test]
+fn test_block_with_block_end_inside_line_comment() {
+    verify_exact_scan("/*\n//*/\n*/", &[Token::new(TokenType::Comment, 0, 10)]);
 }

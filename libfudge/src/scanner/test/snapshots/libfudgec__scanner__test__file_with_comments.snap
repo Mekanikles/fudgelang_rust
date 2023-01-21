@@ -1,7 +1,7 @@
 ---
-source: src/scanner/test/utils.rs
-expression: scanned_tokens
-
+source: libfudge/src/scanner/test/mod.rs
+assertion_line: 23
+expression: "&scanner_result.tokens"
 ---
 [
     Token {
@@ -92,55 +92,55 @@ expression: scanned_tokens
         tokentype: Comment,
         source_span: SourceSpan {
             pos: 58,
-            len: 94,
+            len: 275,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 152,
+            pos: 333,
             len: 1,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 153,
+            pos: 334,
             len: 7,
         },
     },
     Token {
         tokentype: Comma,
         source_span: SourceSpan {
-            pos: 160,
+            pos: 341,
             len: 1,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 164,
+            pos: 345,
             len: 5,
         },
     },
     Token {
         tokentype: Dot,
         source_span: SourceSpan {
-            pos: 169,
+            pos: 350,
             len: 1,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 170,
+            pos: 351,
             len: 1,
         },
     },
     Token {
         tokentype: Comment,
         source_span: SourceSpan {
-            pos: 171,
+            pos: 352,
             len: 16,
         },
     },

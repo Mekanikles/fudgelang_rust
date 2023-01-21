@@ -53,7 +53,18 @@
 					"name": "punctuation.definition.comment.fudge"
 				}
 			},
-			"name": "comment.block.fudge"
+			"name": "comment.block.fudge",
+			"patterns": [
+				{
+					"include": "#comments-line"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"include": "#comments-block"
+				}
+			]
 		}
 	},
 	"scopeName": "source.fudge"

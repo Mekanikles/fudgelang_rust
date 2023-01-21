@@ -46,10 +46,6 @@ pub fn verify_sparse_scanner_tokens(scanner_result: &ScannerResult, expected_tok
     }
 }
 
-pub fn verify_scanner_tokens_snapshot(scanner_result: &ScannerResult) {
-    insta::assert_debug_snapshot!(scanner_result.tokens);
-}
-
 // Checks that the scanner produces an exact list of tokens
 pub fn verify_exact_scan_with_errors(source: &str, expected_tokens: &[Token]) -> Vec<error::Error> {
     let source = Source::from_str(source);

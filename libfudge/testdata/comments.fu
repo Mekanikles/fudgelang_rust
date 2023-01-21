@@ -1,0 +1,14 @@
+Hello, goodbye. // Comment
+Hello/*inline comment*/again,
+
+/* block comment
+// ignored line comments
+/* nested block
+*/
+Strings inside blocks are recognized, but ignored: "", see?
+Strings can hide a block-end, like this "*/", to support complex regexes
+// block-end is ignored if behind line comment */
+// And so is any quote, "" "
+*/
+Goodbye,   hello.
+// Final comment

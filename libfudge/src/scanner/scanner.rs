@@ -300,15 +300,26 @@ impl<'a> Scanner<'a> {
         // Eat block, including nested blocks
         let mut blocklevel = 1;
         while let Some(n) = self.reader.peek() {
-            if n == b'/' && self.reader.lookahead() == Some('*' as u8) {
+            if n == b'/' && self.reader.lookahead() == Some(b'*') {
                 blocklevel += 1;
                 self.reader.advance();
-            } else if n == b'*' && self.reader.lookahead() == Some('/' as u8) {
+                self.reader.advance();
+            } else if n == b'*' && self.reader.lookahead() == Some(b'/') {
                 blocklevel -= 1;
                 self.reader.advance();
+                self.reader.advance();
+            } else if n == b'/' && self.reader.lookahead() == Some(b'/') {
+                // Line comments within blocks will ignore any block-enders
+                //  on that line. Eat the line and throw the token away
+                //  so that the line comment is merged with the open block.
+                self.produce_linecomment();
+            } else if n == b'"' {
+                // Do the same things for strings, this is to support commenting
+                //  out strings that have '*/' in them
+                self.produce_stringliteral();
+            } else {
+                self.reader.advance();
             }
-
-            self.reader.advance();
 
             if blocklevel == 0 {
                 break;

@@ -18,7 +18,7 @@ mod stringliterals;
 
 #[test]
 fn test_file_with_comments() {
-    let scanner_result = get_scanner_result_from_file("testdata/comments.txt");
-
-    verify_scanner_tokens_snapshot(&scanner_result);
+    let scanner_result = get_scanner_result_from_file("testdata/comments.fu");
+    // Needs to be called here directly to retain snaphot file name
+    insta::assert_debug_snapshot!(&scanner_result.tokens);
 }
