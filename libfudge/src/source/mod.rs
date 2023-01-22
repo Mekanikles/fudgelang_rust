@@ -39,8 +39,15 @@ impl Source {
 
     pub fn from_str(data: &str) -> Source {
         Source {
-            name: "stringsource".into(),
+            name: "strsource".into(),
             data: data.as_bytes().to_vec(),
+        }
+    }
+
+    pub fn from_string(name: String, data: String) -> Source {
+        Source {
+            name: name,
+            data: data.into_bytes(),
         }
     }
 

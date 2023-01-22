@@ -1,5 +1,5 @@
-Hello, goodbye. // Comment
-Hello/*inline comment*/again,
+say(Hello, goodbye) // Comment
+say(Hello,/*inline comment*/ again)
 
 /* block comment
 // ignored line comments
@@ -10,5 +10,5 @@ Strings can hide a block-end, like this "*/", to support complex regexes
 // block-end is ignored if behind line comment */
 // And so is any quote, "" "
 */
-Goodbye,   hello.
+say(Goodbye, hello)
 // Final comment

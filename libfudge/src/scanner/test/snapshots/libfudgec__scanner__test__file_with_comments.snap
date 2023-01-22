@@ -8,139 +8,188 @@ expression: "&scanner_result.tokens"
         tokentype: Identifier,
         source_span: SourceSpan {
             pos: 0,
-            len: 5,
+            len: 3,
         },
     },
     Token {
-        tokentype: Comma,
+        tokentype: OpeningParenthesis,
         source_span: SourceSpan {
-            pos: 5,
+            pos: 3,
             len: 1,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 7,
+            pos: 4,
+            len: 5,
+        },
+    },
+    Token {
+        tokentype: Comma,
+        source_span: SourceSpan {
+            pos: 9,
+            len: 1,
+        },
+    },
+    Token {
+        tokentype: Identifier,
+        source_span: SourceSpan {
+            pos: 11,
             len: 7,
         },
     },
     Token {
-        tokentype: Dot,
+        tokentype: ClosingParenthesis,
         source_span: SourceSpan {
-            pos: 14,
+            pos: 18,
             len: 1,
         },
     },
     Token {
         tokentype: Comment,
         source_span: SourceSpan {
-            pos: 16,
+            pos: 20,
             len: 10,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 26,
+            pos: 30,
             len: 1,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 27,
+            pos: 31,
+            len: 3,
+        },
+    },
+    Token {
+        tokentype: OpeningParenthesis,
+        source_span: SourceSpan {
+            pos: 34,
+            len: 1,
+        },
+    },
+    Token {
+        tokentype: Identifier,
+        source_span: SourceSpan {
+            pos: 35,
             len: 5,
+        },
+    },
+    Token {
+        tokentype: Comma,
+        source_span: SourceSpan {
+            pos: 40,
+            len: 1,
         },
     },
     Token {
         tokentype: Comment,
         source_span: SourceSpan {
-            pos: 32,
+            pos: 41,
             len: 18,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 50,
+            pos: 60,
             len: 5,
         },
     },
     Token {
-        tokentype: Comma,
+        tokentype: ClosingParenthesis,
         source_span: SourceSpan {
-            pos: 55,
+            pos: 65,
             len: 1,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 56,
+            pos: 66,
             len: 1,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 57,
+            pos: 67,
             len: 1,
         },
     },
     Token {
         tokentype: Comment,
         source_span: SourceSpan {
-            pos: 58,
+            pos: 68,
             len: 275,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 333,
+            pos: 343,
             len: 1,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 334,
+            pos: 344,
+            len: 3,
+        },
+    },
+    Token {
+        tokentype: OpeningParenthesis,
+        source_span: SourceSpan {
+            pos: 347,
+            len: 1,
+        },
+    },
+    Token {
+        tokentype: Identifier,
+        source_span: SourceSpan {
+            pos: 348,
             len: 7,
         },
     },
     Token {
         tokentype: Comma,
         source_span: SourceSpan {
-            pos: 341,
+            pos: 355,
             len: 1,
         },
     },
     Token {
         tokentype: Identifier,
         source_span: SourceSpan {
-            pos: 345,
+            pos: 357,
             len: 5,
         },
     },
     Token {
-        tokentype: Dot,
+        tokentype: ClosingParenthesis,
         source_span: SourceSpan {
-            pos: 350,
+            pos: 362,
             len: 1,
         },
     },
     Token {
         tokentype: LineBreak,
         source_span: SourceSpan {
-            pos: 351,
+            pos: 363,
             len: 1,
         },
     },
     Token {
         tokentype: Comment,
         source_span: SourceSpan {
-            pos: 352,
+            pos: 364,
             len: 16,
         },
     },

@@ -14,3 +14,4 @@ fudgelang-lib = { path = "../libfudge" }
 tokio = { version = "1.24.1", features = ["full"] }
 tower-lsp = "0.18.0"
 ropey = "1.5.1"
+dashmap = "5.4.0"
