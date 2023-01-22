@@ -84,6 +84,7 @@ trait RopeExt {
 
 impl RopeExt for ropey::Rope {
     fn offset_to_position(&self, offset: usize) -> Position {
+        let offset = std::cmp::min(offset, self.len_bytes());
         let char_pos = self.byte_to_char(offset);
         let line = self.char_to_line(char_pos);
         let first_char = self.line_to_char(line);
