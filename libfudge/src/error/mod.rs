@@ -46,6 +46,7 @@ pub mod errors {
         UnexpectedIndentation,
         MismatchedIndentation,
         MismatchedAlignment,
+        ExpectedNewLine,
     }
 }
 

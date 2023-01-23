@@ -69,6 +69,66 @@ fn test_wrong_multi_line_3() {
 }
 
 #[test]
+fn test_multiple_statements() {
+    verify_no_errors(
+        "\
+        a\n\
+        b\n",
+    );
+}
+
+#[test]
+fn test_multiple_statements_same_line() {
+    let s = "\
+        a b\n";
+    verify_exact_errors(s, &[new_error_id(errors::ExpectedNewLine)]);
+}
+
+#[test]
+fn test_statement_after_expression() {
+    verify_no_errors(
+        "\
+        def a = b\n\
+        c\n",
+    );
+}
+
+#[test]
+fn test_statement_after_expression_same_line() {
+    let s = "\
+        def a = b c\n";
+    verify_exact_errors(s, &[new_error_id(errors::ExpectedNewLine)]);
+}
+
+#[test]
+fn test_empty_vertical_block() {
+    let s = "\
+        if a then\n\
+        end";
+    verify_no_errors(s);
+}
+
+#[test]
+fn test_wrong_empty_vertical_block() {
+    let s = "\
+        if a then end";
+    verify_exact_errors(s, &[new_error_id(errors::ExpectedNewLine)]);
+}
+
+#[test]
+fn test_wrong_vertical_block() {
+    let s = "\
+        if a then b end";
+    verify_exact_errors(
+        s,
+        &[
+            new_error_id(errors::ExpectedNewLine),
+            new_error_id(errors::ExpectedNewLine),
+        ],
+    );
+}
+
+#[test]
 fn test_vertical_block_indentation() {
     let s = "\
         if a then\n\

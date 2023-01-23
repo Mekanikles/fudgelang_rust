@@ -78,7 +78,7 @@ impl<'a> Parser<'a> {
             blocks: Vec::new(),
             current_line: LineInfo {
                 start_pos: 0,
-                line_number: 1,
+                line_number: 0,
                 indentation: 0,
             },
             next_token_is_statement_start: false,
@@ -139,7 +139,7 @@ impl<'a> Parser<'a> {
         }
 
         // Track line starting pos
-        if found_newline && self.current_token.is_some() {
+        if (found_newline || self.last_token.is_none()) && self.current_token.is_some() {
             current_line.start_pos = self.current_token.unwrap().source_span.pos;
             self.need_normal_layout_check = true;
         }
@@ -599,6 +599,16 @@ impl<'a> Parser<'a> {
 
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         let statement_start_pos = self.current_token.unwrap().source_span.pos;
+
+        // Check for new line
+        if statement_start_pos != self.current_line.start_pos {
+            let _ = self.log_error(error::Error::at_span(
+                errors::ExpectedNewLine,
+                self.current_token.unwrap().source_span,
+                format!("Expected statement to start on new line").into(),
+            ));
+        }
+
         self.next_token_is_statement_start = true;
         let res = self.parse_statement_inner();
 
