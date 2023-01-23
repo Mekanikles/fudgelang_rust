@@ -112,7 +112,7 @@ fn test_empty_vertical_block() {
 fn test_wrong_empty_vertical_block() {
     let s = "\
         if a then end";
-    verify_exact_errors(s, &[new_error_id(errors::ExpectedNewLine)]);
+    verify_exact_errors(s, &[new_error_id(errors::MismatchedAlignment)]);
 }
 
 #[test]
@@ -123,7 +123,7 @@ fn test_wrong_vertical_block() {
         s,
         &[
             new_error_id(errors::ExpectedNewLine),
-            new_error_id(errors::ExpectedNewLine),
+            new_error_id(errors::MismatchedAlignment),
         ],
     );
 }

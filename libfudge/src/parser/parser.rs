@@ -166,19 +166,31 @@ impl<'a> Parser<'a> {
                         || layouttype == TokenLayoutType::BlockBodyClose
                         || layouttype == TokenLayoutType::BlockElse
                     {
-                        // Body open needs to align either horizontally or vertically
-                        let aligns_horizontally = self.current_line == lb.line;
-                        let aligns_vertically = lb.start_pos == lb.line.start_pos
+                        let aligns_vertically = ct.source_span.pos == self.current_line.start_pos
                             && self.current_line.indentation == lb.line.indentation;
-                        if !aligns_horizontally && !aligns_vertically {
-                            let _ = self.log_error(error::Error::at_span(
-                                errors::MismatchedAlignment,
-                                ct.source_span,
-                                format!(
-                                    "Block body keywords needs to align to block starter either horizontally or vertically!"
-                                )
-                                .into(),
-                            ));
+                        if layouttype != TokenLayoutType::BlockBodyClose {
+                            // Block keywords needs to align either horizontally or vertically
+                            let aligns_horizontally = self.current_line == lb.line;
+                            if !aligns_horizontally && !aligns_vertically {
+                                let _ = self.log_error(error::Error::at_span(
+                                    errors::MismatchedAlignment,
+                                    ct.source_span,
+                                    format!(
+                                        "Keyword needs to align to block start either horizontally or vertically!"
+                                    )
+                                    .into(),
+                                ));
+                            }
+                        } else {
+                            // While the block closer must only align vertically
+                            if !aligns_vertically {
+                                let _ = self.log_error(error::Error::at_span(
+                                    errors::MismatchedAlignment,
+                                    ct.source_span,
+                                    format!("Keyword needs to align to block start vertically!")
+                                        .into(),
+                                ));
+                            }
                         }
                     } else if self.need_normal_layout_check {
                         // Everything except the body-keywords have to be either on the same
@@ -599,28 +611,38 @@ impl<'a> Parser<'a> {
 
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         let statement_start_pos = self.current_token.unwrap().source_span.pos;
-
-        // Check for new line
-        if statement_start_pos != self.current_line.start_pos {
-            let _ = self.log_error(error::Error::at_span(
-                errors::ExpectedNewLine,
-                self.current_token.unwrap().source_span,
-                format!("Expected statement to start on new line").into(),
-            ));
-        }
+        let was_on_newline = statement_start_pos == self.current_line.start_pos;
 
         self.next_token_is_statement_start = true;
         let res = self.parse_statement_inner();
 
         // Close the last block if any block was left opened since this statement start
+        let mut raise_new_line_error = false;
         if let Some(lb) = self.blocks.last() {
             if lb.start_pos >= statement_start_pos {
+                // Check for new line if we had a statement block opened
+                raise_new_line_error = !was_on_newline;
+
                 self.block_end();
             }
         } else {
             // If nothing as parsed, we want to clear this
             self.next_token_is_statement_start = false;
         }
+
+        if raise_new_line_error {
+            let _ = self.log_error(error::Error::at_span(
+                errors::ExpectedNewLine,
+                SourceSpan {
+                    pos: statement_start_pos,
+                    len: (self.last_token.unwrap().source_span.pos as usize
+                        + self.last_token.unwrap().source_span.len)
+                        - statement_start_pos as usize,
+                },
+                format!("Expected statement to start on new line").into(),
+            ));
+        }
+
         return res;
     }
 
