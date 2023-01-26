@@ -30,6 +30,13 @@ pub const fn has_higher_precedence(
 
 impl<'a> Parser<'a> {
     pub fn parse_expression(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        self.push_block();
+        let result = self.parse_expression_internal();
+        self.pop_block();
+        return result;
+    }
+
+    fn parse_expression_internal(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         // For more info, see Shunting Yard Algorithm
 
         let mut exprstack: Vec<ast::NodeRef> = Vec::new();

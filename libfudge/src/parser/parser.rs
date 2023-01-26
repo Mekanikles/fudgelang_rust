@@ -16,7 +16,10 @@ use StringRef as SymbolRef;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct LineInfo {
-    start_pos: u64,
+    // Track line_pos_ token_pos and indentation separately to report indentation
+    //  that includes spaces correctly.
+    line_pos: u64,
+    first_token_pos: u64,
     line_number: u64,
     indentation: u32,
 }
@@ -26,6 +29,7 @@ struct BlockInfo {
     line: LineInfo,
     start_pos: u64,
     in_body: bool,
+    level: u64,
 }
 
 struct Parser<'a> {
@@ -35,6 +39,7 @@ struct Parser<'a> {
     temp_tokencount: u32,
     pub ast: Ast,
     errors: error::ErrorManager,
+    block_level: u64,
     blocks: Vec<BlockInfo>,
     current_line: LineInfo,
     next_token_is_statement_start: bool,
@@ -58,7 +63,6 @@ pub fn parse<'a>(tokens: &'a mut TokenStream<'a>) -> ParserResult {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TokenLayoutType {
-    BlockStart,
     BlockBodyOpen,
     BlockLinker,
     BlockElse,
@@ -75,9 +79,11 @@ impl<'a> Parser<'a> {
             temp_tokencount: 0,
             ast: Ast::new(),
             errors: error::ErrorManager::new(),
+            block_level: 0,
             blocks: Vec::new(),
             current_line: LineInfo {
-                start_pos: 0,
+                line_pos: 0,
+                first_token_pos: 0,
                 line_number: 0,
                 indentation: 0,
             },
@@ -123,10 +129,14 @@ impl<'a> Parser<'a> {
                     TokenType::LineBreak => {
                         current_line.line_number += 1;
                         current_line.indentation = 0;
+                        current_line.line_pos =
+                            t.unwrap().source_span.pos + t.unwrap().source_span.len as u64;
                         found_newline = true;
                         continue;
                     }
                     TokenType::Indentation => {
+                        // TODO: This is cheating a bit, when spaces are involved
+                        //  the source span here will not be correct.
                         current_line.indentation = t.unwrap().source_span.len as u32;
                         continue;
                     }
@@ -140,25 +150,20 @@ impl<'a> Parser<'a> {
 
         // Track line starting pos
         if (found_newline || self.last_token.is_none()) && self.current_token.is_some() {
-            current_line.start_pos = self.current_token.unwrap().source_span.pos;
+            current_line.first_token_pos = self.current_token.unwrap().source_span.pos;
             self.need_normal_layout_check = true;
         }
     }
 
     fn accept(&mut self, t: TokenType) -> bool {
-        return self.accept_with_layout(
-            t,
-            if self.next_token_is_statement_start {
-                TokenLayoutType::BlockStart
-            } else {
-                TokenLayoutType::None
-            },
-        );
+        return self.accept_with_layout(t, TokenLayoutType::None);
     }
 
     fn accept_with_layout(&mut self, tokentype: TokenType, layouttype: TokenLayoutType) -> bool {
         match &self.current_token {
             Some(ct) if ct.tokentype == tokentype => {
+                let pos = ct.source_span.pos;
+
                 // TODO: These can fail with a max error reached
                 if let Some(lb) = self.blocks.last() {
                     if layouttype == TokenLayoutType::BlockBodyOpen
@@ -166,8 +171,10 @@ impl<'a> Parser<'a> {
                         || layouttype == TokenLayoutType::BlockBodyClose
                         || layouttype == TokenLayoutType::BlockElse
                     {
-                        let aligns_vertically = ct.source_span.pos == self.current_line.start_pos
-                            && self.current_line.indentation == lb.line.indentation;
+                        let aligns_vertically = ct.source_span.pos
+                            == self.current_line.first_token_pos
+                            && self.current_line.indentation == lb.line.indentation
+                            && lb.start_pos == lb.line.first_token_pos;
                         if layouttype != TokenLayoutType::BlockBodyClose {
                             // Block keywords needs to align either horizontally or vertically
                             let aligns_horizontally = self.current_line == lb.line;
@@ -197,29 +204,25 @@ impl<'a> Parser<'a> {
                         //  line as the block start, or 1 indentation under it
                         // We only need to check this once for each new line
                         if lb.line.line_number < self.current_line.line_number {
-                            let _ = self.expect_indentation(
-                                self.current_line.indentation,
-                                lb.line.indentation + 1,
-                            );
+                            let _ = self.expect_indentation(lb.line.indentation + 1);
                         }
 
                         self.need_normal_layout_check = false;
                     }
                 } else {
                     // File-level tokens are not indented
-                    let _ = self.expect_indentation(self.current_line.indentation, 0);
+                    let _ = self.expect_indentation(0);
                 }
 
-                if layouttype == TokenLayoutType::BlockStart {
-                    self.block_start();
-                } else if layouttype == TokenLayoutType::BlockBodyOpen {
+                // If we had blocks "queued up", start them
+                self.start_blocks_if_needed(pos);
+
+                if layouttype == TokenLayoutType::BlockBodyOpen {
                     self.blocks.last_mut().unwrap().in_body = true;
                 } else if layouttype == TokenLayoutType::BlockLinker {
-                    self.block_end();
-                    self.block_start();
+                    self.replace_current_block(pos);
                 } else if layouttype == TokenLayoutType::BlockElse {
-                    self.block_end();
-                    self.block_start();
+                    self.replace_current_block(pos);
                     self.blocks.last_mut().unwrap().in_body = true;
                 }
 
@@ -291,21 +294,74 @@ impl<'a> Parser<'a> {
         return self.ast.add_symbol(&*text);
     }
 
-    fn block_start(&mut self) {
-        self.blocks.push(BlockInfo {
-            line: self.current_line,
-            start_pos: if let Some(t) = self.current_token {
-                t.source_span.pos
-            } else {
-                0
-            },
-            in_body: false,
-        });
+    fn push_block(&mut self) {
+        // We just increase the block level here, actual blocks
+        //  will be started on demand when tokens are accepted
+        self.block_level += 1;
     }
 
-    fn block_end(&mut self) {
+    fn pop_block(&mut self) -> Option<BlockInfo> {
+        // If the current block matched this level, end it
+        let result = if let Some(cb) = self.blocks.last() {
+            debug_assert!(cb.level <= self.block_level);
+            if cb.level == self.block_level {
+                Some(self.end_current_block())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        debug_assert!(self.block_level > 0);
+        self.block_level -= 1;
+
+        return result;
+    }
+
+    fn start_blocks_if_needed(&mut self, start_pos: u64) {
+        let current_started_block_level = if let Some(cb) = self.blocks.last() {
+            cb.level
+        } else {
+            0
+        };
+
+        debug_assert!(current_started_block_level <= self.block_level);
+
+        for level in current_started_block_level..self.block_level {
+            self.blocks.push(BlockInfo {
+                line: self.current_line,
+                start_pos: start_pos,
+                in_body: false,
+                level: level + 1,
+            });
+        }
+    }
+
+    fn end_current_block(&mut self) -> BlockInfo {
         debug_assert!(self.blocks.len() > 0);
-        self.blocks.pop();
+        return self.blocks.pop().unwrap();
+    }
+
+    fn replace_current_block(&mut self, start_pos: u64) {
+        let mut cb = &mut self.blocks.last_mut().unwrap();
+        cb.start_pos = start_pos;
+        cb.in_body = false;
+        cb.line = self.current_line;
+    }
+
+    fn expect_new_line(&mut self, block: &BlockInfo, str: &str) {
+        let is_new_line = block.start_pos == block.line.first_token_pos;
+        if !is_new_line {
+            let _ = self.log_error(error::Error::at_span(
+                errors::ExpectedNewLine,
+                SourceSpan {
+                    pos: block.start_pos - 1,
+                    len: 1,
+                }, // TODO: Not ideal, we should probably save positions or tokens in blocks
+                format!("Expected {} to start on new line", str).into(),
+            ));
+        }
     }
 
     fn parse_input_parameter(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
@@ -610,37 +666,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
-        let statement_start_pos = self.current_token.unwrap().source_span.pos;
-        let was_on_newline = statement_start_pos == self.current_line.start_pos;
-
-        self.next_token_is_statement_start = true;
+        // Statements that start with an expression can open more blocks on the same token,
+        //  like "a = b", where both a and b will open new blocks.
+        // In this case we want a total of 3 blocks, 2 starting with a, 1 with b.
+        self.push_block();
         let res = self.parse_statement_inner();
-
-        // Close the last block if any block was left opened since this statement start
-        let mut raise_new_line_error = false;
-        if let Some(lb) = self.blocks.last() {
-            if lb.start_pos >= statement_start_pos {
-                // Check for new line if we had a statement block opened
-                raise_new_line_error = !was_on_newline;
-
-                self.block_end();
-            }
-        } else {
-            // If nothing as parsed, we want to clear this
-            self.next_token_is_statement_start = false;
-        }
-
-        if raise_new_line_error {
-            let _ = self.log_error(error::Error::at_span(
-                errors::ExpectedNewLine,
-                SourceSpan {
-                    pos: statement_start_pos,
-                    len: (self.last_token.unwrap().source_span.pos as usize
-                        + self.last_token.unwrap().source_span.len)
-                        - statement_start_pos as usize,
-                },
-                format!("Expected statement to start on new line").into(),
-            ));
+        if let Some(block) = self.pop_block() {
+            // Statements needs to start on a new line
+            self.expect_new_line(&block, "statement");
         }
 
         return res;
@@ -659,17 +692,14 @@ impl<'a> Parser<'a> {
         return Ok(None);
     }
 
-    fn expect_indentation(
-        &mut self,
-        indentation: u32,
-        expected: u32,
-    ) -> Result<(), error::ErrorId> {
+    fn expect_indentation(&mut self, expected: u32) -> Result<(), error::ErrorId> {
+        let indentation = self.current_line.indentation;
         if indentation != expected {
             self.log_error(error::Error::at_span(
                 errors::MismatchedIndentation,
                 SourceSpan {
-                    pos: self.current_token.as_ref().unwrap().source_span.pos - indentation as u64,
-                    len: indentation as usize,
+                    pos: self.current_line.line_pos,
+                    len: (self.current_line.first_token_pos - self.current_line.line_pos) as usize,
                 },
                 format!(
                     "Mismatched indentation level, expected: {}, was {}",

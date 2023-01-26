@@ -380,7 +380,10 @@ impl<'a> Scanner<'a> {
             return Some(Token::new(
                 TokenType::Indentation,
                 startpos,
-                length as usize,
+                // TODO: This is cheating a bit, the indentation token will not be correct
+                //  when spaces are involved. But we want to avoid double errors when padding
+                //  is used.
+                (length - space_count) as usize,
             ));
         }
 

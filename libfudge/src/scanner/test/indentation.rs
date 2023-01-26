@@ -13,7 +13,7 @@ fn test_merged_indent() {
 
 #[test]
 fn test_simple_padding_1() {
-    let errors = verify_exact_scan_with_errors(" ", &[Token::new(TokenType::Indentation, 0, 1)]);
+    let errors = verify_exact_scan_with_errors(" ", &[Token::new(TokenType::Indentation, 0, 0)]);
     expect_error_ids(&errors, &[new_error_id(errors::PaddingNotSupported)]);
 }
 
@@ -22,7 +22,7 @@ fn test_simple_padding_2() {
     let errors = verify_exact_scan_with_errors(
         "   a",
         &[
-            Token::new(TokenType::Indentation, 0, 3),
+            Token::new(TokenType::Indentation, 0, 0),
             Token::new(TokenType::Identifier, 3, 1),
         ],
     );
@@ -32,7 +32,7 @@ fn test_simple_padding_2() {
 #[test]
 fn test_mixed_indent_padding() {
     let errors =
-        verify_exact_scan_with_errors("\t\t    ", &[Token::new(TokenType::Indentation, 0, 6)]);
+        verify_exact_scan_with_errors("\t\t    ", &[Token::new(TokenType::Indentation, 0, 2)]);
     expect_error_ids(&errors, &[new_error_id(errors::PaddingNotSupported)]);
 }
 
@@ -60,7 +60,7 @@ fn test_trailing_whitespace_with_indent_and_padding() {
     let errors = verify_exact_scan_with_errors(
         "\t  hello  ",
         &[
-            Token::new(TokenType::Indentation, 0, 3),
+            Token::new(TokenType::Indentation, 0, 1),
             Token::new(TokenType::Identifier, 3, 5),
         ],
     );
@@ -87,13 +87,13 @@ fn test_multiline_indentation() {
 
 #[test]
 fn test_invalid_1() {
-    let errors = verify_exact_scan_with_errors(" \t", &[Token::new(TokenType::Indentation, 0, 2)]);
+    let errors = verify_exact_scan_with_errors(" \t", &[Token::new(TokenType::Indentation, 0, 1)]);
     expect_error_ids(&errors, &[new_error_id(errors::PaddingNotSupported)]);
 }
 
 #[test]
 fn test_invalid_2() {
     let errors =
-        verify_exact_scan_with_errors("\t \t", &[Token::new(TokenType::Indentation, 0, 3)]);
+        verify_exact_scan_with_errors("\t \t", &[Token::new(TokenType::Indentation, 0, 2)]);
     expect_error_ids(&errors, &[new_error_id(errors::PaddingNotSupported)]);
 }

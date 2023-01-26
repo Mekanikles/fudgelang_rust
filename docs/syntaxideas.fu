@@ -8,7 +8,7 @@
  * Indentation is a part of the language. Done with tabs.
 	- To avoid tab vs space problems, only allow tabs at beginning of line.
 		Formatting indentation is done with spaces, tabs always mean scope indentation.
-	- To avoid unintentional execution flow for mis-indented lines, 
+	- To avoid unintentional execution flow for mis-indented lines,
 		also use explicit block openers and closers.
 	- Error reporting will be able more easily pin-point errors.
 
@@ -18,7 +18,7 @@
 			they always denote a function call.
 	- Need to differentiate between function reference and calling a function.
 		Can be done by type inference (see c++ cast operators).
-	- Default arguments and overloading can cause ambiguities, need ways to disambiguate. 
+	- Default arguments and overloading can cause ambiguities, need ways to disambiguate.
 */
 
 // ==================== SCRAPPED IDEAS ===================
@@ -73,7 +73,7 @@ var myarr = [5, 6, 7, 8] // Hm, why not tuple syntax instead? var myvar = (5, 6,
 var myarr_v2 : int[4] = [5, 6, 7, 8] // Hm, problematic? Array/slice operator on types, are all valid?
 
 // The array parameters are optional, here any int array can be assigned
-var myarr_v3 : int[] = [5, 6, 7, 8] 
+var myarr_v3 : int[] = [5, 6, 7, 8]
 
 // The type is also optional, any array can be assigned here
 var myarr_v4 : [] = [5, 6, 7, 8]
@@ -132,7 +132,7 @@ var a2_4 : [] = myarr[0, 3]
 // Use ":" to specify ranges of a certain length. Here, the result is [5, 6, 7]
 var a2_5 = myarr[1:myarr.len - 1]
 
-// Using two ":"-separators allows to specify a step. Here, the result us [5, 7] 
+// Using two ":"-separators allows to specify a step. Here, the result us [5, 7]
 var a2_6 = myarr[0:2:2]
 
 // ====================== FUNCTIONS ======================
@@ -157,7 +157,7 @@ def mynot_v3 = func(a : bool) -> bool => not a
 // Combined with syntactic sugar for function definiton statements
 func mynot_v4(a : bool) -> bool => not a
 
-// Most terse function definition syntax as an expression, suitable for lambas, 
+// Most terse function definition syntax as an expression, suitable for lambas,
 //	 using partial qualification of function type.
 //	Here, the type of "a" is inferred to any type that supports inversion.
 def mynot_v5 = func(a) => not a
@@ -172,7 +172,7 @@ func true -> bool => #primitives.true
 
 // We can call the function without any parantheses if it has no arguments.
 // 	Disambiguation: Here the type of f1_1 is a typeset of (func[]() -> bool, bool).
-//	If no other type restrictions apply, defaulting rules allow 
+//	If no other type restrictions apply, defaulting rules allow
 //	f1_1 to choose (bool) as a type and the function is evaluated immediately.
 var f1_1 = true
 
@@ -233,7 +233,7 @@ var f3_3 = lerp(f : 0.5, a : 1, b : 2)
 //////////////////////////////////////////////////////////
 
 // Return statement can take comma-separated list, or tuple expression
-func oneandtwo do 
+func oneandtwo do
 	return 1, 2
 end
 
@@ -267,7 +267,7 @@ func caller(c : func(a : u8) -> u8) -> u8 do
 end
 
 // Will be type-inferred to (func() -> u8) when used below
-def callback = func(a) => a 
+def callback = func(a) => a
 
 // Callback is inferred to a function reference
 var f6_1 = caller(callback)
@@ -464,10 +464,10 @@ if call(func => true) print("case true") else print("case false")
 // Explicit blocks, multiple lines
 if call(
 	func do
-		return true 
+		return true
 	end,
 	func do
-		return true 
+		return true
 	end)
 	print("case true")
 
@@ -508,17 +508,17 @@ case c do
 end
 
 // Expression version
-if a => b 
+if a => b
 	else c
 
 // Function needs separator since func (a) is ambiguous
-func(a, b) => 
+func(a, b) =>
 	a + b
 
-switch x => 
-	case a => 5 
-	case b => 6 
-	case c => 
+switch x =>
+	case a => 5
+	case b => 6
+	case c =>
 
 // Singular statement version. TODO: Necessary? Or the same as expression, with () return value
 //	-> Messy if different branches have different types
@@ -537,24 +537,24 @@ if a => if b => c else d else e
 if a => b else if c => d else e
 
 // Nested else-if expression
-if a => 
-	if b => 
-		c 
-		else if d => 
-			e 
+if a =>
+	if b =>
+		c
+		else if d =>
+			e
 		else
-			f 
+			f
 	else // <-- Wrong? Else if above is ambiguous
 		g
 
 // Ok, I think
-if a => if b => c 
+if a => if b => c
 	else if d => e
 	else f else g
 
 // Ok, I think
-if a => 
-	if b => c 
+if a =>
+	if b => c
 	else
 	if d => e
 	else f
@@ -563,48 +563,48 @@ if a =>
 call1(a1, b1, call2(a2, b2, call3(a3, b3, c3), c2), c1)
 
 // Ok, first expression continues on next indentation
-call1(a1, b1, 
+call1(a1, b1,
 	call2(a2, b2, call3(a3, b3, c3), c2), c1)
 
 // Also ok, first expression keep all arguments on the correct "spine"
-call1(a1, b1, 
+call1(a1, b1,
 	call2(a2, b2, call3(a3, b3, c3), c2),
 	c1)
 
 // Not ok, call2 is broken
-call1(a1, b1, 
-	call2(a2, b2, 
+call1(a1, b1,
+	call2(a2, b2,
 	call3(a3, b3, c3), c2), c1)
-	
+
 // Maybe ok, call2 continuation is good, but c1 is potentially on the wrong level
 // TODO: Is this a special case where it's always ok to pad on the "tail" of an expression?
 //	Probably needs to be ok, otherwise trailing parentheses will be a mess
-call1(a1, b1, 
-	call2(a2, b2, 
+call1(a1, b1,
+	call2(a2, b2,
 		call3(a3, b3, c3), c2), c1)
 
 // Definitely ok, call2 continuation is good, c1 continues call1
-call1(a1, b1, 
-	call2(a2, b2, 
+call1(a1, b1,
+	call2(a2, b2,
 		call3(a3, b3, c3), c2),
 	c1)
 
 // Hm, this should be ok, but the padding becomes easy to confuse with indentation
 // NOTE: Parser needs to make sure padding is consistent for each "spine", and that padding
 //	never decreases when indentation happens
-call1(a1, 
-	  b1, 
-	  call2(a2, 
-		    b2, 
-		    call3(a3, 
-			      b3, 
+call1(a1,
+	  b1,
+	  call2(a2,
+		    b2,
+		    call3(a3,
+			      b3,
 			      c3),
 		    c2),
 	  c1)
 
 
 // Multiline block if statement, then is placed on new line
-if a(b, c, 
+if a(b, c,
 	d, e,
 	asdas,
 	asd,
@@ -629,13 +629,13 @@ if a(b,
 //////////////////////////////////////////////////////////
 
 // Something something printf
-func parse_fmt_params(fmt : string) -> fmt_param[] do 
+func parse_fmt_params(fmt : string) -> fmt_param[] do
 	...
 end
 func to_types(params_data : fmt_param[]) -> type(display)[] do
 	...
 end
-func printf(fmt : string, params : to_types($params_data)) 
+func printf(fmt : string, params : to_types($params_data))
 	where $params_data = parse_fmt_params(fmt)
 do
 	var slice_pos = 0
@@ -650,8 +650,8 @@ end
 
 // This is weird, but seems to be according to rules if start of block is start of statement
 // NO: This is not according to the rules, the block header for `do` is not `def`
-def weird_case = 
-	func(x) -> 
+def weird_case =
+	func(x) ->
 		bool
 do
 	blah()
@@ -659,8 +659,8 @@ end
 
 // Versus
 // This needs to be the correct line split version of a def-function
-def weird_case = 
-	func(x) -> 
+def weird_case =
+	func(x) ->
 		bool
 	do
 		blah()
@@ -679,11 +679,11 @@ end
 
 
 def complex_case = func(val : int,
-	callback : func(x : int) -> bool = 
+	callback : func(x : int) -> bool =
 		func(x : int) -> bool
 	do
 		return x > 2
-	end, 
+	end,
 	callback2 : func(x : int) -> bool = func(x : int) -> bool do
 		return x > 2
 	end)
@@ -692,7 +692,7 @@ do
 	callback2(val)
 end
 
-callable(a, 
+callable(a,
 	"asdasd
 	 asdasd
 	 asda",
@@ -730,7 +730,7 @@ end
 //      * Harder to distinguish a yielded expression from a statement without explicit statement-delimiters
 
 // Layout Requirements:
-// 1. Any two "layout sequencing tokens", i.e block headers, linkers, closers etc, in 
+// 1. Any two "layout sequencing tokens", i.e block headers, linkers, closers etc, in
 //  a statement should always align, either horizontally, or vertically.
 // 2. Aligment is measured in indentation levels, a token on one indentation level
 //  can never align with a token on another.
@@ -778,7 +778,7 @@ return 5 if x // The return is not conditional here, the returned value is
 // Not sure I like this, kindof neat, but why only return? Works less well for ifs
 func hej(x) -> int
 	return x + 1
-	
+
 // Hm, maybe for if too?
 if x return 5
 
@@ -791,15 +791,15 @@ var pyth = num for elem in vec for num in elem
 
 // There is a difference here, hej1 produces a flat list
 //  hej2 produces a list of lists
-var hej1 = 
-	for elem in vec 
-		for num in elem => 
+var hej1 =
+	for elem in vec
+		for num in elem =>
 			num
 var hej2 = for elem in vec => for num in elem => num
 
 
-var hej2 = 
-	for elem in vec for num in elem if num > 5 => 
+var hej2 =
+	for elem in vec for num in elem if num > 5 =>
 			num
 
 
@@ -807,7 +807,7 @@ var hej2 =
 [[row[i] for row in matrix] for i in range(4)]
 
 var hej3 = for i in range(4)
-	for row in matrix 
+	for row in matrix
 	do row[i]
 
 
@@ -820,14 +820,14 @@ var hej = 5
 	else 3
 
 var hej =
-	if x produce 
+	if x produce
 		do
 			print(5)
 			produce 6
 		end
 	else if y produce 7
 	else produce 3
-	
+
 var hej =
 	if x yield
 		do
@@ -835,8 +835,8 @@ var hej =
 			yield 6
 		end
 	else if y produce 7
-	else produce 3	
-	
+	else produce 3
+
 var hej =
 	if x do
 		begin
@@ -848,19 +848,19 @@ var hej =
 
 // Can we use something else than "=>"? it does not follow keyword rules...
 
-def hej = 
-	func(x) 
-	where x is u64 
+def hej =
+	func(x)
+	where x is u64
 	do return x + 1
 
-def hej = 
+def hej =
 	func(x) begin
 		print x
 		return x + 1
 	end
-	
+
 func hej(x)
-where x is u64 
+where x is u64
 yield x + 1
 
 func hej2(x) where x is trait is x + 2
@@ -895,10 +895,10 @@ call(x)
 //  statement-if when possible
 // DON'T LIKE: It makes it too similar to the statement version with only a missing "end"
 //  it will be harder to catch errors here.
-var hej = 
-	if x > 0 then 
+var hej =
+	if x > 0 then
 		5
-	else then 
+	else then
 		6
 
 if x > 0 then
@@ -913,7 +913,7 @@ def hej = func(x) => x + 1
 func hej(x) => x + 1
 
 func hej(x) -> none
-	where x is u64 
+	where x is u64
 	=> x + 1
 def hej = func(x) -> none
 	where x is u64
@@ -925,14 +925,14 @@ do
 	return x + 1
 end
 
-def hej = 
+def hej =
 	func(x)
-		where x is u64 
+		where x is u64
 	do
 		return x + 1
 	end
 
-var hej = 
+var hej =
 	match x in
 	case 5 then
 		print "hej"
@@ -944,8 +944,8 @@ var hej =
 		print "hej"
 		return 5
 	end
-	
-var hej = 
+
+var hej =
 	match x =>
 	case 5 =>
 		5
@@ -963,7 +963,7 @@ var hej = match x => case 5 => 5 case 4 => 4 else => 5
 
 // If expressinons and statements
 var hej = 1 if x > 0 else -1 if x < 0 else 0
-var hej = 
+var hej =
 	inexp do
 		if x > 0 then
 			return 1
@@ -973,7 +973,7 @@ var hej =
 			return 0
 		end
 	end
-	
+
 // Supports C#-style if-casts as well?
 var hej = y if x is y : u64 else none
 
@@ -982,7 +982,7 @@ var hej = y if x + 1 as y > 0 else y + 1
 
 // For expressions and statements
 var hej = i for i in range(4)
-var hej = 
+var hej =
 	inexp do
 		uninitialized var res : int[4]
 		for i in range(4) do
@@ -995,14 +995,14 @@ var hej =
 //  in fact, this declaration is not complete if hej is not used in the same scope
 //  and the type of x can be deduced
 var hej = func(x) => x + 1
-var hej = 
+var hej =
 	func(x) do
 		return x + 1
 	end
 
 // This is more complete
 var hej = func(x : int) => x + 1
-var hej = 
+var hej =
 	func(x : int) do
 		return x + 1
 	end
@@ -1015,13 +1015,13 @@ end
 var hej = [1, 2, 3, 4].map(func(x) => x + 1)
 
 var hej = [1, 2, 3, 4].map(
-	func(x) do 
-		return x + 1 
+	func(x) do
+		return x + 1
 	end)
-	
+
 // Pattern matching
 // No expression version, have to use inexp
-var hej = 
+var hej =
 	inexp do
 		match x with
 		case 5 then return 6
@@ -1109,7 +1109,7 @@ var add =
 		return x + y
 	end
 var foo = add(x, y)
-	
+
 // Function expression (lamdba), short-hand version
 var add = func(x, y) => 42
 var foo = add(x, y)
@@ -1134,11 +1134,11 @@ var foo = add(x, y)
 //  a single expression. This is a bit awkward with indentation rules.
 //  But is more readable than postfix style.
 // Let's see if this work with "match" as well
-	
+
 // Pattern matching:
 
 match x
-case 5 then 
+case 5 then
 	return 7
 case 4 then
 	return 9
@@ -1146,13 +1146,13 @@ else
 	return 4
 end
 
-hej = 
-	match x 
-	case 5 produce 7 
-	case 4 produce 9 
+hej =
+	match x
+	case 5 produce 7
+	case 4 produce 9
 	else 4
-	
-if x then 
+
+if x then
 	return 7
 elseif y then
 	return 5
@@ -1160,7 +1160,7 @@ else
 	return 2
 end
 
-if x then 
+if x then
 	return 7
 else if y then
 	return 5
@@ -1168,10 +1168,10 @@ else then
 	return 2
 end
 
-return 
+return
 	if call(y,
 		x)
-	=> 7 
+	=> 7
 	else if y => 5
 	else => 2
 
@@ -1193,7 +1193,7 @@ if a
 	a2
 else
 	b2
-	
+
 // Single-statement version can be used as an expression
 var foo =
 	if a
@@ -1221,7 +1221,7 @@ end
 // Breaking a line like this is not allowed, since "else" here is not aligned to any block header or sequencer
 var foo = if a a2
 	else b2
-	
+
 // The "else" branch will bind to the closest "if", the code below will cause an indentation error
 if a
 	if b
@@ -1236,7 +1236,7 @@ if a
 	end
 else
 	c2
-	
+
 // This will not be a problem for expression-ifs, since "else" is always required
 if a
 	if b
@@ -1257,7 +1257,7 @@ elseif b
 	b2
 else
 	c
-	
+
 // Works the same for "then" version
 if a then
 	a2
@@ -1283,14 +1283,14 @@ if a last
 end
 else
 	c
-	
+
 // This is not allowed because "then" is not a block header in itself, unlike "last"
 //  It can only be used for block-sequencing
 if a
 	then
 		b2
 	end
-	
+
 // Try to abuse it
 if callf(a, b, c,
 	d, e, f)
@@ -1331,7 +1331,7 @@ else
 			b,
 			c
 			d)
-		
+
 if mycond(a,
 	b,
 	c,
@@ -1369,17 +1369,78 @@ else
 //  either vertically or horizontally
 
 
+// HERE WE GO AGAIN: let if and match be forced to either statement or expression, have
+//  the syntax be the same. Avoid => to allow for proper keyword rules (and => looks a bit much
+//  like a comparison operator)
+
+// Normal statement if
+if a > 0 then
+	print(b)
+end
+
+// If-else
+// Note: elseif keyword gone, "else if" sort of considered a single keyword
+if a > 0 then
+	print(b)
+else if a < 0 then
+	print(c)
+else
+	print(d)
+end
+
+// Nested if-selse
+// Note: "else then" is optional, to disambiguate else-tail
+//  will give style error if used outside of this construct
+if a > 0 then
+	print(b)
+else then
+	if a < 0 then
+		print(c)
+	else
+		print(d)
+	end
+end
 
 
+// Would allow for shorthand if, if we want
+// TODO: Perhaps not, calls into question usage of "then" in expressions
+if a > 0
+	print(b)
+else
+	print(c)
 
+// If-expressions
+def x = if a > 0 then 1 else if a < 0 then -1 else 0
 
+// If-expressions, without then. Looks bad for unary operators.
+def x = if a > 0 1 else if a < 0 -1 else 0
 
+// If-expressions, complex multi-line
+def x =
+	if call(a, b, c) then 1
+	else if call(a, b, c) then -1
+	else 0
 
+// If-expressions, complex multi-line
+def x =
+	if call(a
+		b, c)
+	then
+		1
+	else if call(a,
+		b, c)
+	then
+		-1
+	else
+		0
 
-
-
-
-
-
-
-
+// If-expressions, multi-line, without then. Dislike no-difference in indentation for branch expr
+def x =
+	if call(a,
+		b, c)
+		1
+	else if call(a,
+		b, c)
+		-1
+	else
+		0

@@ -149,7 +149,8 @@ fn test_vertical_block_wrong_indentation_1() {
 #[test]
 fn test_vertical_block_wrong_indentation_2() {
     verify_exact_errors(
-        "if a then\n\
+        "\
+        if a then\n\
                 \t\ta\n\
         end",
         &[new_error_id(errors::MismatchedIndentation)],
@@ -169,12 +170,32 @@ fn test_vertical_block_indentation_multiple_statements() {
 #[test]
 fn test_vertical_block_padding() {
     verify_exact_errors(
-        "if a then\n\
+        "\
+        if a then\n\
             \t  a\n\
         end",
-        &[
-            new_error_id(errors::PaddingNotSupported),
-            new_error_id(errors::MismatchedIndentation),
-        ],
+        &[new_error_id(errors::PaddingNotSupported)],
+    );
+}
+
+#[test]
+fn test_vertical_block_after_assignment() {
+    verify_no_errors(
+        "\
+        var a =\n\
+            \tfunc(x : b) do\n\
+                \t\ta\n\
+            \tend",
+    );
+}
+
+#[test]
+fn test_vertical_block_after_assignment_wrong() {
+    verify_exact_errors(
+        "\
+        var a = func(x : b) do\n\
+            \ta\n\
+        end",
+        &[new_error_id(errors::MismatchedAlignment)],
     );
 }
