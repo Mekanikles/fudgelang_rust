@@ -45,7 +45,8 @@ pub fn generate_ast_with_errors(source: &str, print_errors: bool) -> (ast::Ast, 
 
 pub fn generate_ast(source: &str) -> ast::Ast {
     let (ast, errors) = generate_ast_with_errors(source, true);
-    assert!(errors.is_empty());
+    let error_ids = errors.iter().map(|x| x.id).collect::<Vec<_>>();
+    assert_eq!(error_ids, &[]);
     return ast;
 }
 

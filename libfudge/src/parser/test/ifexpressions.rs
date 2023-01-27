@@ -111,6 +111,22 @@ fn test_expression_if_simple_multiline_2() {
 }
 
 #[test]
+fn test_expression_if_simple_multiline_3() {
+    verify_ast(
+        "def x =\n\
+            \tif a\n\
+            \t=> b",
+        &module_fragment_wrapper_tree(&[tree(
+            SymbolDeclaration,
+            &[tree(
+                IfExpression,
+                &[leaf(SymbolReference), leaf(SymbolReference)],
+            )],
+        )]),
+    );
+}
+
+#[test]
 fn test_expression_if_wrong_multiline_1() {
     let s = "\
         def x = if a =>\n\

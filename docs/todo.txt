@@ -4,13 +4,9 @@
 	* Currently, any breaking error will skip error checking for the rest of the file
 [ ] Remove elseif in favor or else [then]
 	* To match expression ifs
-[ ] Change block alignment rules to require exact alignment of block start
-[ ] Add indentation checking for expressions
-	* Multi-line should only check indentation of starting block
-		not starting pos, to handle: def a = call(a, b) with linebreak before b
-
-
-
-
 
 ///////////// DONE /////////////
+
+[X] Change block alignment rules to require exact alignment of block start
+[X] Add indentation checking for expressions
+[X] Fix FatArrow in if-expressions not allowing expressions on the same line

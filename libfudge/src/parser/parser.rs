@@ -202,6 +202,15 @@ impl<'a> Parser<'a> {
                 if layouttype == TokenLayoutType::BlockLinker {
                     self.replace_current_block(pos);
                 }
+                // Block keywords "extends" the current block
+                //  to allow line breaks in block following keyword rules
+                else if layouttype == TokenLayoutType::BlockKeyword {
+                    // This will however not work for a keyword in the middle of a row
+                    let is_new_line = pos == self.current_line.first_token_pos;
+                    if is_new_line {
+                        self.replace_current_block(pos)
+                    }
+                }
 
                 self.advance();
                 return true;
