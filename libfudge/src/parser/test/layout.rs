@@ -101,7 +101,7 @@ fn test_statement_after_expression_same_line() {
 }
 
 #[test]
-fn test_empty_vertical_block() {
+fn test_empty_vertical_block_1() {
     let s = "\
         if a then\n\
         end";
@@ -109,23 +109,17 @@ fn test_empty_vertical_block() {
 }
 
 #[test]
-fn test_wrong_empty_vertical_block() {
+fn test_empty_vertical_block_2() {
     let s = "\
         if a then end";
-    verify_exact_errors(s, &[new_error_id(errors::MismatchedAlignment)]);
+    verify_no_errors(s);
 }
 
 #[test]
 fn test_wrong_vertical_block() {
     let s = "\
         if a then b end";
-    verify_exact_errors(
-        s,
-        &[
-            new_error_id(errors::ExpectedNewLine),
-            new_error_id(errors::MismatchedAlignment),
-        ],
-    );
+    verify_exact_errors(s, &[new_error_id(errors::ExpectedNewLine)]);
 }
 
 #[test]

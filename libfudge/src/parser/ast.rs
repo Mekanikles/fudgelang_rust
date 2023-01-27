@@ -276,7 +276,7 @@ declare_nodes!(
     },
     SymbolReference { symbol: SymbolRef },
     IfStatement { branches: Vec<(NodeRef, NodeRef)>, elsebranch: Option<NodeRef> },
-    IfExpression { condexpr: NodeRef, trueexpr: NodeRef, falseexpr: Option<NodeRef> },
+    IfExpression { branches: Vec<(NodeRef, NodeRef)>, elsebranch: Option<NodeRef>  },
     ReturnStatement { expr: Option<NodeRef> },
     ArgumentList {
         args: Vec<NodeRef>,
@@ -384,9 +384,11 @@ impl ChildCollector for nodes::IfStatement {
 
 impl ChildCollector for nodes::IfExpression {
     fn collect_children(&self, collector: &mut Vec<NodeRef>) {
-        collector.push(self.condexpr);
-        collector.push(self.trueexpr);
-        if let Some(n) = &self.falseexpr {
+        for case in &self.branches {
+            collector.push(case.0);
+            collector.push(case.1);
+        }
+        if let Some(n) = &self.elsebranch {
             collector.push(*n);
         }
     }

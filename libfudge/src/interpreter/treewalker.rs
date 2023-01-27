@@ -292,7 +292,7 @@ impl<'a> TreeWalker<'a> {
     }
 
     fn evaluate_ifexpression(&mut self, ifexpr: &ast::nodes::IfExpression) -> Value {
-        let condition = &ifexpr.condexpr;
+        /*      let condition = &ifexpr.condexpr;
         let trueexpr = &ifexpr.trueexpr;
         let falseexpr = &ifexpr.falseexpr;
 
@@ -317,6 +317,32 @@ impl<'a> TreeWalker<'a> {
                 }
             },
         };
+        */
+        for branch in &ifexpr.branches {
+            let condition = branch.0;
+            let expr = branch.1;
+
+            let condvalue = self.evaluate_expression(&condition);
+            let boolvalue = match condvalue {
+                Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
+                _ => None,
+            };
+
+            assert!(
+                boolvalue.is_some(),
+                "if conditional expression was not a bool value",
+            );
+
+            if boolvalue.unwrap() {
+                return self.evaluate_expression(&expr);
+            }
+        }
+
+        if ifexpr.elsebranch.is_some() {
+            return self.evaluate_expression(&ifexpr.elsebranch.unwrap());
+        };
+
+        return create_null_value();
     }
 
     fn evaluate_ifstatement(&mut self, ifstmt: &ast::nodes::IfStatement) {

@@ -28,7 +28,6 @@ struct LineInfo {
 struct BlockInfo {
     line: LineInfo,
     start_pos: u64,
-    in_body: bool,
     level: u64,
 }
 
@@ -42,7 +41,6 @@ struct Parser<'a> {
     block_level: u64,
     blocks: Vec<BlockInfo>,
     current_line: LineInfo,
-    next_token_is_statement_start: bool,
     need_normal_layout_check: bool,
 }
 
@@ -63,10 +61,8 @@ pub fn parse<'a>(tokens: &'a mut TokenStream<'a>) -> ParserResult {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum TokenLayoutType {
-    BlockBodyOpen,
+    BlockKeyword,
     BlockLinker,
-    BlockElse,
-    BlockBodyClose,
     None,
 }
 
@@ -87,7 +83,6 @@ impl<'a> Parser<'a> {
                 line_number: 0,
                 indentation: 0,
             },
-            next_token_is_statement_start: false,
             need_normal_layout_check: false,
         }
     }
@@ -166,38 +161,24 @@ impl<'a> Parser<'a> {
 
                 // TODO: These can fail with a max error reached
                 if let Some(lb) = self.blocks.last() {
-                    if layouttype == TokenLayoutType::BlockBodyOpen
-                        || layouttype == TokenLayoutType::BlockLinker
-                        || layouttype == TokenLayoutType::BlockBodyClose
-                        || layouttype == TokenLayoutType::BlockElse
-                    {
+                    if layouttype != TokenLayoutType::None {
                         let aligns_vertically = ct.source_span.pos
                             == self.current_line.first_token_pos
                             && self.current_line.indentation == lb.line.indentation
                             && lb.start_pos == lb.line.first_token_pos;
-                        if layouttype != TokenLayoutType::BlockBodyClose {
-                            // Block keywords needs to align either horizontally or vertically
-                            let aligns_horizontally = self.current_line == lb.line;
-                            if !aligns_horizontally && !aligns_vertically {
-                                let _ = self.log_error(error::Error::at_span(
-                                    errors::MismatchedAlignment,
-                                    ct.source_span,
-                                    format!(
-                                        "Keyword needs to align to block start either horizontally or vertically!"
-                                    )
-                                    .into(),
-                                ));
-                            }
-                        } else {
-                            // While the block closer must only align vertically
-                            if !aligns_vertically {
-                                let _ = self.log_error(error::Error::at_span(
-                                    errors::MismatchedAlignment,
-                                    ct.source_span,
-                                    format!("Keyword needs to align to block start vertically!")
-                                        .into(),
-                                ));
-                            }
+                        let aligns_horizontally = self.current_line == lb.line;
+
+                        // Block keywords needs to align either horizontally or vertically
+                        // TODO: Force horizontally if possible
+                        if !aligns_horizontally && !aligns_vertically {
+                            let _ = self.log_error(error::Error::at_span(
+                                errors::MismatchedAlignment,
+                                ct.source_span,
+                                format!(
+                                    "Keyword needs to align to block start either horizontally or vertically!"
+                                )
+                                .into(),
+                            ));
                         }
                     } else if self.need_normal_layout_check {
                         // Everything except the body-keywords have to be either on the same
@@ -217,17 +198,10 @@ impl<'a> Parser<'a> {
                 // If we had blocks "queued up", start them
                 self.start_blocks_if_needed(pos);
 
-                if layouttype == TokenLayoutType::BlockBodyOpen {
-                    self.blocks.last_mut().unwrap().in_body = true;
-                } else if layouttype == TokenLayoutType::BlockLinker {
+                // A block linker starts a new block
+                if layouttype == TokenLayoutType::BlockLinker {
                     self.replace_current_block(pos);
-                } else if layouttype == TokenLayoutType::BlockElse {
-                    self.replace_current_block(pos);
-                    self.blocks.last_mut().unwrap().in_body = true;
                 }
-
-                // Even if we did not use this, we don't want it to "leak" to the next token
-                self.next_token_is_statement_start = false;
 
                 self.advance();
                 return true;
@@ -332,7 +306,6 @@ impl<'a> Parser<'a> {
             self.blocks.push(BlockInfo {
                 line: self.current_line,
                 start_pos: start_pos,
-                in_body: false,
                 level: level + 1,
             });
         }
@@ -346,7 +319,6 @@ impl<'a> Parser<'a> {
     fn replace_current_block(&mut self, start_pos: u64) {
         let mut cb = &mut self.blocks.last_mut().unwrap();
         cb.start_pos = start_pos;
-        cb.in_body = false;
         cb.line = self.current_line;
     }
 
@@ -470,10 +442,10 @@ impl<'a> Parser<'a> {
 
             // If there is a body following, we are dealing with a function literal
             //  otherwise, a type literal
-            if self.accept_with_layout(TokenType::Do, TokenLayoutType::BlockBodyOpen) {
+            if self.accept_with_layout(TokenType::Do, TokenLayoutType::BlockKeyword) {
                 let body = self.parse_statementbody()?;
 
-                self.expect_with_layout(TokenType::End, TokenLayoutType::BlockBodyClose)?;
+                self.expect_with_layout(TokenType::End, TokenLayoutType::BlockKeyword)?;
 
                 return Ok(Some(
                     self.ast.replace_node(
@@ -566,7 +538,7 @@ impl<'a> Parser<'a> {
             let mut elsebranch: Option<ast::NodeRef> = None;
 
             // Primary branch
-            self.expect_with_layout(TokenType::Then, TokenLayoutType::BlockBodyOpen)?;
+            self.expect_with_layout(TokenType::Then, TokenLayoutType::BlockKeyword)?;
             {
                 branches.push((condition, self.parse_statementbody()?));
             }
@@ -575,18 +547,18 @@ impl<'a> Parser<'a> {
             while self.accept_with_layout(TokenType::ElseIf, TokenLayoutType::BlockLinker) {
                 let condition = self.expect_expression()?;
 
-                self.expect(TokenType::Then)?;
+                self.expect_with_layout(TokenType::Then, TokenLayoutType::BlockKeyword)?;
 
                 branches.push((condition, self.parse_statementbody()?));
             }
 
             // Final else
-            if self.accept_with_layout(TokenType::Else, TokenLayoutType::BlockElse) {
+            if self.accept_with_layout(TokenType::Else, TokenLayoutType::BlockLinker) {
                 // Final else
                 elsebranch = Some(self.parse_statementbody()?);
             }
 
-            self.expect_with_layout(TokenType::End, TokenLayoutType::BlockBodyClose)?;
+            self.expect_with_layout(TokenType::End, TokenLayoutType::BlockKeyword)?;
 
             return Ok(Some(
                 self.ast.replace_node(

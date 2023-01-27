@@ -107,26 +107,39 @@ impl<'a> Parser<'a> {
         if self.accept(TokenType::If) {
             let node = self.ast.reserve_node();
 
-            let condexpr = self.expect_expression()?;
+            // Expr
+            let condition = self.expect_expression()?;
 
-            // Fat arrow is not required to parse, but required by grammar
-            self.expect_nobreak(TokenType::FatArrow, TokenLayoutType::None)?;
+            let mut branches: Vec<(ast::NodeRef, ast::NodeRef)> = Vec::new();
+            let mut elsebranch: Option<ast::NodeRef> = None;
 
-            let trueexpr = self.expect_expression()?;
+            // Primary branch
+            self.expect_with_layout(TokenType::FatArrow, TokenLayoutType::BlockKeyword)?;
+            {
+                branches.push((condition, self.expect_expression()?));
+            }
 
-            let mut falseexpr: Option<ast::NodeRef> = None;
+            // Else-if branches
+            while self.accept_with_layout(TokenType::ElseIf, TokenLayoutType::BlockLinker) {
+                let condition = self.expect_expression()?;
 
-            if self.accept(TokenType::Else) {
-                falseexpr = Some(self.expect_expression()?);
+                self.expect_with_layout(TokenType::FatArrow, TokenLayoutType::BlockKeyword)?;
+
+                branches.push((condition, self.expect_expression()?));
+            }
+
+            // Final else
+            if self.accept_with_layout(TokenType::Else, TokenLayoutType::BlockLinker) {
+                // Final else
+                elsebranch = Some(self.expect_expression()?);
             }
 
             return Ok(Some(
                 self.ast.replace_node(
                     node,
                     ast::nodes::IfExpression {
-                        condexpr,
-                        trueexpr,
-                        falseexpr,
+                        branches,
+                        elsebranch,
                     }
                     .into(),
                 ),

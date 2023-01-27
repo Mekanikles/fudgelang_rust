@@ -11,6 +11,19 @@ use crate::output;
 use crate::parser::tokenstream::TokenStream;
 use std::fmt;
 
+// TODO: Copy of function in scanner test utils, move to common utils file
+pub fn expect_error_ids(errors: &Vec<error::Error>, expected_error_ids: &[error::ErrorId]) {
+    assert_eq!(
+        errors.len(),
+        expected_error_ids.len(),
+        "Found a different error count than expected!"
+    );
+
+    for i in 0..expected_error_ids.len() {
+        assert_eq!(errors[i].id, expected_error_ids[i]);
+    }
+}
+
 pub fn generate_ast_with_errors(source: &str, print_errors: bool) -> (ast::Ast, Vec<error::Error>) {
     let source = Source::from_str(source);
 

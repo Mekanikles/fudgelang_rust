@@ -5,7 +5,7 @@ def print_compare =
 	func(a : u32, b : u32) do
 		var msg =
 			if      a > b => "Hurra! Ditt nummer, {}, är större än {}"
-			else if a < b => "Buu. Ditt nummer, {}, är mindre än {}"
+			elseif a < b => "Buu. Ditt nummer, {}, är mindre än {}"
 			else             "Va? Ditt nummer, {}, är ju samma som {}"
 
 		#output.print_format(msg, a, b)
