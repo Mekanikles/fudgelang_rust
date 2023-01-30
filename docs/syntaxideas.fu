@@ -1444,3 +1444,17 @@ def x =
 		-1
 	else
 		0
+
+
+// IMPORT STATEMENTS
+
+import SDL2 begin
+	"begin" as beginFrame : func(x : u64, y : u32) -> bool // Optional string as?
+	surface : type = struct begin // Bleh, surface is a type, not an instance of a type
+		x : float
+		y : float
+	end
+end
+
+import SDL2 from Sdl2Lib begin
+	beginFrame

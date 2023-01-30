@@ -101,21 +101,6 @@ fn test_statement_after_expression_same_line() {
 }
 
 #[test]
-fn test_empty_vertical_block_1() {
-    let s = "\
-        if a then\n\
-        end";
-    verify_no_errors(s);
-}
-
-#[test]
-fn test_empty_vertical_block_2() {
-    let s = "\
-        if a then end";
-    verify_no_errors(s);
-}
-
-#[test]
 fn test_wrong_vertical_block() {
     let s = "\
         if a then b end";

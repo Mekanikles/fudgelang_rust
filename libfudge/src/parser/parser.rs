@@ -63,6 +63,7 @@ pub fn parse<'a>(tokens: &'a mut TokenStream<'a>) -> ParserResult {
 enum TokenLayoutType {
     BlockKeyword,
     BlockLinker,
+    BlockEnd,
     None,
 }
 
@@ -168,15 +169,25 @@ impl<'a> Parser<'a> {
                             && lb.start_pos == lb.line.first_token_pos;
                         let aligns_horizontally = self.current_line == lb.line;
 
+                        // Keyword must be horizontally aligned, if possible,
+                        //  except for block linkers
+                        let correctly_aligns = aligns_horizontally
+                            || (aligns_vertically
+                                && (layouttype == TokenLayoutType::BlockLinker
+                                    || layouttype == TokenLayoutType::BlockEnd
+                                    || (self.current_line.line_number > lb.line.line_number + 1)));
+
                         // Block keywords needs to align either horizontally or vertically
                         // TODO: Force horizontally if possible
-                        if !aligns_horizontally && !aligns_vertically {
+                        if !correctly_aligns {
                             let _ = self.log_error(error::Error::at_span(
                                 errors::MismatchedAlignment,
                                 ct.source_span,
-                                format!(
-                                    "Keyword needs to align to block start either horizontally or vertically!"
-                                )
+                                if layouttype == TokenLayoutType::BlockLinker || layouttype == TokenLayoutType::BlockEnd {
+                                    format!("Keyword linking/closing a block needs to align to block start horizontally or vertically!")
+                                } else {
+                                    format!("Keyword needs to align to block start horizontally if possible and vertically otherwise!")
+                                }
                                 .into(),
                             ));
                         }
@@ -454,7 +465,7 @@ impl<'a> Parser<'a> {
             if self.accept_with_layout(TokenType::Do, TokenLayoutType::BlockKeyword) {
                 let body = self.parse_statementbody()?;
 
-                self.expect_with_layout(TokenType::End, TokenLayoutType::BlockKeyword)?;
+                self.expect_with_layout(TokenType::End, TokenLayoutType::BlockEnd)?;
 
                 return Ok(Some(
                     self.ast.replace_node(
@@ -567,7 +578,7 @@ impl<'a> Parser<'a> {
                 elsebranch = Some(self.parse_statementbody()?);
             }
 
-            self.expect_with_layout(TokenType::End, TokenLayoutType::BlockKeyword)?;
+            self.expect_with_layout(TokenType::End, TokenLayoutType::BlockEnd)?;
 
             return Ok(Some(
                 self.ast.replace_node(

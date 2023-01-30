@@ -111,22 +111,6 @@ fn test_expression_if_simple_multiline_2() {
 }
 
 #[test]
-fn test_expression_if_simple_multiline_3() {
-    verify_ast(
-        "def x =\n\
-            \tif a\n\
-            \t=> b",
-        &module_fragment_wrapper_tree(&[tree(
-            SymbolDeclaration,
-            &[tree(
-                IfExpression,
-                &[leaf(SymbolReference), leaf(SymbolReference)],
-            )],
-        )]),
-    );
-}
-
-#[test]
 fn test_expression_if_wrong_multiline_1() {
     let s = "\
         def x = if a =>\n\
@@ -144,6 +128,27 @@ fn test_expression_if_wrong_multiline_2() {
 
     let result = generate_ast_with_errors(s, false);
     expect_error_ids(&result.1, &[new_error_id(errors::MismatchedIndentation)]);
+}
+
+#[test]
+fn test_expression_if_wrong_multiline_3() {
+    let s = "\
+        def x = if a\n\
+            \t=> b";
+
+    let result = generate_ast_with_errors(s, false);
+    expect_error_ids(&result.1, &[new_error_id(errors::MismatchedAlignment)]);
+}
+
+#[test]
+fn test_expression_if_wrong_multiline_4() {
+    let s = "\
+        def x =\n\
+            \tif a\n\
+            \t=> b";
+
+    let result = generate_ast_with_errors(s, false);
+    expect_error_ids(&result.1, &[new_error_id(errors::MismatchedAlignment)]);
 }
 
 #[test]

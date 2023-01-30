@@ -2,11 +2,25 @@
 
 [ ] Add error recovery for parser
 	* Currently, any breaking error will skip error checking for the rest of the file
-[ ] Remove elseif in favor or else [then]
-	* To match expression ifs
+[?] Remove elseif in favor or else [then]
+	* To better match expression ifs
+[ ] Add severity levels to errors
+	[ ] Change error categories from severity to area
+	[ ] Map severity in a hashmap
+	[ ] Add to language server
+[ ] Add refererence-support to error messages
+	[ ] Implement for keyword aligmnent
+	[ ] Implement for block comments
+	[ ] Implement for string literals
+[ ] Add import statement for FFI
+	* Possibly looks like a struct with fields
+	* HMMM: How to deal with symbols that collide with keywords?
+
+
 
 ///////////// DONE /////////////
 
 [X] Change block alignment rules to require exact alignment of block start
 [X] Add indentation checking for expressions
 [X] Fix FatArrow in if-expressions not allowing expressions on the same line
+[X] Add check for preferring horizontal block keywords if they are possible
