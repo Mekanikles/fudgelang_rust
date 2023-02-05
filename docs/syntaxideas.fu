@@ -1456,5 +1456,26 @@ import SDL2 begin
 	end
 end
 
-import SDL2 from Sdl2Lib begin
-	beginFrame
+abstract RenderTarget begin
+	var size : vec2
+end
+
+[#extern]
+struct SDLSurface begin
+	var sizex : u64
+	var sizey : u64
+	var texptr : addr
+end
+
+implement RenderTarget X for SDLSurface Y begin
+	size => vec2(sizex, sizey)
+end
+
+import Sdl2Lib begin
+	#[link("begin")]
+	func beginFrame(x : u64, y : u32)
+end
+
+func beginFrame() do
+	Sdl2Lib.beginFrame(0, 0)
+end

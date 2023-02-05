@@ -30,6 +30,8 @@ pub mod errors {
         UnexpectedToken,
         ExpectedExpression,
         UnknownCompilerDirective,
+        ModuleAlreadyDeclared,
+        ModuleDeclarationInMain,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -37,6 +39,7 @@ pub mod errors {
         NonAsciiIdentifier,
         ExpectedInputParameterDeclaration,
         ExpectedOutputParameterDeclaration,
+        ModuleDeclarationNotAtTop,
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]

@@ -1,0 +1,123 @@
+/////////////
+// Analysis
+/////////////
+
+// Import style modules:
+//  * Easy to do script files, since each file import manually
+//  * For those files, imports dependencis are clear
+//  * However, non-importing files (use directive) needs to rely on other importing files
+//      to add the file to compilation
+//  * Easy to control visibiltiy through import hierachy
+//  * Easy to include/exclude files based on build config
+//  * Parsing needs to start to discover files
+//  * Harder to have modules with parameters (using directives cannot specify parameters)
+//  * Non-code dependencies work the same way (image files, data etc)
+
+// C# style modules:
+//  * Only needs "use", and only for convenience, compiler knows all files
+//  * Requires something to specify all files up front
+//      - Host launcher could auto-generate build files when missing with good defaults
+//  * No need to start parsing to discover files
+//  * Non-code dependencies might be more difficult (should probably not be included in build file)
+//      - Or maybe should be forced into build file, make sense, but more work...
+
+// File structure:
+/*
+src:
+	main.fu
+	scanner:
+		scanner.fu
+		token.fu
+		tests:
+			scannertests.fu
+			testdata.txt
+	parser:
+		parser.fu
+		expressions.fu
+		statements.fu
+*/
+
+// main.fu
+
+s := scanner.new() // scanner is top level
+
+// scanner.fu
+
+public module scanner // default would be scanner.scanner
+
+t := token.new() // inside module scanner, no prefix necessary
+
+// token.fu
+
+public module // Optional, name is default: scanner.token
+
+// scannertests.fu
+
+internal module scanner.tests.scannertests // Everything default
+
+s := scanner.new() // Scanner is in hierarchy, visible by default
+
+// parser.fu
+
+public extendable module parser // default would be parser.parser, marked extendable
+
+// expressions.fu
+
+internal extend module parser // internal is default, must be marker extend to not clash
+
+t := ::scanner.token.new() // :: signifies top-level module
+
+// statements.fu
+
+internal extend module parser // internal is default, must be marker extend to not clash
+
+e := parse_expression() // no module prefix needed, since extend
+e := module.parse_expression() // clarify current module-level function
+
+/////////////
+// Abstract modules
+/////////////
+
+// We want a way of declaring a module interface without looking at implementaion details.
+// This is really simliar to a trait/interface declaration, is it the same thing?
+//  It sort of treats modules a bit like static classes.
+
+// In a scanner.fu
+
+// Will make sure all symbols in here are implemented somewhere else
+public abstract module scanner
+
+func scan1()
+func scan2()
+
+// In a new scanner_impl_1.fu
+
+implement extendable module scanner
+
+func scan1() do
+end
+
+// In a new scanner_impl_2.fu
+
+implement extend module scanner
+
+func scan2() do
+end
+
+/////////////
+// Use with ffi
+/////////////
+
+#[link("sdl2lib-1")]
+public extern module sdl2lib begin
+	struct SDL_Event begin
+		event_id : int
+	end
+
+	func SDL_init()
+	#[link("begin")]
+	func SDL_beginframe()
+
+	const global const_global : u32
+	var mutable_global : u32
+end

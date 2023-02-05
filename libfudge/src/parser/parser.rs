@@ -42,6 +42,7 @@ struct Parser<'a> {
     blocks: Vec<BlockInfo>,
     current_line: LineInfo,
     need_normal_layout_check: bool,
+    ismain: Option<bool>,
 }
 
 pub struct ParserResult {
@@ -49,8 +50,8 @@ pub struct ParserResult {
     pub errors: Vec<error::Error>,
 }
 
-pub fn parse<'a>(tokens: &'a mut TokenStream<'a>) -> ParserResult {
-    let mut parser = Parser::new(tokens);
+pub fn parse<'a>(tokens: &'a mut TokenStream<'a>, ismain: Option<bool>) -> ParserResult {
+    let mut parser = Parser::new(tokens, ismain);
     parser.parse();
 
     return ParserResult {
@@ -68,7 +69,7 @@ enum TokenLayoutType {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a mut TokenStream<'a>) -> Self {
+    pub fn new(tokens: &'a mut TokenStream<'a>, ismain: Option<bool>) -> Self {
         Parser {
             tokens: tokens,
             current_token: None,
@@ -85,6 +86,7 @@ impl<'a> Parser<'a> {
                 indentation: 0,
             },
             need_normal_layout_check: false,
+            ismain: ismain,
         }
     }
 
@@ -547,6 +549,66 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_module_declaration(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        // TODO: This is pretty hacky, should the parser really extract this info?
+        // The module identifier cannot be computed as an expression, though
+        if self.accept(TokenType::Module) {
+            let statement_pos = self.last_token.unwrap().source_span.pos;
+
+            self.expect(TokenType::Identifier)?;
+            let symbol = self.get_last_token_symbol();
+
+            // TODO: This needs to be easier
+            let source_span = SourceSpan {
+                pos: statement_pos,
+                len: (self.last_token.unwrap().source_span.pos - statement_pos) as usize
+                    + self.last_token.unwrap().source_span.len,
+            };
+
+            // Main file does not support module declarations
+            if let Some(ismain) = self.ismain {
+                if ismain {
+                    return Err(self.log_error(error::Error::at_span(
+                        errors::ModuleDeclarationInMain,
+                        source_span,
+                        "Main module cannot have module declarations".into(),
+                    ))?);
+                }
+            }
+
+            // TODO: Add support for inline modules with "begin" here
+            if self.ast.module.is_some() {
+                return Err(self.log_error(error::Error::at_span(
+                    errors::ModuleAlreadyDeclared,
+                    source_span,
+                    "Module already declared".into(),
+                ))?);
+            } else if self.ast.contains_more_than_root() {
+                self.log_error(error::Error::at_span(
+                    errors::ModuleDeclarationNotAtTop,
+                    source_span,
+                    "Module declaration needs to reside before any other statements in this file"
+                        .into(),
+                ))?;
+            }
+
+            self.ast.module = Some(symbol);
+
+            return Ok(Some(
+                self.ast.add_node(
+                    ast::nodes::Module {
+                        symbol: self.ast.module,
+                        is_self_declaration: true,
+                        statementbody: None,
+                    }
+                    .into(),
+                ),
+            ));
+        }
+
+        Ok(None)
+    }
+
     fn parse_if_statement(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
         if self.accept(TokenType::If) {
             let node = self.ast.reserve_node();
@@ -680,6 +742,8 @@ impl<'a> Parser<'a> {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_expression()? {
             return Ok(Some(n));
+        } else if let Some(n) = self.parse_module_declaration()? {
+            return Ok(Some(n));
         }
         return Ok(None);
     }
@@ -740,19 +804,27 @@ impl<'a> Parser<'a> {
         ));
     }
 
-    // Parse fragment (usually file)
-    fn parse_fragment(&mut self) -> Result<(), error::ErrorId> {
+    // Parse module (usually file)
+    fn parse_module(&mut self) -> Result<(), error::ErrorId> {
         let node = self.ast.reserve_node();
         self.ast.set_root(node);
 
         let body = self.parse_statementbody()?;
         self.ast.replace_node(
             node,
-            ast::nodes::ModuleFragment {
-                statementbody: body,
+            ast::nodes::Module {
+                symbol: self.ast.module,
+                is_self_declaration: false,
+                statementbody: Some(body),
             }
             .into(),
         );
+
+        return Ok(());
+    }
+
+    pub fn parse_internal(&mut self) -> Result<(), error::ErrorId> {
+        let result = self.parse_module();
 
         // TODO: this sucks
         if self.current_token.is_some() {
@@ -764,15 +836,13 @@ impl<'a> Parser<'a> {
             ))?;
         }
 
-        debug_assert!(self.blocks.is_empty());
-
-        return Ok(());
+        return result;
     }
 
     pub fn parse(&mut self) {
         self.advance();
 
-        match self.parse_fragment() {
+        match self.parse_internal() {
             Err(error::ErrorId::FatalError(errors::ErrorLimitExceeded)) => {
                 eprintln!("Parsing stopped, error limit exceeed");
                 return;
@@ -782,6 +852,8 @@ impl<'a> Parser<'a> {
             }
             _ => (),
         }
+
+        debug_assert!(self.blocks.is_empty());
 
         if self.tokens.read_token() == None {
             eprintln!("Parsed all {} tokens successfully!", self.temp_tokencount);

@@ -1,6 +1,6 @@
 use libfudgec::*;
 
-use crate::parser::tokenstream::TokenStream;
+use parser::tokenstream::TokenStream;
 use structopt::StructOpt;
 
 use ansi_term::Colour as Color;
@@ -9,7 +9,10 @@ use ansi_term::Colour as Color;
 struct CommandLineParameters {
     // Path to file
     #[structopt(parse(from_os_str))]
-    file: std::path::PathBuf,
+    main: std::path::PathBuf,
+
+    #[structopt(short = "f", long = "files", parse(from_os_str))]
+    files: Vec<std::path::PathBuf>,
 
     #[structopt(short = "t", long = "output-tokens")]
     print_tokens: bool,
@@ -18,11 +21,7 @@ struct CommandLineParameters {
     print_ast: bool,
 }
 
-fn main() {
-    let params = CommandLineParameters::from_args();
-
-    let source = source::Source::from_file(params.file);
-
+fn scan(source: &source::Source, params: &CommandLineParameters) -> scanner::ScannerResult {
     // Scan and parse
     let scanner_result = scanner::tokenize(&source);
 
@@ -43,18 +42,55 @@ fn main() {
         println!("");
     }
 
-    let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source));
+    scanner_result
+}
+
+fn parse(
+    source: &source::Source,
+    scanner_result: &scanner::ScannerResult,
+    ismain: bool,
+    params: &CommandLineParameters,
+) -> parser::ParserResult {
+    let parser_result = parser::parse(
+        &mut TokenStream::new(&scanner_result.tokens, &source),
+        Some(ismain),
+    );
 
     // Print ast
     if params.print_ast {
         parser_result.ast.print(0);
     }
 
-    // Print errors
+    parser_result
+}
+
+fn scan_and_parse_file<P: AsRef<std::path::Path>>(
+    file: P,
+    ismain: bool,
+    params: &CommandLineParameters,
+) -> parser::ast::Ast {
+    let source = source::Source::from_file(&file);
+    let scanner_result = scan(&source, &params);
+    let parser_result = parse(&source, &scanner_result, ismain, &params);
+
     output::print_errors(&scanner_result.errors, &source);
     output::print_errors(&parser_result.errors, &source);
 
-    let mut treewalker = interpreter::TreeWalker::new(&parser_result.ast);
+    parser_result.ast
+}
+
+fn main() {
+    let params = CommandLineParameters::from_args();
+
+    let mut module_asts: Vec<parser::ast::Ast> = Vec::new();
+
+    let main_ast = scan_and_parse_file(&params.main, true, &params);
+
+    for path in &params.files {
+        module_asts.push(scan_and_parse_file(path, false, &params));
+    }
+
+    let mut treewalker = interpreter::TreeWalker::new(&main_ast, &module_asts);
     treewalker.interpret();
 
     println!("{}", Color::Green.bold().paint("Done"));

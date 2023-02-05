@@ -26,7 +26,7 @@ fn function_literal_with_outparams_wrapper_tree(
     subtree.push(tree(StatementBody, body));
 
     return tree(
-        ModuleFragment,
+        Module,
         &[tree(StatementBody, &[tree(FunctionLiteral, &subtree[..])])],
     );
 }

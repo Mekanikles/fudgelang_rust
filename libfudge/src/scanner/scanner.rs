@@ -9,6 +9,7 @@ use crate::source::SourceSpan;
 
 // Map with all scannable keywords
 pub static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
+    "module" => TokenType::Module,
     "if" => TokenType::If,
     "then" => TokenType::Then,
     "else" => TokenType::Else,

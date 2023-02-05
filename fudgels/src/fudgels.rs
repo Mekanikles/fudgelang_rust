@@ -137,7 +137,9 @@ impl Backend {
         let rope = &document.rope;
         let source = source::Source::from_string(document.name.clone(), rope.to_string());
         let scanner_result = scanner::tokenize(&source);
-        let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source));
+        // TODO: Needs to figure out if this is the main file or not
+        let parser_result =
+            parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source), None);
 
         for error in parser_result
             .errors

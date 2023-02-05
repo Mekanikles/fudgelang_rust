@@ -26,6 +26,7 @@ impl<'a> fmt::Debug for NodeRef {
 }
 
 pub struct Ast {
+    pub module: Option<SymbolRef>,
     nodes: Vec<Node>,
     root_index: Option<u32>,
     symbols: StringStore,
@@ -34,6 +35,7 @@ pub struct Ast {
 impl Ast {
     pub fn new() -> Self {
         Ast {
+            module: None,
             nodes: Vec::new(),
             root_index: None,
             symbols: StringStore::new(),
@@ -92,6 +94,10 @@ impl Ast {
             return Some(NodeRef { index: i });
         }
         return None;
+    }
+
+    pub fn contains_more_than_root(&self) -> bool {
+        return self.nodes.len() == (if self.root_index.is_some() { 1 } else { 2 });
     }
 
     pub fn add_symbol(&mut self, symbol: &str) -> SymbolRef {
@@ -246,8 +252,11 @@ macro_rules! declare_nodes  {
 
 declare_nodes!(
     Invalid,
-    ModuleFragment {
-        statementbody: NodeRef,
+    Module {
+        // Bleh, this double-serves as the self-module declaration and the inline module statement
+        symbol: Option<SymbolRef>,
+        is_self_declaration: bool,
+        statementbody: Option<NodeRef>,
     },
     StatementBody {
         statements: Vec<NodeRef>,
@@ -298,6 +307,10 @@ declare_nodes!(
         typeexpr: Option<NodeRef>,
         initexpr: NodeRef,
     },
+    SubScript {
+        expr: NodeRef,
+        field: SymbolRef,
+    },
 );
 
 // Why no trait specializations :(
@@ -311,9 +324,11 @@ impl ChildCollector for nodes::Invalid {
     }
 }
 
-impl ChildCollector for nodes::ModuleFragment {
+impl ChildCollector for nodes::Module {
     fn collect_children(&self, collector: &mut Vec<NodeRef>) {
-        collector.push(self.statementbody);
+        if let Some(body) = self.statementbody {
+            collector.push(body);
+        }
     }
 }
 
@@ -430,6 +445,12 @@ impl ChildCollector for nodes::SymbolDeclaration {
             collector.push(*n);
         }
         collector.push(self.initexpr);
+    }
+}
+
+impl ChildCollector for nodes::SubScript {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.expr);
     }
 }
 

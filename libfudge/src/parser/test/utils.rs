@@ -28,7 +28,7 @@ pub fn generate_ast_with_errors(source: &str, print_errors: bool) -> (ast::Ast, 
     let source = Source::from_str(source);
 
     let scanner_result = scanner::tokenize(&source);
-    let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source));
+    let parser_result = parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source), None);
 
     if print_errors {
         output::print_errors(&scanner_result.errors, &source);
@@ -116,5 +116,5 @@ impl<'a> fmt::Debug for NodeIdTree {
 
 pub fn module_fragment_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
     use crate::parser::ast::NodeId::*;
-    return tree(ModuleFragment, &[tree(StatementBody, body)]);
+    return tree(Module, &[tree(StatementBody, body)]);
 }

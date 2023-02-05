@@ -35,6 +35,7 @@ pub enum TokenType {
     LessThanOrEq,
 
     // Keywords
+    Module,
     If,
     Then,
     Else,

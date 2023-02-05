@@ -188,7 +188,6 @@ impl<'a> Parser<'a> {
             self.expect(TokenType::ClosingParenthesis)?;
             return Ok(expr);
         } else if self.accept(TokenType::Identifier) {
-            // TODO: Function calls
             let s = self.get_last_token_symbol();
 
             // Calls
@@ -208,6 +207,27 @@ impl<'a> Parser<'a> {
                         ast::nodes::CallOperation {
                             expr: symbol,
                             arglist: arglist,
+                        }
+                        .into(),
+                    ),
+                ));
+            // Subscripts
+            } else if self.accept(TokenType::Dot) {
+                let node = self.ast.reserve_node();
+                let symbol = self
+                    .ast
+                    .add_node(ast::nodes::SymbolReference { symbol: s }.into());
+
+                self.expect(TokenType::Identifier)?;
+
+                let f = self.get_last_token_symbol();
+
+                return Ok(Some(
+                    self.ast.replace_node(
+                        node,
+                        ast::nodes::SubScript {
+                            expr: symbol,
+                            field: f,
                         }
                         .into(),
                     ),

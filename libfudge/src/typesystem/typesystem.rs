@@ -56,4 +56,5 @@ pub enum TypeId {
     // Cheat for complex built in signatures, until we have a competent type system for argument-dependent function signatures
     BuiltInFunction(BuiltInFunction),
     Function(FunctionSignature),
+    Module,
 }

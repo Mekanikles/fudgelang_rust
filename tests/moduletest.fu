@@ -1,0 +1,5 @@
+
+module std
+
+def u32 = #primitives.u32 // Comment test
+def bool = /* comment test */ #primitives.bool
