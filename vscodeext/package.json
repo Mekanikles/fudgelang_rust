@@ -17,7 +17,7 @@
 			{
 				"id": "fudge",
 				"aliases": [ "Fudge", "fudge" ],
-				"extensions": [ ".fu" ],
+				"extensions": [ ".fu", ".fum" ],
 				"configuration": "./language-configuration.json"
 			}
 		],

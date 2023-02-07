@@ -2,6 +2,29 @@
 // Analysis
 /////////////
 
+// Other Languages:
+// C#:
+//  * No single file is more important than others, build includes all relevant files
+//  * Can start using any dependency directly, just module.class.class
+//  * Namespaces don't have visibility modifiers, they are all public. Toling seems to ignore
+//      empty namespaces
+//  * Top-level statement support exists, but is only allowed for one file per project
+//      Can be hard to find what file that is.
+
+// I like:
+//  * No imports
+//  * No boilerplate, files can get default module names based on file structure
+//  * Explicit extendable modules for spanning multiple files
+//  * Possibly restricting module-extension and sub-moduling baed on file hieararchy
+//  * Lightweight scrips, hello-world is a one liner
+//      - Prefer to use multiple file-types for files allowing top-level statements, easier to find
+
+// Ideas:
+//  * Modules are like singleton classes
+//      - Removes choise between "static classes" and singletons in c++
+//  * Modules can have compile-time arguments, just like types
+//  * Modules can "include" other modules publicly, by "using" statement
+
 // Import style modules:
 //  * Easy to do script files, since each file import manually
 //  * For those files, imports dependencis are clear

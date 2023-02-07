@@ -42,7 +42,7 @@ struct Parser<'a> {
     blocks: Vec<BlockInfo>,
     current_line: LineInfo,
     need_normal_layout_check: bool,
-    ismain: Option<bool>,
+    ismain: bool,
 }
 
 pub struct ParserResult {
@@ -50,7 +50,7 @@ pub struct ParserResult {
     pub errors: Vec<error::Error>,
 }
 
-pub fn parse<'a>(tokens: &'a mut TokenStream<'a>, ismain: Option<bool>) -> ParserResult {
+pub fn parse<'a>(tokens: &'a mut TokenStream<'a>, ismain: bool) -> ParserResult {
     let mut parser = Parser::new(tokens, ismain);
     parser.parse();
 
@@ -69,7 +69,7 @@ enum TokenLayoutType {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &'a mut TokenStream<'a>, ismain: Option<bool>) -> Self {
+    pub fn new(tokens: &'a mut TokenStream<'a>, ismain: bool) -> Self {
         Parser {
             tokens: tokens,
             current_token: None,
@@ -566,14 +566,12 @@ impl<'a> Parser<'a> {
             };
 
             // Main file does not support module declarations
-            if let Some(ismain) = self.ismain {
-                if ismain {
-                    return Err(self.log_error(error::Error::at_span(
-                        errors::ModuleDeclarationInMain,
-                        source_span,
-                        "Main module cannot have module declarations".into(),
-                    ))?);
-                }
+            if self.ismain {
+                return Err(self.log_error(error::Error::at_span(
+                    errors::ModuleDeclarationInMain,
+                    source_span,
+                    "Main module cannot have module declarations".into(),
+                ))?);
             }
 
             // TODO: Add support for inline modules with "begin" here

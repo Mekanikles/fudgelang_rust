@@ -11,7 +11,7 @@ struct CommandLineParameters {
     #[structopt(parse(from_os_str))]
     main: std::path::PathBuf,
 
-    #[structopt(short = "f", long = "files", parse(from_os_str))]
+    #[structopt(short = "m", long = "modules", parse(from_os_str))]
     files: Vec<std::path::PathBuf>,
 
     #[structopt(short = "t", long = "output-tokens")]
@@ -53,7 +53,7 @@ fn parse(
 ) -> parser::ParserResult {
     let parser_result = parser::parse(
         &mut TokenStream::new(&scanner_result.tokens, &source),
-        Some(ismain),
+        ismain,
     );
 
     // Print ast

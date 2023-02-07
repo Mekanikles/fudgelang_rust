@@ -2,6 +2,9 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
+use std::ffi::OsStr;
+use std::path::Path;
+
 use crate::parser::tokenstream::TokenStream;
 use dashmap::DashMap;
 use libfudgec::*;
@@ -22,6 +25,7 @@ fn create_backend(client: Client) -> Backend {
 #[derive(Debug)]
 struct Document {
     name: String,
+    ismain: bool,
     rope: ropey::Rope,
 }
 
@@ -60,9 +64,26 @@ impl LanguageServer for Backend {
             .log_message(MessageType::LOG, msg.to_string())
             .await;
 
+        // Check file-extension
+        let document_name = &params.text_document.uri.as_str();
+        let ext = Path::new(&document_name)
+            .extension()
+            .and_then(OsStr::to_str);
+
+        self.client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "ASDASDASDASDAS: Fudge Language Server parsing file with ext:{:?}!",
+                    ext
+                ),
+            )
+            .await;
+
         let rope = ropey::Rope::from_str(&params.text_document.text);
         let doc = Document {
-            name: params.text_document.uri.to_string(),
+            name: document_name.to_string(),
+            ismain: ext == Some("fu"),
             rope: rope,
         };
 
@@ -137,9 +158,11 @@ impl Backend {
         let rope = &document.rope;
         let source = source::Source::from_string(document.name.clone(), rope.to_string());
         let scanner_result = scanner::tokenize(&source);
-        // TODO: Needs to figure out if this is the main file or not
-        let parser_result =
-            parser::parse(&mut TokenStream::new(&scanner_result.tokens, &source), None);
+
+        let parser_result = parser::parse(
+            &mut TokenStream::new(&scanner_result.tokens, &source),
+            document.ismain,
+        );
 
         for error in parser_result
             .errors
