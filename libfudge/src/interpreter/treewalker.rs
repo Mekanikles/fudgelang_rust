@@ -39,9 +39,32 @@ struct Context<'a> {
     asts: HashMap<ast::AstKey, &'a ast::Ast>,
 }
 
+struct SymbolEnvironment {
+    pub variables: HashMap<SymbolKey, Value>,
+}
+
+impl SymbolEnvironment {
+    fn new() -> SymbolEnvironment {
+        SymbolEnvironment {
+            variables: HashMap::new(),
+        }
+    }
+
+    fn insert(&mut self, s: SymbolKey, v: Value) -> Option<Value> {
+        self.variables.insert(s, v)
+    }
+
+    fn get(&self, s: &SymbolKey) -> Option<&Value> {
+        self.variables.get(s)
+    }
+    fn contains_key(&self, s: &SymbolKey) -> bool {
+        self.variables.contains_key(s)
+    }
+}
+
 struct Module {
     pub _key: u64,
-    pub globals: HashMap<SymbolKey, Value>,
+    pub globals: SymbolEnvironment,
     pub functions: Vec<Function>,
 }
 
@@ -49,7 +72,7 @@ impl Module {
     fn new(key: u64) -> Module {
         Module {
             _key: key,
-            globals: HashMap::new(),
+            globals: SymbolEnvironment::new(),
             functions: Vec::new(),
         }
     }
@@ -80,7 +103,7 @@ pub struct TreeWalker<'a> {
 }
 
 struct StackFrame {
-    variables: HashMap<SymbolKey, Value>,
+    variables: SymbolEnvironment,
     returnvalue: Option<Value>,
 }
 
@@ -509,11 +532,16 @@ impl<'a> TreeWalker<'a> {
 
                 // Check signature and build frames
                 let mut frame = StackFrame {
-                    variables: HashMap::new(),
+                    variables: SymbolEnvironment::new(),
                     returnvalue: None,
                 };
                 for (i, arg) in args.iter().enumerate() {
-                    assert!(arg.get_type(&self) == inputparams[i].1, "Type mismatch!");
+                    assert!(
+                        arg.get_type(&self) == inputparams[i].1,
+                        "Callable argument type mismatch! Arg: {:?}, Param: {:?}",
+                        arg.get_type(&self),
+                        inputparams[i].1
+                    );
                     frame.variables.insert(inputparams[i].0, arg.clone());
                 }
 
@@ -543,7 +571,9 @@ impl<'a> TreeWalker<'a> {
                         assert!(
                             args[0].get_type(&self)
                                 == TypeId::Primitive(PrimitiveType::StaticStringUtf8),
-                            "Type mismatch!"
+                            "Built-in call argument type mismatch! Arg: {:?}, Param: {:?}",
+                            args[0].get_type(&self),
+                            TypeId::Primitive(PrimitiveType::StaticStringUtf8)
                         );
 
                         // TODO: Parse format string, for now, assume all args are u32s
@@ -681,7 +711,11 @@ impl<'a> TreeWalker<'a> {
             return create_module_value(symbol);
         }
 
-        return create_null_value();
+        panic!(
+            "Could not find symbol {:?} in module {:?}",
+            symbol.key,
+            self.get_module()._key
+        );
     }
 
     fn evaluate_symboldeclaration(
@@ -689,15 +723,6 @@ impl<'a> TreeWalker<'a> {
         astref: &AstRef,
         symdecl: &ast::nodes::SymbolDeclaration,
     ) {
-        assert!(
-            !self.get_module().globals.contains_key(&symdecl.symbol.key),
-            "Symbol {} is already defined!",
-            self.context
-                .get_ast(astref)
-                .get_symbol(&symdecl.symbol)
-                .unwrap()
-        );
-
         // TODO: check type
         let _typeval: Option<Value> = match &symdecl.typeexpr {
             Some(n) => Some(self.evaluate_expression(&from_astref(&astref, n))),
@@ -710,9 +735,22 @@ impl<'a> TreeWalker<'a> {
         );
 
         let initval = self.evaluate_expression(&from_astref(astref, &symdecl.initexpr));
-        self.get_module_mut()
-            .globals
-            .insert(symdecl.symbol.key, initval);
+
+        let symenv = if !self.stackframes.is_empty() {
+            &mut self.stackframes.last_mut().unwrap().variables
+        } else {
+            &mut self.get_module_mut().globals
+        };
+
+        assert!(
+            !symenv.contains_key(&symdecl.symbol.key),
+            "Symbol {} is already defined!",
+            self.context
+                .get_ast(astref)
+                .get_symbol(&symdecl.symbol)
+                .unwrap()
+        );
+        symenv.insert(symdecl.symbol.key, initval);
     }
 
     fn evaluate_expression(&mut self, astref: &AstRef) -> Value {
@@ -754,7 +792,7 @@ impl<'a> TreeWalker<'a> {
     fn new(context: &'a Context) -> Self {
         // Make sure we always have a stackframe
         let frame = StackFrame {
-            variables: HashMap::new(),
+            variables: SymbolEnvironment::new(),
             returnvalue: None,
         };
 
