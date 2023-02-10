@@ -8,6 +8,7 @@
 //  * Can start using any dependency directly, just module.class.class
 //  * Namespaces don't have visibility modifiers, they are all public. Toling seems to ignore
 //      empty namespaces
+//      Empty namespaces can still be in "using" statements, without complaints
 //  * Top-level statement support exists, but is only allowed for one file per project
 //      Can be hard to find what file that is.
 

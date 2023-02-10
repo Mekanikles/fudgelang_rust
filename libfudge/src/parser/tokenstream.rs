@@ -16,6 +16,10 @@ impl<'a> TokenStream<'a> {
         };
     }
 
+    pub fn get_source_name(&self) -> &str {
+        return self.source.name();
+    }
+
     pub fn read_token(&mut self) -> Option<&Token> {
         self.count += 1;
         return self.tokens.get(self.count - 1);

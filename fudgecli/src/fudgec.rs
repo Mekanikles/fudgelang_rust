@@ -90,8 +90,7 @@ fn main() {
         module_asts.push(scan_and_parse_file(path, false, &params));
     }
 
-    let mut treewalker = interpreter::TreeWalker::new(&main_ast, &module_asts);
-    treewalker.interpret();
+    interpreter::run(&main_ast, &module_asts);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

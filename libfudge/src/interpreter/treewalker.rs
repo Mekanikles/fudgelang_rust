@@ -8,13 +8,75 @@ use dyn_fmt::AsStrFormatExt;
 
 use StringKey as SymbolKey;
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+struct AstRef {
+    ast_key: ast::AstKey,
+    noderef: ast::NodeRef,
+}
+
+fn from_astref(astref: &AstRef, noderef: &ast::NodeRef) -> AstRef {
+    return AstRef {
+        ast_key: astref.ast_key,
+        noderef: *noderef,
+    };
+}
+
+fn from_ast(ast: &ast::Ast) -> AstRef {
+    return AstRef {
+        ast_key: ast.key,
+        noderef: ast.get_root().unwrap(),
+    };
+}
+
+fn from_ast_and_node(ast: &ast::Ast, noderef: &ast::NodeRef) -> AstRef {
+    return AstRef {
+        ast_key: ast.key,
+        noderef: *noderef,
+    };
+}
+
+struct Context<'a> {
+    asts: HashMap<ast::AstKey, &'a ast::Ast>,
+}
+
+struct Module {
+    pub _key: u64,
+    pub globals: HashMap<SymbolKey, Value>,
+    pub functions: Vec<Function>,
+}
+
+impl Module {
+    fn new(key: u64) -> Module {
+        Module {
+            _key: key,
+            globals: HashMap::new(),
+            functions: Vec::new(),
+        }
+    }
+}
+
+impl<'a> Context<'a> {
+    fn new() -> Context<'a> {
+        Context {
+            asts: HashMap::new(),
+        }
+    }
+
+    fn get_ast(&self, astref: &AstRef) -> &ast::Ast {
+        return self.asts[&astref.ast_key];
+    }
+
+    fn get_node(&self, astref: &AstRef) -> &ast::Node {
+        return self.asts[&astref.ast_key].get_node(&astref.noderef);
+    }
+}
+
 pub struct TreeWalker<'a> {
-    main_ast: &'a ast::Ast,
-    module_asts: &'a Vec<ast::Ast>,
-    globals: HashMap<SymbolKey, Value>,
-    functions: Vec<Function>,
+    modules: HashMap<u64, Module>,
     strings: Vec<String>,
     stackframes: Vec<StackFrame>,
+    current_module: Option<u64>,
+    context: &'a Context<'a>,
 }
 
 struct StackFrame {
@@ -23,8 +85,9 @@ struct StackFrame {
 }
 
 pub struct Function {
+    module: u64,
     signature: FunctionSignature,
-    body: ast::NodeRef,
+    body: AstRef,
 }
 
 use u64 as FunctionRef;
@@ -205,7 +268,9 @@ impl Value {
                 PrimitiveValue::F64(_) => TypeId::Primitive(PrimitiveType::F64),
             },
             Value::BuiltInFunction(v) => TypeId::BuiltInFunction(v.clone()),
-            Value::Function(v) => TypeId::Function(tw.functions[*v as usize].signature.clone()),
+            Value::Function(v) => {
+                TypeId::Function(tw.get_module().functions[*v as usize].signature.clone())
+            }
             Value::Module(_) => TypeId::Module,
         }
     }
@@ -286,26 +351,19 @@ impl<'a> TreeWalker<'a> {
         };
     }
 
-    fn evaluate_subscript(&mut self, ast: &ast::Ast, subscript: &ast::nodes::SubScript) -> Value {
-        let exprvalue = self.evaluate_expression(ast, &subscript.expr);
+    fn evaluate_subscript(&mut self, astref: &AstRef, subscript: &ast::nodes::SubScript) -> Value {
+        let exprvalue = self.evaluate_expression(&from_astref(&astref, &subscript.expr));
 
         return match exprvalue {
-            Value::Null => panic!("Null value in subscript!"),
+            Value::Null => panic!("Null value in subscript {:?}!", subscript),
             Value::Type(_) => panic!("Type subscripts not yet supported"),
-            Value::Module(_) => {
-                // TODO: Store symbols per ast
-                /*let module_ast = self
-                .module_asts
-                .into_iter()
-                .find(|a| {
-                    if let Some(am) = a.module {
-                        m.key == am.key
-                    } else {
-                        false
-                    }
-                })
-                .unwrap();*/
-                self.evaluate_symbol(&subscript.field)
+            Value::Module(m) => {
+                // Push the referenced module around the evaluation
+                let old_module = self.current_module;
+                self.current_module = Some(m.key);
+                let result = self.evaluate_symbol(&subscript.field);
+                self.current_module = old_module;
+                result
             }
             _ => panic!("Unsupported subscript"),
         };
@@ -313,14 +371,14 @@ impl<'a> TreeWalker<'a> {
 
     fn evaluate_ifexpression(
         &mut self,
-        ast: &ast::Ast,
+        astref: &AstRef,
         ifexpr: &ast::nodes::IfExpression,
     ) -> Value {
         for branch in &ifexpr.branches {
             let condition = branch.0;
             let expr = branch.1;
 
-            let condvalue = self.evaluate_expression(ast, &condition);
+            let condvalue = self.evaluate_expression(&from_astref(&astref, &condition));
             let boolvalue = match condvalue {
                 Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
                 _ => None,
@@ -332,23 +390,23 @@ impl<'a> TreeWalker<'a> {
             );
 
             if boolvalue.unwrap() {
-                return self.evaluate_expression(ast, &expr);
+                return self.evaluate_expression(&from_astref(&astref, &expr));
             }
         }
 
         if ifexpr.elsebranch.is_some() {
-            return self.evaluate_expression(ast, &ifexpr.elsebranch.unwrap());
+            return self.evaluate_expression(&from_astref(&astref, &ifexpr.elsebranch.unwrap()));
         };
 
         return create_null_value();
     }
 
-    fn evaluate_ifstatement(&mut self, ast: &ast::Ast, ifstmt: &ast::nodes::IfStatement) {
+    fn evaluate_ifstatement(&mut self, astref: &AstRef, ifstmt: &ast::nodes::IfStatement) {
         for branch in &ifstmt.branches {
             let condition = branch.0;
             let body = branch.1;
 
-            let condvalue = self.evaluate_expression(ast, &condition);
+            let condvalue = self.evaluate_expression(&from_astref(&astref, &condition));
             let boolvalue = match condvalue {
                 Value::Primitive(PrimitiveValue::Bool(n)) => Some(n.0),
                 _ => None,
@@ -360,9 +418,10 @@ impl<'a> TreeWalker<'a> {
             );
 
             if boolvalue.unwrap() {
-                match ast.get_node(&body) {
+                let node = self.context.get_node(&from_astref(astref, &body));
+                match node {
                     ast::Node::StatementBody(n) => {
-                        return self.evaluate_statementbody(ast, &n);
+                        return self.evaluate_statementbody(astref, &n);
                     }
                     _ => {
                         panic!("Expected statement body");
@@ -372,9 +431,12 @@ impl<'a> TreeWalker<'a> {
         }
 
         if ifstmt.elsebranch.is_some() {
-            match ast.get_node(&ifstmt.elsebranch.unwrap()) {
+            match self
+                .context
+                .get_node(&from_astref(astref, &ifstmt.elsebranch.unwrap()))
+            {
                 ast::Node::StatementBody(n) => {
-                    self.evaluate_statementbody(ast, &n);
+                    self.evaluate_statementbody(astref, &n);
                 }
                 _ => {
                     panic!("Expected statement body");
@@ -383,20 +445,20 @@ impl<'a> TreeWalker<'a> {
         }
     }
 
-    fn evaluate_returnstatement(&mut self, ast: &ast::Ast, retstmt: &ast::nodes::ReturnStatement) {
+    fn evaluate_returnstatement(&mut self, astref: &AstRef, retstmt: &ast::nodes::ReturnStatement) {
         self.stackframes.last_mut().unwrap().returnvalue = match retstmt.expr {
-            Some(expr) => Some(self.evaluate_expression(ast, &expr)),
+            Some(expr) => Some(self.evaluate_expression(&from_astref(&astref, &expr))),
             _ => None,
         };
     }
 
     fn evaluate_binaryoperation(
         &mut self,
-        ast: &ast::Ast,
+        astref: &AstRef,
         binop: &ast::nodes::BinaryOperation,
     ) -> Value {
-        let lhsval = self.evaluate_expression(ast, &binop.lhs);
-        let rhsval = self.evaluate_expression(ast, &binop.rhs);
+        let lhsval = self.evaluate_expression(&from_astref(&astref, &binop.lhs));
+        let rhsval = self.evaluate_expression(&from_astref(&astref, &binop.rhs));
 
         assert!(
             lhsval.match_type(&rhsval, &self),
@@ -424,16 +486,17 @@ impl<'a> TreeWalker<'a> {
 
     fn evaluate_calloperation(
         &mut self,
-        ast: &ast::Ast,
+        astref: &AstRef,
         callop: &ast::nodes::CallOperation,
     ) -> Value {
-        let callable = self.evaluate_expression(ast, &callop.expr);
+        let callable = self.evaluate_expression(&from_astref(&astref, &callop.expr));
 
         // Build arguments
+        let ast = self.context.get_ast(&astref);
         let arglist = as_node!(ast, ArgumentList, &callop.arglist);
         let mut args = Vec::new();
         for arg in &arglist.args {
-            let val = self.evaluate_expression(ast, &arg);
+            let val = self.evaluate_expression(&from_astref(&astref, &arg));
             args.push(val);
         }
 
@@ -441,7 +504,7 @@ impl<'a> TreeWalker<'a> {
             Value::Function(n) => {
                 let funcindex = *n as usize;
 
-                let inputparams = &self.functions[funcindex].signature.inputparams;
+                let inputparams = &self.get_module().functions[funcindex].signature.inputparams;
                 assert!(args.len() == inputparams.len());
 
                 // Check signature and build frames
@@ -456,10 +519,20 @@ impl<'a> TreeWalker<'a> {
 
                 // Call
                 self.stackframes.push(frame);
-                self.evaluate_statementbody(
-                    ast,
-                    as_node!(ast, StatementBody, &self.functions[funcindex].body),
-                );
+                let function = &self.get_module().functions[funcindex];
+                let fnastref = function.body;
+                let fnast = self.context.get_ast(&fnastref);
+                let node = as_node!(fnast, StatementBody, &fnastref.noderef);
+
+                // TODO: This is pretty hacky, but push the module of the function before calling
+                // TODO: Getting the module from the ast is wrong here, does not work for internal modules!
+                let old_module = self.current_module;
+                self.current_module = Some(function.module);
+
+                self.evaluate_statementbody(astref, node);
+
+                self.current_module = old_module;
+
                 self.stackframes.pop().unwrap().returnvalue.clone()
             }
             Value::BuiltInFunction(n) => {
@@ -507,7 +580,7 @@ impl<'a> TreeWalker<'a> {
 
     fn evaluate_functionliteral(
         &mut self,
-        ast: &ast::Ast,
+        astref: &AstRef,
         fnliteral: &ast::nodes::FunctionLiteral,
     ) -> Value {
         let mut signature = FunctionSignature {
@@ -516,11 +589,13 @@ impl<'a> TreeWalker<'a> {
         };
 
         for inparam in &fnliteral.inputparams {
+            let ast = self.context.get_ast(&astref);
             let n = as_node!(ast, InputParameter, inparam);
+            let key = n.symbol.key;
 
             // Skip symbol for now
 
-            let typeval: Value = self.evaluate_expression(ast, &n.typeexpr);
+            let typeval: Value = self.evaluate_expression(&from_astref(&astref, &n.typeexpr));
             let typeid = match typeval {
                 Value::Type(n) => n,
                 _ => panic!(
@@ -529,13 +604,14 @@ impl<'a> TreeWalker<'a> {
                 ),
             };
 
-            signature.inputparams.push((n.symbol.key, typeid));
+            signature.inputparams.push((key, typeid));
         }
 
         for outparam in &fnliteral.outputparams {
+            let ast = self.context.get_ast(&astref);
             let n = as_node!(ast, OutputParameter, outparam);
 
-            let typeval: Value = self.evaluate_expression(ast, &n.typeexpr);
+            let typeval: Value = self.evaluate_expression(&from_astref(&astref, &n.typeexpr));
             let typeid = match typeval {
                 Value::Type(n) => n,
                 _ => panic!(
@@ -547,18 +623,39 @@ impl<'a> TreeWalker<'a> {
             signature.outputparams.push(typeid);
         }
 
-        let funcid: FunctionRef = self.functions.len() as u64;
-        self.functions.push(Function {
+        let funcid: FunctionRef = self.get_module().functions.len() as u64;
+        let module = self.current_module.unwrap();
+        self.get_module_mut().functions.push(Function {
+            module: module,
             signature: signature.clone(),
-            body: fnliteral.body,
+            body: from_astref(&astref, &fnliteral.body),
         });
 
         return Value::Function(funcid);
     }
 
-    fn evaluate_statementbody(&mut self, ast: &ast::Ast, body: &ast::nodes::StatementBody) {
+    fn evaluate_module(&mut self, astref: &AstRef, module_node: &ast::nodes::Module) {
+        let ast = self.context.get_ast(astref);
+
+        // TODO: Fallback for unnamed modules
+        let key = module_node.symbol.key;
+
+        // Register module
+        let module = Module::new(key);
+        self.modules.insert(key, module);
+
+        let old_module = self.current_module;
+        self.current_module = Some(key);
+
+        let body = as_node!(ast, StatementBody, &module_node.statementbody);
+        self.evaluate_statementbody(astref, body);
+
+        self.current_module = old_module;
+    }
+
+    fn evaluate_statementbody(&mut self, astref: &AstRef, body: &ast::nodes::StatementBody) {
         for s in &body.statements {
-            self.evaluate_statement(ast, s);
+            self.evaluate_statement(&from_astref(&astref, s));
         }
     }
 
@@ -574,19 +671,13 @@ impl<'a> TreeWalker<'a> {
         }
 
         // Then globals
-        if let Some(v) = self.globals.get(&symbol.key) {
+        if let Some(v) = self.get_module().globals.get(&symbol.key) {
             return v.clone();
         }
 
         // Then modules
         // TODO: Really should just look at submodules
-        if let Some(_) = self.module_asts.iter().find(|&a| {
-            if let Some(m) = a.module {
-                m.key == symbol.key
-            } else {
-                false
-            }
-        }) {
+        if let Some(_) = self.modules.iter().find(|&module| *module.0 == symbol.key) {
             return create_module_value(symbol);
         }
 
@@ -595,18 +686,21 @@ impl<'a> TreeWalker<'a> {
 
     fn evaluate_symboldeclaration(
         &mut self,
-        ast: &ast::Ast,
+        astref: &AstRef,
         symdecl: &ast::nodes::SymbolDeclaration,
     ) {
         assert!(
-            !self.globals.contains_key(&symdecl.symbol.key),
+            !self.get_module().globals.contains_key(&symdecl.symbol.key),
             "Symbol {} is already defined!",
-            ast.get_symbol(&symdecl.symbol).unwrap()
+            self.context
+                .get_ast(astref)
+                .get_symbol(&symdecl.symbol)
+                .unwrap()
         );
 
         // TODO: check type
         let _typeval: Option<Value> = match &symdecl.typeexpr {
-            Some(n) => Some(self.evaluate_expression(ast, n)),
+            Some(n) => Some(self.evaluate_expression(&from_astref(&astref, n))),
             _ => None,
         };
 
@@ -615,13 +709,49 @@ impl<'a> TreeWalker<'a> {
             "Type definitions in declarations not yet supported!"
         );
 
-        let initval = self.evaluate_expression(ast, &symdecl.initexpr);
-        self.globals.insert(symdecl.symbol.key, initval);
+        let initval = self.evaluate_expression(&from_astref(astref, &symdecl.initexpr));
+        self.get_module_mut()
+            .globals
+            .insert(symdecl.symbol.key, initval);
+    }
+
+    fn evaluate_expression(&mut self, astref: &AstRef) -> Value {
+        match self.context.get_node(astref) {
+            ast::Node::BuiltInObjectReference(n) => self.evaluate_builtinref(n),
+            ast::Node::IntegerLiteral(n) => self.evaluate_integerliteral(n),
+            ast::Node::BooleanLiteral(n) => self.evaluate_booleanliteral(n),
+            ast::Node::StringLiteral(n) => self.evaluate_stringliteral(n),
+            ast::Node::FunctionLiteral(n) => self.evaluate_functionliteral(astref, n),
+            ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
+            ast::Node::CallOperation(n) => self.evaluate_calloperation(astref, n),
+            ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(astref, n),
+            ast::Node::IfExpression(n) => self.evaluate_ifexpression(astref, n),
+            ast::Node::SubScript(n) => self.evaluate_subscript(astref, n),
+            n => {
+                panic!("Not an expression! Node: {:?}", ast::NodeInfo::name(n));
+            }
+        }
+    }
+
+    fn evaluate_statement(&mut self, astref: &AstRef) {
+        return match self.context.get_node(astref) {
+            ast::Node::ModuleSelfDeclaration(_) => {
+                /* TODO: This should be pruned before any intepretation step */
+            }
+            ast::Node::Module(n) => self.evaluate_module(astref, n),
+            ast::Node::StatementBody(n) => self.evaluate_statementbody(astref, n),
+            ast::Node::SymbolDeclaration(n) => self.evaluate_symboldeclaration(astref, n),
+            ast::Node::IfStatement(n) => self.evaluate_ifstatement(astref, n),
+            ast::Node::ReturnStatement(n) => self.evaluate_returnstatement(astref, n),
+            _ => {
+                self.evaluate_expression(astref);
+            }
+        };
     }
 }
 
 impl<'a> TreeWalker<'a> {
-    pub fn new(main_ast: &'a ast::Ast, module_asts: &'a Vec<ast::Ast>) -> Self {
+    fn new(context: &'a Context) -> Self {
         // Make sure we always have a stackframe
         let frame = StackFrame {
             variables: HashMap::new(),
@@ -629,62 +759,61 @@ impl<'a> TreeWalker<'a> {
         };
 
         TreeWalker {
-            main_ast: main_ast,
-            module_asts: module_asts,
-            globals: HashMap::new(),
-            functions: Vec::new(),
+            modules: HashMap::new(),
             strings: Vec::new(),
             stackframes: vec![frame],
+            context: context,
+            current_module: None,
         }
     }
 
-    pub fn evaluate_expression(&mut self, ast: &ast::Ast, node: &ast::NodeRef) -> Value {
-        match ast.get_node(node) {
-            ast::Node::BuiltInObjectReference(n) => self.evaluate_builtinref(n),
-            ast::Node::IntegerLiteral(n) => self.evaluate_integerliteral(n),
-            ast::Node::BooleanLiteral(n) => self.evaluate_booleanliteral(n),
-            ast::Node::StringLiteral(n) => self.evaluate_stringliteral(n),
-            ast::Node::FunctionLiteral(n) => self.evaluate_functionliteral(ast, n),
-            ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
-            ast::Node::CallOperation(n) => self.evaluate_calloperation(ast, n),
-            ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(ast, n),
-            ast::Node::IfExpression(n) => self.evaluate_ifexpression(ast, n),
-            ast::Node::SubScript(n) => self.evaluate_subscript(ast, n),
-            n => {
-                panic!("Not an expression! Node: {:?}", ast::NodeInfo::name(n));
-            }
-        }
+    fn get_module(&self) -> &Module {
+        let key = &self.current_module.unwrap();
+        return self.modules.get(key).unwrap();
     }
 
-    pub fn evaluate_statement(&mut self, ast: &ast::Ast, node: &ast::NodeRef) {
-        return match ast.get_node(node) {
-            ast::Node::Module(n) => {
-                if let Some(body) = &n.statementbody {
-                    self.evaluate_statementbody(ast, as_node!(ast, StatementBody, body))
-                }
-            }
-            ast::Node::StatementBody(n) => self.evaluate_statementbody(ast, n),
-            ast::Node::SymbolDeclaration(n) => self.evaluate_symboldeclaration(ast, n),
-            ast::Node::IfStatement(n) => self.evaluate_ifstatement(ast, n),
-            ast::Node::ReturnStatement(n) => self.evaluate_returnstatement(ast, n),
-            _ => {
-                self.evaluate_expression(ast, node);
-            }
-        };
+    fn get_module_mut(&mut self) -> &mut Module {
+        let key = &self.current_module.unwrap();
+        return self.modules.get_mut(key).unwrap();
     }
 
     pub fn interpret(&mut self) {
-        // Evaluate all modules first
+        let mut main: Option<AstRef> = None;
+
+        // Evaluate all asts
         // TODO: This needs to happen in some specific order
-        for module_ast in self.module_asts {
-            if let Some(n) = module_ast.get_root() {
-                self.evaluate_statement(&module_ast, &n);
+        for ast in self.context.asts.values() {
+            match ast.get_root_node().unwrap() {
+                ast::Node::Module(n) => {
+                    self.evaluate_module(&from_ast(&ast), &n);
+                }
+                ast::Node::EntryPoint(n) => {
+                    // We save main for later and evaluate all modules first
+                    main = Some(from_ast_and_node(&ast, &n.statementbody));
+                }
+                n => panic!("Invalid ast root node: {:?}", n),
             }
         }
 
-        // Then evaluate the main function
-        if let Some(n) = self.main_ast.get_root() {
-            self.evaluate_statement(&self.main_ast, &n);
-        }
+        // Finally, register main module and run
+        // TODO: Use 0 as main module key for now
+        let module = Module::new(0);
+        self.modules.insert(0, module);
+
+        assert!(self.current_module.is_none());
+        self.current_module = Some(0);
+        self.evaluate_statement(&main.unwrap());
     }
+}
+
+pub fn run<'a>(main_ast: &'a ast::Ast, module_asts: &'a Vec<ast::Ast>) {
+    let mut context = Context::new();
+
+    context.asts.insert(main_ast.key, main_ast);
+    for module_ast in module_asts {
+        context.asts.insert(module_ast.key, module_ast);
+    }
+
+    let mut walker = TreeWalker::new(&context);
+    walker.interpret();
 }

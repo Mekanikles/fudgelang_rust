@@ -52,7 +52,12 @@ pub struct ParserResult {
 
 pub fn parse<'a>(tokens: &'a mut TokenStream<'a>, ismain: bool) -> ParserResult {
     let mut parser = Parser::new(tokens, ismain);
-    parser.parse();
+
+    if ismain {
+        parser.parse_main_file();
+    } else {
+        parser.parse_module_file();
+    }
 
     return ParserResult {
         ast: parser.ast,
@@ -70,12 +75,13 @@ enum TokenLayoutType {
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a mut TokenStream<'a>, ismain: bool) -> Self {
+        let source_name = tokens.get_source_name().to_string();
         Parser {
             tokens: tokens,
             current_token: None,
             last_token: None,
             temp_tokencount: 0,
-            ast: Ast::new(),
+            ast: Ast::new(source_name),
             errors: error::ErrorManager::new(),
             block_level: 0,
             blocks: Vec::new(),
@@ -565,43 +571,54 @@ impl<'a> Parser<'a> {
                     + self.last_token.unwrap().source_span.len,
             };
 
-            // Main file does not support module declarations
-            if self.ismain {
-                return Err(self.log_error(error::Error::at_span(
-                    errors::ModuleDeclarationInMain,
-                    source_span,
-                    "Main module cannot have module declarations".into(),
-                ))?);
-            }
+            if self.accept_with_layout(TokenType::Begin, TokenLayoutType::BlockKeyword) {
+                let body = self.parse_statementbody()?;
+                self.expect_with_layout(TokenType::End, TokenLayoutType::BlockEnd)?;
 
-            // TODO: Add support for inline modules with "begin" here
-            if self.ast.module.is_some() {
-                return Err(self.log_error(error::Error::at_span(
-                    errors::ModuleAlreadyDeclared,
-                    source_span,
-                    "Module already declared".into(),
-                ))?);
-            } else if self.ast.contains_more_than_root() {
-                self.log_error(error::Error::at_span(
-                    errors::ModuleDeclarationNotAtTop,
-                    source_span,
-                    "Module declaration needs to reside before any other statements in this file"
+                return Ok(Some(
+                    self.ast.add_node(
+                        ast::nodes::Module {
+                            symbol: symbol,
+                            statementbody: body,
+                        }
                         .into(),
-                ))?;
+                    ),
+                ));
+            } else {
+                // Main file does not support module self declarations
+                if self.ismain {
+                    return Err(self.log_error(error::Error::at_span(
+                        errors::ModuleDeclarationInMain,
+                        source_span,
+                        "Main module cannot have module declarations".into(),
+                    ))?);
+                }
+
+                // TODO: Add support for inline modules with "begin" here
+                if self.ast.module.is_some() {
+                    return Err(self.log_error(error::Error::at_span(
+                        errors::ModuleAlreadyDeclared,
+                        source_span,
+                        "Module already declared".into(),
+                    ))?);
+                } else if self.ast.contains_more_than_root() {
+                    self.log_error(error::Error::at_span(
+                        errors::ModuleDeclarationNotAtTop,
+                        source_span,
+                        "Module declaration needs to reside before any other statements in this file"
+                            .into(),
+                    ))?;
+                }
+
+                // TODO: Probably should not happen here
+                // Feels like this should happen in some symbol declaration step
+                //  publishing the module name together with the symbols
+                self.ast.module = Some(symbol);
+
+                return Ok(Some(self.ast.add_node(
+                    ast::nodes::ModuleSelfDeclaration { symbol: symbol }.into(),
+                )));
             }
-
-            self.ast.module = Some(symbol);
-
-            return Ok(Some(
-                self.ast.add_node(
-                    ast::nodes::Module {
-                        symbol: self.ast.module,
-                        is_self_declaration: true,
-                        statementbody: None,
-                    }
-                    .into(),
-                ),
-            ));
         }
 
         Ok(None)
@@ -802,18 +819,20 @@ impl<'a> Parser<'a> {
         ));
     }
 
-    // Parse module (usually file)
-    fn parse_module(&mut self) -> Result<(), error::ErrorId> {
+    fn parse_module_file_internal(&mut self) -> Result<(), error::ErrorId> {
         let node = self.ast.reserve_node();
         self.ast.set_root(node);
 
         let body = self.parse_statementbody()?;
+        let symbol = self
+            .ast
+            .module
+            .unwrap_or(self.ast.add_symbol("TODO_Need_default_name"));
         self.ast.replace_node(
             node,
             ast::nodes::Module {
-                symbol: self.ast.module,
-                is_self_declaration: false,
-                statementbody: Some(body),
+                symbol: symbol,
+                statementbody: body,
             }
             .into(),
         );
@@ -821,26 +840,27 @@ impl<'a> Parser<'a> {
         return Ok(());
     }
 
-    pub fn parse_internal(&mut self) -> Result<(), error::ErrorId> {
-        let result = self.parse_module();
+    fn parse_main_file_internal(&mut self) -> Result<(), error::ErrorId> {
+        let node = self.ast.reserve_node();
+        self.ast.set_root(node);
 
-        // TODO: this sucks
-        if self.current_token.is_some() {
-            let span = self.current_token.unwrap().source_span;
-            self.log_error(error::Error::at_span(
-                errors::UnexpectedToken,
-                span,
-                "Unparsed token!".into(),
-            ))?;
-        }
+        let body = self.parse_statementbody()?;
 
-        return result;
+        self.ast.replace_node(
+            node,
+            ast::nodes::EntryPoint {
+                statementbody: body,
+            }
+            .into(),
+        );
+
+        return Ok(());
     }
 
-    pub fn parse(&mut self) {
+    fn parse(&mut self, inner: &dyn Fn(&mut Self) -> Result<(), error::ErrorId>) {
         self.advance();
 
-        match self.parse_internal() {
+        match inner(self) {
             Err(error::ErrorId::FatalError(errors::ErrorLimitExceeded)) => {
                 eprintln!("Parsing stopped, error limit exceeed");
                 return;
@@ -849,6 +869,16 @@ impl<'a> Parser<'a> {
                 panic!("Unhandled error! {:?}", e);
             }
             _ => (),
+        }
+
+        // TODO: this sucks
+        if self.current_token.is_some() {
+            let span = self.current_token.unwrap().source_span;
+            let _ = self.log_error(error::Error::at_span(
+                errors::UnexpectedToken,
+                span,
+                "Unparsed token!".into(),
+            ));
         }
 
         debug_assert!(self.blocks.is_empty());
@@ -863,5 +893,13 @@ impl<'a> Parser<'a> {
                 eprintln!("{:?}", t);
             }
         }
+    }
+
+    pub fn parse_main_file(&mut self) {
+        self.parse(&Self::parse_main_file_internal);
+    }
+
+    pub fn parse_module_file(&mut self) {
+        self.parse(&Self::parse_module_file_internal);
     }
 }

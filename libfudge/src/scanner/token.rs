@@ -46,6 +46,7 @@ pub enum TokenType {
     Var,
     Func,
     Do,
+    Begin,
     End,
     Return,
 

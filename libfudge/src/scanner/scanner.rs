@@ -20,6 +20,7 @@ pub static KEYWORDS: phf::Map<&'static str, TokenType> = phf_map! {
     "var" => TokenType::Var,
     "func" => TokenType::Func,
     "do" => TokenType::Do,
+    "begin" => TokenType::Begin,
     "end" => TokenType::End,
     "return" => TokenType::Return,
 };

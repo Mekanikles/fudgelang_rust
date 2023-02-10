@@ -3,10 +3,13 @@ use regex::Regex;
 use std::fmt;
 use std::str;
 
-use crate::parser::stringstore::*;
+pub use crate::parser::stringstore::*;
 use crate::typesystem::*;
 
-use StringRef as SymbolRef;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+pub use StringRef as SymbolRef;
 
 #[derive(Debug)]
 pub enum BuiltInObject {
@@ -14,7 +17,7 @@ pub enum BuiltInObject {
     PrimitiveType(PrimitiveType),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct NodeRef {
     index: u32,
 }
@@ -25,16 +28,26 @@ impl<'a> fmt::Debug for NodeRef {
     }
 }
 
+pub use u64 as AstKey;
+
 pub struct Ast {
     pub module: Option<SymbolRef>,
+    pub source_name: String,
+    pub key: AstKey,
     nodes: Vec<Node>,
     root_index: Option<u32>,
     symbols: StringStore,
 }
 
 impl Ast {
-    pub fn new() -> Self {
+    pub fn new(source_name: String) -> Self {
+        let mut hasher = DefaultHasher::new();
+        source_name.hash(&mut hasher);
+        let key = hasher.finish();
+
         Ast {
+            source_name: source_name,
+            key: key,
             module: None,
             nodes: Vec::new(),
             root_index: None,
@@ -252,11 +265,15 @@ macro_rules! declare_nodes  {
 
 declare_nodes!(
     Invalid,
+    EntryPoint {
+        statementbody: NodeRef,
+    },
     Module {
-        // Bleh, this double-serves as the self-module declaration and the inline module statement
-        symbol: Option<SymbolRef>,
-        is_self_declaration: bool,
-        statementbody: Option<NodeRef>,
+        symbol: SymbolRef,
+        statementbody: NodeRef,
+    },
+    ModuleSelfDeclaration {
+        symbol: SymbolRef,
     },
     StatementBody {
         statements: Vec<NodeRef>,
@@ -324,12 +341,20 @@ impl ChildCollector for nodes::Invalid {
     }
 }
 
+impl ChildCollector for nodes::EntryPoint {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.statementbody);
+    }
+}
+
 impl ChildCollector for nodes::Module {
     fn collect_children(&self, collector: &mut Vec<NodeRef>) {
-        if let Some(body) = self.statementbody {
-            collector.push(body);
-        }
+        collector.push(self.statementbody);
     }
+}
+
+impl ChildCollector for nodes::ModuleSelfDeclaration {
+    fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
 }
 
 impl ChildCollector for nodes::StatementBody {
