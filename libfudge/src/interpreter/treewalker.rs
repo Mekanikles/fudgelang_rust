@@ -63,16 +63,16 @@ impl SymbolEnvironment {
 }
 
 struct Module {
-    pub _key: u64,
+    pub name: String,
     pub globals: SymbolEnvironment,
     pub functions: Vec<Function>,
     pub modules: Vec<u64>,
 }
 
 impl Module {
-    fn new(key: u64) -> Module {
+    fn new(name: String) -> Module {
         Module {
-            _key: key,
+            name: name,
             globals: SymbolEnvironment::new(),
             functions: Vec::new(),
             modules: Vec::new(),
@@ -387,7 +387,7 @@ impl<'a> TreeWalker<'a> {
                 // Push the referenced module around the evaluation
                 let old_module = self.current_module;
                 self.current_module = Some(m.key);
-                let result = self.evaluate_symbol(&subscript.field);
+                let result = self.evaluate_symbol(astref, &subscript.field);
                 self.current_module = old_module;
                 result
             }
@@ -674,7 +674,7 @@ impl<'a> TreeWalker<'a> {
         let key = module_node.symbol.key;
 
         // Register module globally
-        let module = Module::new(key);
+        let module = Module::new(ast.get_symbol(&module_node.symbol).unwrap().clone());
         self.all_modules.insert(key, module);
 
         // And locally
@@ -695,11 +695,15 @@ impl<'a> TreeWalker<'a> {
         }
     }
 
-    fn evaluate_symbolreference(&mut self, symref: &ast::nodes::SymbolReference) -> Value {
-        return self.evaluate_symbol(&symref.symbol);
+    fn evaluate_symbolreference(
+        &mut self,
+        astref: &AstRef,
+        symref: &ast::nodes::SymbolReference,
+    ) -> Value {
+        return self.evaluate_symbol(astref, &symref.symbol);
     }
 
-    fn evaluate_symbol(&mut self, symbol: &StringRef) -> Value {
+    fn evaluate_symbol(&mut self, astref: &AstRef, symbol: &StringRef) -> Value {
         // Check stack frame first
         // TODO: This is wrong when doing lookups in other modules
         if let Some(v) = self.stackframes.last().unwrap().variables.get(&symbol.key) {
@@ -720,8 +724,8 @@ impl<'a> TreeWalker<'a> {
 
         panic!(
             "Could not find symbol {:?} in module {:?}",
-            symbol.key,
-            self.get_module()._key
+            self.context.get_ast(astref).get_symbol(symbol).unwrap(),
+            self.get_module().name
         );
     }
 
@@ -767,7 +771,7 @@ impl<'a> TreeWalker<'a> {
             ast::Node::BooleanLiteral(n) => self.evaluate_booleanliteral(n),
             ast::Node::StringLiteral(n) => self.evaluate_stringliteral(n),
             ast::Node::FunctionLiteral(n) => self.evaluate_functionliteral(astref, n),
-            ast::Node::SymbolReference(n) => self.evaluate_symbolreference(n),
+            ast::Node::SymbolReference(n) => self.evaluate_symbolreference(astref, n),
             ast::Node::CallOperation(n) => self.evaluate_calloperation(astref, n),
             ast::Node::BinaryOperation(n) => self.evaluate_binaryoperation(astref, n),
             ast::Node::IfExpression(n) => self.evaluate_ifexpression(astref, n),
@@ -834,7 +838,7 @@ impl<'a> TreeWalker<'a> {
 
         // Register main module so other modules can use it to register themselves
         // TODO: Use 0 as main module key for now
-        let module = Module::new(0);
+        let module = Module::new("global".into());
         self.all_modules.insert(0, module);
         self.global_module = 0;
 
