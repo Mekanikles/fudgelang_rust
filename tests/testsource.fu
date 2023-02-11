@@ -9,11 +9,15 @@ def print_compare =
 		#output.print_format(msg, a, b)
 	end
 
-module local begin
+
+module outer_local begin
 	var a = 2 * (123 + 2 - 1) / 3
-	var b =
-		if a < 0 => 42
-		else if a > 0 => 43 else 666
+
+	module local begin
+		var b =
+			if a < 0 => 42
+			else if a > 0 => 43 else 666
+	end
 end
 
-print_compare(local.a, local.b)
+print_compare(outer_local.a, outer_local.local.b)

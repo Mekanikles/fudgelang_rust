@@ -66,6 +66,7 @@ struct Module {
     pub _key: u64,
     pub globals: SymbolEnvironment,
     pub functions: Vec<Function>,
+    pub modules: Vec<u64>,
 }
 
 impl Module {
@@ -74,6 +75,7 @@ impl Module {
             _key: key,
             globals: SymbolEnvironment::new(),
             functions: Vec::new(),
+            modules: Vec::new(),
         }
     }
 }
@@ -95,7 +97,8 @@ impl<'a> Context<'a> {
 }
 
 pub struct TreeWalker<'a> {
-    modules: HashMap<u64, Module>,
+    all_modules: HashMap<u64, Module>,
+    global_module: u64,
     strings: Vec<String>,
     stackframes: Vec<StackFrame>,
     current_module: Option<u64>,
@@ -670,9 +673,12 @@ impl<'a> TreeWalker<'a> {
         // TODO: Fallback for unnamed modules
         let key = module_node.symbol.key;
 
-        // Register module
+        // Register module globally
         let module = Module::new(key);
-        self.modules.insert(key, module);
+        self.all_modules.insert(key, module);
+
+        // And locally
+        self.get_module_mut().modules.push(key);
 
         let old_module = self.current_module;
         self.current_module = Some(key);
@@ -700,14 +706,15 @@ impl<'a> TreeWalker<'a> {
             return v.clone();
         }
 
+        let module = self.get_module();
+
         // Then globals
-        if let Some(v) = self.get_module().globals.get(&symbol.key) {
+        if let Some(v) = module.globals.get(&symbol.key) {
             return v.clone();
         }
 
         // Then modules
-        // TODO: Really should just look at submodules
-        if let Some(_) = self.modules.iter().find(|&module| *module.0 == symbol.key) {
+        if let Some(_) = module.modules.iter().find(|&module| *module == symbol.key) {
             return create_module_value(symbol);
         }
 
@@ -797,7 +804,8 @@ impl<'a> TreeWalker<'a> {
         };
 
         TreeWalker {
-            modules: HashMap::new(),
+            all_modules: HashMap::new(),
+            global_module: 0,
             strings: Vec::new(),
             stackframes: vec![frame],
             context: context,
@@ -806,17 +814,29 @@ impl<'a> TreeWalker<'a> {
     }
 
     fn get_module(&self) -> &Module {
-        let key = &self.current_module.unwrap();
-        return self.modules.get(key).unwrap();
+        if let Some(key) = &self.current_module {
+            return self.all_modules.get(key).unwrap();
+        } else {
+            return self.all_modules.get(&self.global_module).unwrap();
+        }
     }
 
     fn get_module_mut(&mut self) -> &mut Module {
-        let key = &self.current_module.unwrap();
-        return self.modules.get_mut(key).unwrap();
+        if let Some(key) = &self.current_module {
+            return self.all_modules.get_mut(key).unwrap();
+        } else {
+            return self.all_modules.get_mut(&self.global_module).unwrap();
+        }
     }
 
     pub fn interpret(&mut self) {
         let mut main: Option<AstRef> = None;
+
+        // Register main module so other modules can use it to register themselves
+        // TODO: Use 0 as main module key for now
+        let module = Module::new(0);
+        self.all_modules.insert(0, module);
+        self.global_module = 0;
 
         // Evaluate all asts
         // TODO: This needs to happen in some specific order
@@ -833,13 +853,9 @@ impl<'a> TreeWalker<'a> {
             }
         }
 
-        // Finally, register main module and run
-        // TODO: Use 0 as main module key for now
-        let module = Module::new(0);
-        self.modules.insert(0, module);
-
+        // Finally run main module
         assert!(self.current_module.is_none());
-        self.current_module = Some(0);
+        self.current_module = Some(self.global_module);
         self.evaluate_statement(&main.unwrap());
     }
 }
