@@ -3,6 +3,7 @@ use crate::parser::stringstore::*;
 use crate::typesystem::*;
 
 use std::collections::HashMap;
+use std::mem;
 
 use dyn_fmt::AsStrFormatExt;
 
@@ -39,6 +40,7 @@ struct Context<'a> {
     asts: HashMap<ast::AstKey, &'a ast::Ast>,
 }
 
+#[derive(Debug)]
 struct SymbolEnvironment {
     pub variables: HashMap<SymbolKey, Value>,
 }
@@ -107,6 +109,7 @@ pub struct TreeWalker<'a> {
     context: &'a Context<'a>,
 }
 
+#[derive(Debug)]
 struct StackFrame {
     variables: SymbolEnvironment,
     returnvalue: Option<Value>,
@@ -696,8 +699,15 @@ impl<'a> TreeWalker<'a> {
         let old_module = self.current_module;
         self.current_module = Some(key);
 
+        // Gah, this sucks. But a new module has no stack.
+        let mut old_stackframes: Vec<StackFrame> = Vec::new();
+        mem::swap(&mut old_stackframes, &mut self.stackframes);
+
         let body = as_node!(ast, StatementBody, &module_node.statementbody);
         self.evaluate_statementbody(astref, body);
+
+        // Restore stackframes
+        mem::swap(&mut old_stackframes, &mut self.stackframes);
 
         self.current_module = old_module;
     }
@@ -717,10 +727,11 @@ impl<'a> TreeWalker<'a> {
     }
 
     fn evaluate_symbol(&mut self, astref: &AstRef, symbol: &StringRef) -> Value {
-        // Check stack frame first
-        // TODO: This is wrong when doing lookups in other modules
-        if let Some(v) = self.stackframes.last().unwrap().variables.get(&symbol.key) {
-            return v.clone();
+        // Check stack frame first, if any
+        if let Some(frame) = self.stackframes.last() {
+            if let Some(v) = frame.variables.get(&symbol.key) {
+                return v.clone();
+            }
         }
 
         let mut module_key = self.current_module;
@@ -821,17 +832,11 @@ impl<'a> TreeWalker<'a> {
 
 impl<'a> TreeWalker<'a> {
     fn new(context: &'a Context) -> Self {
-        // Make sure we always have a stackframe
-        let frame = StackFrame {
-            variables: SymbolEnvironment::new(),
-            returnvalue: None,
-        };
-
         TreeWalker {
             all_modules: HashMap::new(),
             global_module: 0,
             strings: Vec::new(),
-            stackframes: vec![frame],
+            stackframes: Vec::new(),
             context: context,
             current_module: None,
         }
@@ -880,6 +885,13 @@ impl<'a> TreeWalker<'a> {
 
         // Finally run main module
         assert!(self.current_module == Some(self.global_module));
+
+        // Main is treated like a function, push a new stack frame
+        self.stackframes.push(StackFrame {
+            variables: SymbolEnvironment::new(),
+            returnvalue: None,
+        });
+
         self.evaluate_statement(&main.unwrap());
     }
 }

@@ -1,5 +1,8 @@
 ///////////// TODO /////////////
 
+[ ] Add Semantic Graph
+	* Tracks modules, functions, does lookup and type checking before interpretetation
+	* Can point into existing asts
 [ ] Add error recovery for parser
 	* Currently, any breaking error will skip error checking for the rest of the file
 [?] Remove elseif in favor or else [then]

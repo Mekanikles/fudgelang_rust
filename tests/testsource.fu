@@ -21,4 +21,8 @@ module outer_local begin
 	end
 end
 
-local2.print_compare(outer_local.a, outer_local.local.b)
+module local3 begin
+	def print_compare = local2.print_compare
+end
+
+local3.print_compare(outer_local.a, outer_local.local.b)
