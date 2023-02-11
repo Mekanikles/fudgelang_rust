@@ -64,15 +64,17 @@ impl SymbolEnvironment {
 
 struct Module {
     pub name: String,
+    pub parent: Option<u64>,
     pub globals: SymbolEnvironment,
     pub functions: Vec<Function>,
     pub modules: Vec<u64>,
 }
 
 impl Module {
-    fn new(name: String) -> Module {
+    fn new(name: String, parent: Option<u64>) -> Module {
         Module {
             name: name,
+            parent: parent,
             globals: SymbolEnvironment::new(),
             functions: Vec::new(),
             modules: Vec::new(),
@@ -116,7 +118,11 @@ pub struct Function {
     body: AstRef,
 }
 
-use u64 as FunctionRef;
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionRef {
+    index: u64,
+    module: u64,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Utf8StaticString(u64);
@@ -268,7 +274,7 @@ pub enum Value {
     Type(TypeId),
     Primitive(PrimitiveValue),
     BuiltInFunction(BuiltInFunction),
-    Function(u64),
+    Function(FunctionRef),
     Module(StringRef),
 }
 
@@ -294,9 +300,11 @@ impl Value {
                 PrimitiveValue::F64(_) => TypeId::Primitive(PrimitiveType::F64),
             },
             Value::BuiltInFunction(v) => TypeId::BuiltInFunction(v.clone()),
-            Value::Function(v) => {
-                TypeId::Function(tw.get_module().functions[*v as usize].signature.clone())
-            }
+            Value::Function(fref) => TypeId::Function(
+                tw.get_module(&fref.module).functions[fref.index as usize]
+                    .signature
+                    .clone(),
+            ),
             Value::Module(_) => TypeId::Module,
         }
     }
@@ -527,10 +535,10 @@ impl<'a> TreeWalker<'a> {
         }
 
         let returnvalue = match &callable {
-            Value::Function(n) => {
-                let funcindex = *n as usize;
+            Value::Function(fref) => {
+                let function = &self.get_module(&fref.module).functions[fref.index as usize];
 
-                let inputparams = &self.get_module().functions[funcindex].signature.inputparams;
+                let inputparams = &function.signature.inputparams;
                 assert!(args.len() == inputparams.len());
 
                 // Check signature and build frames
@@ -549,22 +557,21 @@ impl<'a> TreeWalker<'a> {
                 }
 
                 // Call
-                self.stackframes.push(frame);
-                let function = &self.get_module().functions[funcindex];
                 let fnastref = function.body;
                 let fnast = self.context.get_ast(&fnastref);
                 let node = as_node!(fnast, StatementBody, &fnastref.noderef);
 
                 // TODO: This is pretty hacky, but push the module of the function before calling
-                // TODO: Getting the module from the ast is wrong here, does not work for internal modules!
                 let old_module = self.current_module;
                 self.current_module = Some(function.module);
 
+                self.stackframes.push(frame);
                 self.evaluate_statementbody(astref, node);
+                let result = self.stackframes.pop().unwrap().returnvalue.clone();
 
                 self.current_module = old_module;
 
-                self.stackframes.pop().unwrap().returnvalue.clone()
+                result
             }
             Value::BuiltInFunction(n) => {
                 // TODO
@@ -656,15 +663,18 @@ impl<'a> TreeWalker<'a> {
             signature.outputparams.push(typeid);
         }
 
-        let funcid: FunctionRef = self.get_module().functions.len() as u64;
         let module = self.current_module.unwrap();
-        self.get_module_mut().functions.push(Function {
+        let funcref = FunctionRef {
+            index: self.get_current_module().functions.len() as u64,
+            module: module,
+        };
+        self.get_current_module_mut().functions.push(Function {
             module: module,
             signature: signature.clone(),
             body: from_astref(&astref, &fnliteral.body),
         });
 
-        return Value::Function(funcid);
+        return Value::Function(funcref);
     }
 
     fn evaluate_module(&mut self, astref: &AstRef, module_node: &ast::nodes::Module) {
@@ -674,11 +684,14 @@ impl<'a> TreeWalker<'a> {
         let key = module_node.symbol.key;
 
         // Register module globally
-        let module = Module::new(ast.get_symbol(&module_node.symbol).unwrap().clone());
+        let module = Module::new(
+            ast.get_symbol(&module_node.symbol).unwrap().clone(),
+            self.current_module,
+        );
         self.all_modules.insert(key, module);
 
         // And locally
-        self.get_module_mut().modules.push(key);
+        self.get_current_module_mut().modules.push(key);
 
         let old_module = self.current_module;
         self.current_module = Some(key);
@@ -710,22 +723,29 @@ impl<'a> TreeWalker<'a> {
             return v.clone();
         }
 
-        let module = self.get_module();
+        let mut module_key = self.current_module;
 
-        // Then globals
-        if let Some(v) = module.globals.get(&symbol.key) {
-            return v.clone();
-        }
+        // Check all modules up including the global module
+        while let Some(module) = module_key {
+            let module = self.get_module(&module);
 
-        // Then modules
-        if let Some(_) = module.modules.iter().find(|&module| *module == symbol.key) {
-            return create_module_value(symbol);
+            // Module globals
+            if let Some(v) = module.globals.get(&symbol.key) {
+                return v.clone();
+            }
+
+            // Submodules
+            if let Some(_) = module.modules.iter().find(|&module| *module == symbol.key) {
+                return create_module_value(symbol);
+            }
+
+            module_key = module.parent;
         }
 
         panic!(
             "Could not find symbol {:?} in module {:?}",
             self.context.get_ast(astref).get_symbol(symbol).unwrap(),
-            self.get_module().name
+            self.get_current_module().name
         );
     }
 
@@ -750,7 +770,7 @@ impl<'a> TreeWalker<'a> {
         let symenv = if !self.stackframes.is_empty() {
             &mut self.stackframes.last_mut().unwrap().variables
         } else {
-            &mut self.get_module_mut().globals
+            &mut self.get_current_module_mut().globals
         };
 
         assert!(
@@ -817,20 +837,20 @@ impl<'a> TreeWalker<'a> {
         }
     }
 
-    fn get_module(&self) -> &Module {
-        if let Some(key) = &self.current_module {
-            return self.all_modules.get(key).unwrap();
-        } else {
-            return self.all_modules.get(&self.global_module).unwrap();
-        }
+    fn get_module(&self, key: &u64) -> &Module {
+        return self.all_modules.get(key).unwrap();
     }
 
-    fn get_module_mut(&mut self) -> &mut Module {
-        if let Some(key) = &self.current_module {
-            return self.all_modules.get_mut(key).unwrap();
-        } else {
-            return self.all_modules.get_mut(&self.global_module).unwrap();
-        }
+    fn get_module_mut(&mut self, key: &u64) -> &mut Module {
+        return self.all_modules.get_mut(key).unwrap();
+    }
+
+    fn get_current_module(&self) -> &Module {
+        return self.get_module(&self.current_module.unwrap());
+    }
+
+    fn get_current_module_mut(&mut self) -> &mut Module {
+        return self.get_module_mut(&self.current_module.unwrap());
     }
 
     pub fn interpret(&mut self) {
@@ -838,9 +858,10 @@ impl<'a> TreeWalker<'a> {
 
         // Register main module so other modules can use it to register themselves
         // TODO: Use 0 as main module key for now
-        let module = Module::new("global".into());
+        let module = Module::new("global".into(), None);
         self.all_modules.insert(0, module);
         self.global_module = 0;
+        self.current_module = Some(self.global_module);
 
         // Evaluate all asts
         // TODO: This needs to happen in some specific order
@@ -858,8 +879,7 @@ impl<'a> TreeWalker<'a> {
         }
 
         // Finally run main module
-        assert!(self.current_module.is_none());
-        self.current_module = Some(self.global_module);
+        assert!(self.current_module == Some(self.global_module));
         self.evaluate_statement(&main.unwrap());
     }
 }
