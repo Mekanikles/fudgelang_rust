@@ -9,7 +9,7 @@ fn wrap_in_simple_declaration(typename: &str) -> String {
 }
 
 fn simple_declaration_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
-    return module_fragment_wrapper_tree(&[tree(SymbolDeclaration, body)]);
+    return entrypoint_wrapper_tree(&[tree(SymbolDeclaration, body)]);
 }
 
 #[test]
@@ -38,6 +38,6 @@ fn test_all_builtin_primitive_declarations() {
 fn test_boolean_literals() {
     verify_ast(
         "true\nfalse",
-        &module_fragment_wrapper_tree(&[leaf(BooleanLiteral), leaf(BooleanLiteral)]),
+        &entrypoint_wrapper_tree(&[leaf(BooleanLiteral), leaf(BooleanLiteral)]),
     );
 }

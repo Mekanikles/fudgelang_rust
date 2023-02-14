@@ -1479,3 +1479,107 @@ end
 func beginFrame() do
 	Sdl2Lib.beginFrame(0, 0)
 end
+
+// Structs, Interfaces etc
+
+module interface books begin
+	struct book
+
+	func new() -> book
+	func read(data : book) -> string
+	property author(data : book) : string // Needs get/set info, set might not be available
+end
+
+module books begin
+	struct book begin
+		...
+	end
+
+	func new() -> book do
+		return book { "hej", 666 }
+	end
+
+	// UFCS, callable like data.read()
+	func read(data : book) -> string do
+	end
+
+	// Property-functions, gettable/settable like data.author = "foo"
+	property get author(data : book) -> string do
+		return data._author
+	end
+	property set author(data : book, value : string) do
+		data._author = value
+	end
+end
+
+// All members of a class are public, classes carry no implementation information
+class book : resource begin
+	def constant : string
+	var name : string
+	const ssid : string
+
+	func new() -> book
+	func read(this) -> string
+
+	var author : string
+end
+
+// "super" class
+class resource begin
+	const name : string
+	const ssid : string
+end
+
+// Hide book impl in module
+private module impl begin
+	struct book begin
+		var name : string
+		const ssid : string
+		var _author : string
+	end
+
+	// TODO: constructor/destructors
+	func create() -> new book do
+		return book{"lotr", "1234", "allan"}
+	end
+
+	implement book begin
+		func read(this) -> string do
+			...
+		end
+
+		property get author(this) -> string do
+			return this._author
+		end
+		property set author(this, value : string) do
+			this._author = value
+		end
+	end
+end
+
+// Implement resource class for all books
+//  this implementation can be omitted, since the field names already match
+implement resource for book begin
+	// Const can map to var, but not the other way around
+	name => book.name
+	ssid => book.ssid
+end
+
+// Implement book class for the private implementation
+implement book for impl.book as x begin
+	// Since all field names are the same, we can omit all of these to avoid the boilerplate
+	//  the implementation will automatically map by field/function name
+	name => x.name
+	ssid => x.ssid
+	new => x.new
+	read => x.read
+	// Note here that the special property "author" looks just like any other struct field
+	author => x.author
+end
+
+
+//// Arrays
+
+var hej : float[4]
+var element : float = hej[0]
+var bleh = [0, 1, 2, 3, 4]

@@ -114,7 +114,7 @@ impl<'a> fmt::Debug for NodeIdTree {
     }
 }
 
-pub fn module_fragment_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
+pub fn entrypoint_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
     use crate::parser::ast::NodeId::*;
-    return tree(Module, &[tree(StatementBody, body)]);
+    return tree(EntryPoint, &[tree(StatementBody, body)]);
 }

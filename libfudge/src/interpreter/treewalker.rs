@@ -771,12 +771,25 @@ impl<'a> TreeWalker<'a> {
             _ => None,
         };
 
-        assert!(
-            !symdecl.typeexpr.is_some(),
-            "Type definitions in declarations not yet supported!"
-        );
-
         let initval = self.evaluate_expression(&from_astref(astref, &symdecl.initexpr));
+
+        if let Some(typeexpr) = symdecl.typeexpr {
+            let inittype = initval.get_type(&self);
+            let typeval = self.evaluate_expression(&from_astref(astref, &typeexpr));
+            let typetype = match typeval {
+                Value::Type(n) => n,
+                n => panic!("Expected type, got {:?}", n),
+            };
+            assert_eq!(
+                typetype,
+                inittype,
+                "Mismatching types for symbol declaration {}",
+                self.context
+                    .get_ast(astref)
+                    .get_symbol(&symdecl.symbol)
+                    .unwrap()
+            )
+        }
 
         let symenv = if !self.stackframes.is_empty() {
             &mut self.stackframes.last_mut().unwrap().variables

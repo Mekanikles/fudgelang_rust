@@ -10,7 +10,7 @@ fn wrap_in_function_literal_with_outparams(returntype: &str, body: &str) -> Stri
 }
 
 fn simple_function_literal_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
-    return module_fragment_wrapper_tree(&[tree(FunctionLiteral, &[tree(StatementBody, body)])]);
+    return entrypoint_wrapper_tree(&[tree(FunctionLiteral, &[tree(StatementBody, body)])]);
 }
 
 fn function_literal_with_outparams_wrapper_tree(
@@ -26,7 +26,7 @@ fn function_literal_with_outparams_wrapper_tree(
     subtree.push(tree(StatementBody, body));
 
     return tree(
-        Module,
+        EntryPoint,
         &[tree(StatementBody, &[tree(FunctionLiteral, &subtree[..])])],
     );
 }

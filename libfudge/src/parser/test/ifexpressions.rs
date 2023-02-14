@@ -6,7 +6,7 @@ use crate::parser::ast::NodeId::*;
 fn test_expression_if_simple() {
     verify_ast(
         "def x = if a => b",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -20,7 +20,7 @@ fn test_expression_if_simple() {
 fn test_expression_if_else_oneline() {
     verify_ast(
         "def x = if a => b else c",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -38,7 +38,7 @@ fn test_expression_if_else_oneline() {
 fn test_expression_if_elseif_else_oneline_1() {
     verify_ast(
         "def x = if a => b else if c => d else e",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -63,7 +63,7 @@ fn test_expression_if_elseif_else_oneline_1() {
 fn test_expression_if_elseif_else_oneline_2() {
     verify_ast(
         "def x = if a => b elseif c => d else e",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -84,7 +84,7 @@ fn test_expression_if_simple_multiline_1() {
     verify_ast(
         "def x = if a =>\n\
             \tb",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -100,7 +100,7 @@ fn test_expression_if_simple_multiline_2() {
         "def x =\n\
             \tif a =>\n\
                 \t\tb",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -157,7 +157,7 @@ fn test_expression_if_else_multiline_1() {
         "def x =\n\
             \tif a => b\n\
             \telse c",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -179,7 +179,7 @@ fn test_expression_if_else_multiline_2() {
                 \t\tb\n\
             \telse\n\
                 \t\tc",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -220,7 +220,7 @@ fn test_expression_if_else_if_else_multiline_1() {
             \telse\n\
             \t\tif c => d\n\
             \t\telse e",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -252,7 +252,7 @@ fn test_expression_if_else_if_else_multiline_2() {
                     \t\t\td\n\
                 \t\telse\n\
                     \t\t\te",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -280,7 +280,7 @@ fn test_expression_if_elseif_else_multiline_1() {
             \tif a => b\n\
             \telseif c => d\n\
             \telse e",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,
@@ -306,7 +306,7 @@ fn test_expression_if_elseif_else_multiline_2() {
                 \t\td\n\
             \telse\n\
                 \t\te",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             SymbolDeclaration,
             &[tree(
                 IfExpression,

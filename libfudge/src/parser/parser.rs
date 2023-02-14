@@ -704,9 +704,14 @@ impl<'a> Parser<'a> {
             self.expect(TokenType::Identifier)?;
             let symbol = self.get_last_token_symbol();
 
-            // TODO: Optional type specifier
+            // Optional type specifier
+            let typexpr = if self.accept(TokenType::Colon) {
+                Some(self.expect_expression()?)
+            } else {
+                None
+            };
 
-            // Defines must be initalized to a value
+            // TODO: Only defines must be initalized to a value
             self.expect(TokenType::Equals)?;
 
             if let Some(n) = self.parse_expression()? {
@@ -716,7 +721,7 @@ impl<'a> Parser<'a> {
                         ast::nodes::SymbolDeclaration {
                             symbol: symbol,
                             decltype: decltype,
-                            typeexpr: None,
+                            typeexpr: typexpr,
                             initexpr: n,
                         }
                         .into(),

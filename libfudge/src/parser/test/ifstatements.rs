@@ -7,7 +7,7 @@ fn test_statement_if_empty() {
     verify_ast(
         "if a then\n\
         end",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[leaf(SymbolReference), leaf(StatementBody)],
         )]),
@@ -18,7 +18,7 @@ fn test_statement_if_empty() {
 fn test_statement_if_empty_2() {
     verify_ast(
         "if a then end",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[leaf(SymbolReference), leaf(StatementBody)],
         )]),
@@ -44,7 +44,7 @@ fn test_statement_if_empty_multiline_conditional() {
             \tb)\n\
         then\n\
         end",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 tree(
@@ -78,7 +78,7 @@ fn test_statement_if_empty_wrong_multiline_conditional() {
 fn test_statement_if_then_else_empty() {
     verify_ast(
         "if a then\nelse\nend",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -93,7 +93,7 @@ fn test_statement_if_then_else_empty() {
 fn test_statement_if_else_if_empty() {
     verify_ast(
         "if a then\nelseif b then\nend",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -109,7 +109,7 @@ fn test_statement_if_else_if_empty() {
 fn test_statement_if_else_if_else_empty() {
     verify_ast(
         "if a then\nelseif b then\nelse\nend",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -126,7 +126,7 @@ fn test_statement_if_else_if_else_empty() {
 fn test_statement_if_chained_else_if_empty() {
     verify_ast(
         "if a then\nelseif b then\nelseif c then\nelseif d then\nend",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -146,7 +146,7 @@ fn test_statement_if_chained_else_if_empty() {
 fn test_statement_if_chained_else_if_else_empty() {
     verify_ast(
         "if a then\nelseif b then\nelseif c then\nelseif d then\nelse\nend",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -169,7 +169,7 @@ fn test_statement_if_non_empty() {
 
     verify_ast(
         blockversion,
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -185,7 +185,7 @@ fn test_statement_non_empty_if_else() {
 
     verify_ast(
         blockversion,
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),
@@ -203,7 +203,7 @@ fn test_statement_non_empty_if_chained_else_if_else() {
 
     verify_ast(
         blockversion,
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             IfStatement,
             &[
                 leaf(SymbolReference),

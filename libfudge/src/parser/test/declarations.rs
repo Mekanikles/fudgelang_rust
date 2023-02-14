@@ -15,8 +15,7 @@ static DECLTYPES: phf::Map<&'static str, ast::SymbolDeclarationType> = phf_map! 
 fn test_all_simple_declarations() {
     fn test_simple_declaration(declstr: &str, decltype: ast::SymbolDeclarationType) {
         let source = format!("{} a = 0", declstr);
-        let expected =
-            module_fragment_wrapper_tree(&[tree(SymbolDeclaration, &[leaf(IntegerLiteral)])]);
+        let expected = entrypoint_wrapper_tree(&[tree(SymbolDeclaration, &[leaf(IntegerLiteral)])]);
         let ast = verify_ast(source.as_str(), &expected);
 
         if let Some(noderef) = ast.find_first_node(SymbolDeclaration) {

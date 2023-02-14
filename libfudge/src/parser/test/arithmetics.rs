@@ -22,7 +22,7 @@ static BINOPS: phf::Map<&'static str, ast::BinaryOperationType> = phf_map! {
 fn test_all_simple_binary_operations() {
     fn test_simple_binary_operation(opstr: &str, optype: ast::BinaryOperationType) {
         let source = format!("a {} b", opstr);
-        let expected = module_fragment_wrapper_tree(&[tree(
+        let expected = entrypoint_wrapper_tree(&[tree(
             BinaryOperation,
             &[leaf(SymbolReference), leaf(SymbolReference)],
         )]);
@@ -42,12 +42,12 @@ fn test_all_simple_binary_operations() {
 
 #[test]
 fn test_empty_parenthesis() {
-    verify_ast("()", &module_fragment_wrapper_tree(&[]));
+    verify_ast("()", &entrypoint_wrapper_tree(&[]));
 }
 
 #[test]
 fn test_nested_empty_parenthesis() {
-    verify_ast("((()))", &module_fragment_wrapper_tree(&[]));
+    verify_ast("((()))", &entrypoint_wrapper_tree(&[]));
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn test_simple_parenthesis() {
 fn test_parenthesis_precedence() {
     verify_ast(
         "a + (b + c)",
-        &module_fragment_wrapper_tree(&[tree(
+        &entrypoint_wrapper_tree(&[tree(
             BinaryOperation,
             &[
                 leaf(SymbolReference),
