@@ -18,7 +18,7 @@
 [ ] Add import statement for FFI
 	* Possibly looks like a struct with fields
 	* HMMM: How to deal with symbols that collide with keywords?
-
+[ ] Add default construction for symbol declarations without init expressions
 
 
 ///////////// DONE /////////////

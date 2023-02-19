@@ -711,31 +711,54 @@ impl<'a> Parser<'a> {
                 None
             };
 
-            // TODO: Only defines must be initalized to a value
-            self.expect(TokenType::Equals)?;
+            // Only vars can be default-initialized
+            let initexpr = if decltype != ast::SymbolDeclarationType::Var {
+                // TODO: Explain why this is expected on error
+                self.expect(TokenType::Equals)?;
+                Some(self.expect_expression()?)
+            } else if self.accept(TokenType::Equals) {
+                Some(self.expect_expression()?)
+            } else {
+                None
+            };
 
-            if let Some(n) = self.parse_expression()? {
+            return Ok(Some(
+                self.ast.replace_node(
+                    node,
+                    ast::nodes::SymbolDeclaration {
+                        symbol: symbol,
+                        decltype: decltype,
+                        typeexpr: typexpr,
+                        initexpr: initexpr,
+                    }
+                    .into(),
+                ),
+            ));
+        }
+
+        return Ok(None);
+    }
+
+    fn parse_expression_lead_in_statement(
+        &mut self,
+    ) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        if let Some(expr) = self.parse_expression()? {
+            if self.accept(TokenType::Equals) {
+                let rhs = self.expect_expression()?;
+                // TODO: Wrong node order, expr is already added
                 return Ok(Some(
-                    self.ast.replace_node(
-                        node,
-                        ast::nodes::SymbolDeclaration {
-                            symbol: symbol,
-                            decltype: decltype,
-                            typeexpr: typexpr,
-                            initexpr: n,
+                    self.ast.add_node(
+                        ast::nodes::AssignStatement {
+                            lhs: expr,
+                            rhs: rhs,
                         }
                         .into(),
                     ),
                 ));
             } else {
-                return Err(self.log_error(error::Error::at_span(
-                    errors::ExpectedExpression,
-                    self.current_token.as_ref().unwrap().source_span,
-                    "Expected expression for initialization value".into(),
-                ))?);
+                return Ok(Some(expr));
             }
         }
-
         return Ok(None);
     }
 
@@ -760,7 +783,7 @@ impl<'a> Parser<'a> {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_return_statement()? {
             return Ok(Some(n));
-        } else if let Some(n) = self.parse_expression()? {
+        } else if let Some(n) = self.parse_expression_lead_in_statement()? {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_module_declaration()? {
             return Ok(Some(n));

@@ -12,7 +12,8 @@ module local2 begin
 end
 
 module outer_local begin
-	var a : std.u32 = 2 * (123 + 2 - 1) / 3
+	var a : std.u32
+	a = 2 * (123 + 2 - 1) / 3
 
 	module local begin
 		var b =

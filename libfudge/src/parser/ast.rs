@@ -304,6 +304,7 @@ declare_nodes!(
     IfStatement { branches: Vec<(NodeRef, NodeRef)>, elsebranch: Option<NodeRef> },
     IfExpression { branches: Vec<(NodeRef, NodeRef)>, elsebranch: Option<NodeRef>  },
     ReturnStatement { expr: Option<NodeRef> },
+    AssignStatement { lhs: NodeRef, rhs: NodeRef },
     ArgumentList {
         args: Vec<NodeRef>,
     },
@@ -322,7 +323,7 @@ declare_nodes!(
         symbol: SymbolRef,
         decltype: SymbolDeclarationType,
         typeexpr: Option<NodeRef>,
-        initexpr: NodeRef,
+        initexpr: Option<NodeRef>,
     },
     SubScript {
         expr: NodeRef,
@@ -442,6 +443,13 @@ impl ChildCollector for nodes::ReturnStatement {
     }
 }
 
+impl ChildCollector for nodes::AssignStatement {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.lhs);
+        collector.push(self.rhs);
+    }
+}
+
 impl ChildCollector for nodes::ArgumentList {
     fn collect_children(&self, collector: &mut Vec<NodeRef>) {
         for n in &self.args {
@@ -469,7 +477,9 @@ impl ChildCollector for nodes::SymbolDeclaration {
         if let Some(n) = &self.typeexpr {
             collector.push(*n);
         }
-        collector.push(self.initexpr);
+        if let Some(n) = &self.initexpr {
+            collector.push(*n);
+        }
     }
 }
 

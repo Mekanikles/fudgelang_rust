@@ -19,7 +19,7 @@
 					"kind": "bin"
 				}
 			},
-			"args": ["tests/testsource.fu"],
+			"args": ["tests/testsource.fu", "-m", "tests/moduletest.fum"],
 			"cwd": "${workspaceFolder}"
 		},
 		{

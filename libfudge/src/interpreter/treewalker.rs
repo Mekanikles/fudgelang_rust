@@ -59,6 +59,11 @@ impl SymbolEnvironment {
     fn get(&self, s: &SymbolKey) -> Option<&Value> {
         self.variables.get(s)
     }
+
+    fn get_mut(&mut self, s: &SymbolKey) -> Option<&mut Value> {
+        self.variables.get_mut(s)
+    }
+
     fn contains_key(&self, s: &SymbolKey) -> bool {
         self.variables.contains_key(s)
     }
@@ -271,7 +276,7 @@ primitive_binop_unsupported!(BinOp<GeaterThan>, Utf8StaticString,);
 primitive_comparison_impl!(BinOp<GreaterThanOrEq>, >=, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
 primitive_binop_unsupported!(BinOp<GreaterThanOrEq>, Utf8StaticString,);
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Value {
     Null,
     Type(TypeId),
@@ -279,11 +284,29 @@ pub enum Value {
     BuiltInFunction(BuiltInFunction),
     Function(FunctionRef),
     Module(StringRef),
+    ValueRef(ValueRef),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StackValueRef {
+    index: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GlobalValueRef {
+    module: u64,
+    key: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValueRef {
+    StackValueRef(StackValueRef),
+    GlobalValueRef(GlobalValueRef),
 }
 
 impl Value {
     fn get_type(&self, tw: &TreeWalker) -> TypeId {
-        match self {
+        match self.get_inner_ref(tw) {
             Value::Null => TypeId::Null,
             Value::Type(_) => TypeId::Type,
             Value::Primitive(p) => match p {
@@ -309,11 +332,12 @@ impl Value {
                     .clone(),
             ),
             Value::Module(_) => TypeId::Module,
+            _ => panic!("Value type cannot be found: {:?}", &self),
         }
     }
 
     fn to_string(&self, tw: &TreeWalker) -> String {
-        match self {
+        match self.get_inner_ref(tw) {
             Value::Primitive(p) => match p {
                 PrimitiveValue::Utf8StaticString(v) => tw.strings[v.0 as usize].clone(),
                 PrimitiveValue::Bool(v) => v.0.to_string(),
@@ -339,6 +363,61 @@ impl Value {
     fn is_type(&self, t: &TypeId, tw: &TreeWalker) -> bool {
         return self.get_type(tw) == *t;
     }
+
+    fn get_inner_ref_mut<'a>(&'a mut self, tw: &'a mut TreeWalker) -> &'a mut Value {
+        return match self {
+            Value::ValueRef(reftype) => match reftype {
+                ValueRef::StackValueRef(r) => tw
+                    .stackframes
+                    .last_mut()
+                    .unwrap()
+                    .variables
+                    .get_mut(&r.index)
+                    .unwrap(),
+                ValueRef::GlobalValueRef(r) => tw
+                    .get_module_mut(&r.module)
+                    .globals
+                    .get_mut(&r.key)
+                    .unwrap(),
+            },
+            _ => self,
+        };
+    }
+
+    fn is_ref(&self) -> bool {
+        match self {
+            Value::ValueRef(_) => true,
+            _ => false,
+        }
+    }
+
+    fn get_inner_ref<'a>(&'a self, tw: &'a TreeWalker) -> &'a Value {
+        let result = match self {
+            Value::ValueRef(reftype) => match reftype {
+                ValueRef::StackValueRef(r) => tw
+                    .stackframes
+                    .last()
+                    .unwrap()
+                    .variables
+                    .get(&r.index)
+                    .unwrap(),
+                ValueRef::GlobalValueRef(r) => {
+                    tw.get_module(&r.module).globals.get(&r.key).unwrap()
+                }
+            },
+            _ => self,
+        };
+        // Recurse until we have a non-ref value
+        if result.is_ref() {
+            return result.get_inner_ref(tw);
+        } else {
+            return result;
+        }
+    }
+
+    fn clone_or_move_inner(self) -> Value {
+        self
+    }
 }
 
 fn create_primitive_type(t: &PrimitiveType) -> Value {
@@ -355,6 +434,37 @@ fn create_null_value() -> Value {
 
 fn create_module_value(name: &StringRef) -> Value {
     return Value::Module(name.clone());
+}
+
+fn create_stack_valueref(index: u64) -> Value {
+    return Value::ValueRef(ValueRef::StackValueRef(StackValueRef { index }));
+}
+
+fn create_global_valueref(module: u64, key: u64) -> Value {
+    return Value::ValueRef(ValueRef::GlobalValueRef(GlobalValueRef { module, key }));
+}
+
+fn create_default_value(typeid: &TypeId) -> Value {
+    match typeid {
+        TypeId::Primitive(p) => match p {
+            PrimitiveType::StaticStringUtf8 => {
+                // TODO: Bad default value for string
+                Value::Primitive(PrimitiveValue::Utf8StaticString(Utf8StaticString(0)))
+            }
+            PrimitiveType::Bool => Value::Primitive(PrimitiveValue::Bool(Bool(false))),
+            PrimitiveType::U8 => Value::Primitive(PrimitiveValue::U8(U8(0))),
+            PrimitiveType::U16 => Value::Primitive(PrimitiveValue::U16(U16(0))),
+            PrimitiveType::U32 => Value::Primitive(PrimitiveValue::U32(U32(0))),
+            PrimitiveType::U64 => Value::Primitive(PrimitiveValue::U64(U64(0))),
+            PrimitiveType::S8 => Value::Primitive(PrimitiveValue::S8(S8(0))),
+            PrimitiveType::S16 => Value::Primitive(PrimitiveValue::S16(S16(0))),
+            PrimitiveType::S32 => Value::Primitive(PrimitiveValue::S32(S32(0))),
+            PrimitiveType::S64 => Value::Primitive(PrimitiveValue::S64(S64(0))),
+            PrimitiveType::F32 => Value::Primitive(PrimitiveValue::F32(F32(0.0))),
+            PrimitiveType::F64 => Value::Primitive(PrimitiveValue::F64(F64(0.0))),
+        },
+        _ => panic!("No default value for typeid {:?}", typeid),
+    }
 }
 
 macro_rules! as_node {
@@ -395,6 +505,7 @@ impl<'a> TreeWalker<'a> {
             Value::Null => panic!("Null value in subscript {:?}!", subscript),
             Value::Type(_) => panic!("Type subscripts not yet supported"),
             Value::Module(m) => {
+                // TODO: What happens with the stackframe here, it should not be valid for module lookups
                 // Push the referenced module around the evaluation
                 let old_module = self.current_module;
                 self.current_module = Some(m.key);
@@ -489,6 +600,25 @@ impl<'a> TreeWalker<'a> {
         };
     }
 
+    fn evaluate_assignstatement(
+        &mut self,
+        astref: &AstRef,
+        assignstmt: &ast::nodes::AssignStatement,
+    ) {
+        let mut lhs = self.evaluate_expression(&from_astref(&astref, &assignstmt.lhs));
+        let rhs = self.evaluate_expression(&from_astref(&astref, &assignstmt.rhs));
+
+        assert_eq!(
+            lhs.get_type(&self),
+            rhs.get_type(&self),
+            "Mismatching types for assignment",
+        );
+
+        let value = lhs.get_inner_ref_mut(self);
+
+        *value = rhs.clone_or_move_inner();
+    }
+
     fn evaluate_binaryoperation(
         &mut self,
         astref: &AstRef,
@@ -504,7 +634,7 @@ impl<'a> TreeWalker<'a> {
             rhsval
         );
 
-        return match (&lhsval, &rhsval) {
+        return match (lhsval.get_inner_ref(self), rhsval.get_inner_ref(self)) {
             (Value::Primitive(l), Value::Primitive(r)) => match (l, r) {
                 (PrimitiveValue::U32(l2), PrimitiveValue::U32(r2)) => {
                     perform_binop(&binop.optype, l2, r2)
@@ -537,7 +667,8 @@ impl<'a> TreeWalker<'a> {
             args.push(val);
         }
 
-        let returnvalue = match &callable {
+        let actual = callable.get_inner_ref(self);
+        let returnvalue = match actual {
             Value::Function(fref) => {
                 let function = &self.get_module(&fref.module).functions[fref.index as usize];
 
@@ -549,14 +680,17 @@ impl<'a> TreeWalker<'a> {
                     variables: SymbolEnvironment::new(),
                     returnvalue: None,
                 };
-                for (i, arg) in args.iter().enumerate() {
+                for (i, arg) in args.into_iter().enumerate() {
                     assert!(
                         arg.get_type(&self) == inputparams[i].1,
                         "Callable argument type mismatch! Arg: {:?}, Param: {:?}",
                         arg.get_type(&self),
                         inputparams[i].1
                     );
-                    frame.variables.insert(inputparams[i].0, arg.clone());
+                    // TODO: Does not need inner clone, probably
+                    frame
+                        .variables
+                        .insert(inputparams[i].0, arg.clone_or_move_inner());
                 }
 
                 // Call
@@ -569,8 +703,12 @@ impl<'a> TreeWalker<'a> {
                 self.current_module = Some(function.module);
 
                 self.stackframes.push(frame);
-                self.evaluate_statementbody(astref, node);
-                let result = self.stackframes.pop().unwrap().returnvalue.clone();
+                self.evaluate_statementbody(&fnastref, node);
+                let result = if let Some(v) = self.stackframes.pop().unwrap().returnvalue {
+                    Some(v.clone_or_move_inner())
+                } else {
+                    None
+                };
 
                 self.current_module = old_module;
 
@@ -611,7 +749,7 @@ impl<'a> TreeWalker<'a> {
 
                 None
             }
-            _ => panic!("Expression was not a function: {:?}", callable),
+            _ => panic!("Expression was not a function: {:?}", actual),
         };
 
         if let Some(v) = returnvalue {
@@ -639,7 +777,7 @@ impl<'a> TreeWalker<'a> {
             // Skip symbol for now
 
             let typeval: Value = self.evaluate_expression(&from_astref(&astref, &n.typeexpr));
-            let typeid = match typeval {
+            let typeid = match typeval.get_inner_ref(self) {
                 Value::Type(n) => n,
                 _ => panic!(
                     "Expected Type expression for input parameter, got {:?}",
@@ -647,7 +785,7 @@ impl<'a> TreeWalker<'a> {
                 ),
             };
 
-            signature.inputparams.push((key, typeid));
+            signature.inputparams.push((key, typeid.clone()));
         }
 
         for outparam in &fnliteral.outputparams {
@@ -729,8 +867,8 @@ impl<'a> TreeWalker<'a> {
     fn evaluate_symbol(&mut self, astref: &AstRef, symbol: &StringRef) -> Value {
         // Check stack frame first, if any
         if let Some(frame) = self.stackframes.last() {
-            if let Some(v) = frame.variables.get(&symbol.key) {
-                return v.clone();
+            if frame.variables.get(&symbol.key).is_some() {
+                return create_stack_valueref(symbol.key);
             }
         }
 
@@ -741,12 +879,17 @@ impl<'a> TreeWalker<'a> {
             let module = self.get_module(&module);
 
             // Module globals
-            if let Some(v) = module.globals.get(&symbol.key) {
-                return v.clone();
+            if module.globals.get(&symbol.key).is_some() {
+                return create_global_valueref(module_key.unwrap(), symbol.key);
             }
 
             // Submodules
-            if let Some(_) = module.modules.iter().find(|&module| *module == symbol.key) {
+            if module
+                .modules
+                .iter()
+                .find(|&module| *module == symbol.key)
+                .is_some()
+            {
                 return create_module_value(symbol);
             }
 
@@ -765,23 +908,42 @@ impl<'a> TreeWalker<'a> {
         astref: &AstRef,
         symdecl: &ast::nodes::SymbolDeclaration,
     ) {
-        // TODO: check type
-        let _typeval: Option<Value> = match &symdecl.typeexpr {
+        let typeval = match &symdecl.typeexpr {
             Some(n) => Some(self.evaluate_expression(&from_astref(&astref, n))),
             _ => None,
         };
 
-        let initval = self.evaluate_expression(&from_astref(astref, &symdecl.initexpr));
+        let initval = if let Some(initexpr) = &symdecl.initexpr {
+            Some(self.evaluate_expression(&from_astref(astref, initexpr)))
+        } else {
+            None
+        };
 
-        if let Some(typeexpr) = symdecl.typeexpr {
-            let inittype = initval.get_type(&self);
-            let typeval = self.evaluate_expression(&from_astref(astref, &typeexpr));
-            let typetype = match typeval {
-                Value::Type(n) => n,
-                n => panic!("Expected type, got {:?}", n),
-            };
+        let typevaltype = if let Some(typeval) = &typeval {
+            match typeval.get_inner_ref(self) {
+                Value::Type(n) => Some(n),
+                _ => panic!("Type expression is not a type!"),
+            }
+        } else {
+            None
+        };
+
+        let actual_initval = initval.unwrap_or_else(|| {
+            assert!(
+                typeval.is_some(),
+                "Cannot initialize default value without known type for symbol declaration {}",
+                self.context
+                    .get_ast(astref)
+                    .get_symbol(&symdecl.symbol)
+                    .unwrap()
+            );
+            create_default_value(&typevaltype.as_ref().unwrap())
+        });
+
+        if let Some(typevaltype) = typevaltype {
+            let inittype = actual_initval.get_type(&self);
             assert_eq!(
-                typetype,
+                *typevaltype,
                 inittype,
                 "Mismatching types for symbol declaration {}",
                 self.context
@@ -805,7 +967,7 @@ impl<'a> TreeWalker<'a> {
                 .get_symbol(&symdecl.symbol)
                 .unwrap()
         );
-        symenv.insert(symdecl.symbol.key, initval);
+        symenv.insert(symdecl.symbol.key, actual_initval.clone_or_move_inner());
     }
 
     fn evaluate_expression(&mut self, astref: &AstRef) -> Value {
@@ -836,6 +998,7 @@ impl<'a> TreeWalker<'a> {
             ast::Node::SymbolDeclaration(n) => self.evaluate_symboldeclaration(astref, n),
             ast::Node::IfStatement(n) => self.evaluate_ifstatement(astref, n),
             ast::Node::ReturnStatement(n) => self.evaluate_returnstatement(astref, n),
+            ast::Node::AssignStatement(n) => self.evaluate_assignstatement(astref, n),
             _ => {
                 self.evaluate_expression(astref);
             }
