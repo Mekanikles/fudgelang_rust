@@ -27,4 +27,12 @@ module local3 begin
 	def print_compare = local2.print_compare
 end
 
-local3.print_compare(outer_local.a, outer_local.a)
+var a : std.mystruct
+a.value = 666
+
+local3.print_compare(outer_local.a, a)
+
+a.value = 25
+local3.print_compare(outer_local.a, a)
+
+local3.print_compare(a, a)

@@ -18,7 +18,6 @@
 [ ] Add import statement for FFI
 	* Possibly looks like a struct with fields
 	* HMMM: How to deal with symbols that collide with keywords?
-[ ] Add struct definitions
 [ ] Symbol lookup seems to fail for the global/main scope when invoked from inner modules
 
 ///////////// DONE /////////////
@@ -28,3 +27,6 @@
 [X] Fix FatArrow in if-expressions not allowing expressions on the same line
 [X] Add check for preferring horizontal block keywords if they are possible
 [X] Add default construction for symbol declarations without init expressions
+[X] Add struct literals
+[X] Stack references are copied into function arguments instead of values
+[X] Stack references cannot be passed as ref, as they do not address the frame

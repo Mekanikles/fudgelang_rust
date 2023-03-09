@@ -141,6 +141,7 @@ pub struct TreeWalker<'a> {
 
 #[derive(Debug)]
 struct StackFrame {
+    index: usize,
     variables: VariableEnvironment,
     returnvalue: Option<Value>,
 }
@@ -321,11 +322,13 @@ pub enum Value {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IndexedStackValueRef {
+    frame: usize,
     index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedStackValueRef {
+    frame: usize,
     symbol: ast::SymbolRef,
 }
 
@@ -513,8 +516,11 @@ impl Value {
         }
     }
 
-    fn clone_or_move_inner(self) -> Value {
-        self
+    fn clone_or_move_inner(self, tw: &TreeWalker) -> Value {
+        match self {
+            Value::ValueRef(vref) => tw.full_deref_valueref(&vref).clone(),
+            _ => self,
+        }
     }
 }
 
@@ -536,7 +542,10 @@ fn create_module_value(name: &StringRef) -> Value {
 
 fn create_stackframe_ref_from_value(frame: &mut StackFrame, value: Value) -> SimpleValueRef {
     let index = frame.variables.add(value);
-    SimpleValueRef::IndexedStackValueRef(IndexedStackValueRef { index })
+    SimpleValueRef::IndexedStackValueRef(IndexedStackValueRef {
+        frame: frame.index,
+        index,
+    })
 }
 
 fn create_default_value(typeid: &TypeId) -> Value {
@@ -748,9 +757,10 @@ impl<'a> TreeWalker<'a> {
             "Mismatching types for assignment",
         );
 
-        let value = lhs.get_inner_ref_mut(self);
+        let rvalue = rhs.clone_or_move_inner(self);
+        let lvalue = lhs.get_inner_ref_mut(self);
 
-        *value = rhs.clone_or_move_inner();
+        *lvalue = rvalue;
     }
 
     fn evaluate_binaryoperation(
@@ -792,12 +802,27 @@ impl<'a> TreeWalker<'a> {
     ) -> Value {
         let callable = self.evaluate_expression(&from_astref(&astref, &callop.expr));
 
+        /*println!(
+            "Calling: {:?}...",
+            ValueDisplay {
+                v: &callable,
+                tw: self
+            }
+        );*/
+
         // Build arguments
         let ast = self.context.get_ast(&astref);
         let arglist = as_node!(ast, ArgumentList, &callop.arglist);
         let mut args = Vec::new();
         for arg in &arglist.args {
             let val = self.evaluate_expression(&from_astref(&astref, &arg));
+
+            /*println!(
+                "Call argument {}: {:?}",
+                args.len(),
+                ValueDisplay { v: &val, tw: self }
+            );*/
+
             args.push(val);
         }
 
@@ -811,6 +836,7 @@ impl<'a> TreeWalker<'a> {
 
                 // Check signature and build frames
                 let mut frame = StackFrame {
+                    index: self.stackframes.len(),
                     variables: VariableEnvironment::new(),
                     returnvalue: None,
                 };
@@ -821,10 +847,20 @@ impl<'a> TreeWalker<'a> {
                         arg.get_type(&self),
                         inputparams[i].1
                     );
+
+                    // Copy inner value to not automatically reference other stacks
+                    let arg = arg.clone_or_move_inner(self);
+
+                    /*println!(
+                        "Function frame param {}: {:?}",
+                        i,
+                        ValueDisplay { v: &arg, tw: self }
+                    );*/
+
                     // TODO: Does not need inner clone, probably
                     frame
                         .variables
-                        .add_with_symbol(inputparams[i].0.clone(), arg.clone_or_move_inner());
+                        .add_with_symbol(inputparams[i].0.clone(), arg);
                 }
 
                 // Call
@@ -839,7 +875,7 @@ impl<'a> TreeWalker<'a> {
                 self.stackframes.push(frame);
                 self.evaluate_statementbody(&fnastref, node);
                 let result = if let Some(v) = self.stackframes.pop().unwrap().returnvalue {
-                    Some(v.clone_or_move_inner())
+                    Some(v.clone_or_move_inner(self))
                 } else {
                     None
                 };
@@ -1092,6 +1128,8 @@ impl<'a> TreeWalker<'a> {
             )
         }
 
+        let actual_initval = actual_initval.clone_or_move_inner(self);
+
         let symenv = if !self.stackframes.is_empty() {
             &mut self.stackframes.last_mut().unwrap().variables
         } else {
@@ -1106,7 +1144,7 @@ impl<'a> TreeWalker<'a> {
                 .get_symbol(&symdecl.symbol)
                 .unwrap()
         );
-        symenv.add_with_symbol(symdecl.symbol.clone(), actual_initval.clone_or_move_inner());
+        symenv.add_with_symbol(symdecl.symbol.clone(), actual_initval);
     }
 
     fn evaluate_expression(&mut self, astref: &AstRef) -> Value {
@@ -1187,9 +1225,7 @@ impl<'a> TreeWalker<'a> {
     }
 
     fn get_named_stack_value(&self, sref: &NamedStackValueRef) -> &Value {
-        self.stackframes
-            .last()
-            .unwrap()
+        self.stackframes[sref.frame]
             .variables
             .get_from_symbol(&sref.symbol)
             .unwrap()
@@ -1197,7 +1233,7 @@ impl<'a> TreeWalker<'a> {
 
     fn get_named_stack_value_mut(&mut self, sref: &NamedStackValueRef) -> &mut Value {
         self.stackframes
-            .last_mut()
+            .get_mut(sref.frame)
             .unwrap()
             .variables
             .get_from_symbol_mut(&sref.symbol)
@@ -1393,10 +1429,10 @@ impl<'a> TreeWalker<'a> {
     fn lookup_symbol_from_stack(&self, symbol: &ast::SymbolRef) -> Option<ValueRef> {
         // Check stack frame first, if any
         if let Some(frame) = self.stackframes.last() {
-            // TODO: stringref
             if frame.variables.get_from_symbol(&symbol).is_some() {
                 return Some(ValueRef::SimpleValueRef(
                     SimpleValueRef::NamedStackValueRef(NamedStackValueRef {
+                        frame: frame.index,
                         symbol: symbol.clone(),
                     }),
                 ));
@@ -1437,6 +1473,7 @@ impl<'a> TreeWalker<'a> {
 
         // Main is treated like a function, push a new stack frame
         self.stackframes.push(StackFrame {
+            index: 0,
             variables: VariableEnvironment::new(),
             returnvalue: None,
         });
