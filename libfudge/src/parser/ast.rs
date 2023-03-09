@@ -1,6 +1,7 @@
 use regex::Regex;
 
 use std::fmt;
+use std::fmt::*;
 use std::str;
 
 pub use crate::parser::stringstore::*;
@@ -9,7 +10,38 @@ use crate::typesystem::*;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-pub use StringRef as SymbolRef;
+// TODO: Move out of ast
+#[derive(Debug, Clone)]
+pub struct SymbolRef {
+    pub stringref: StringRef,
+    #[cfg(debug_assertions)]
+    debugname: String,
+}
+
+impl Hash for SymbolRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.stringref.key.hash(state);
+    }
+}
+
+impl PartialEq for SymbolRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.stringref.key == other.stringref.key
+    }
+}
+impl Eq for SymbolRef {}
+
+impl Display for SymbolRef {
+    #[cfg(debug_assertions)]
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.debugname)
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.stringref.key)
+    }
+}
 
 #[derive(Debug)]
 pub enum BuiltInObject {
@@ -113,12 +145,23 @@ impl Ast {
         return self.nodes.len() == (if self.root_index.is_some() { 1 } else { 2 });
     }
 
+    #[cfg(debug_assertions)]
     pub fn add_symbol(&mut self, symbol: &str) -> SymbolRef {
-        return self.symbols.insert(symbol);
+        return SymbolRef {
+            stringref: self.symbols.insert(symbol),
+            debugname: symbol.into(),
+        };
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn add_symbol(&mut self, symbol: &str) -> SymbolRef {
+        return SymbolRef {
+            stringref: self.symbols.insert(symbol),
+        };
     }
 
     pub fn get_symbol(&self, symbolref: &SymbolRef) -> Option<&String> {
-        return self.symbols.get(symbolref);
+        return self.symbols.get(&symbolref.stringref);
     }
 
     pub fn find_first_node(&self, nodeid: NodeId) -> Option<NodeRef> {
@@ -287,6 +330,13 @@ declare_nodes!(
     },
     // TODO: BigIntegerLiteral
     StringLiteral { text: String },
+    StructLiteral {
+        fields: Vec<NodeRef>,
+    },
+    StructField {
+        symbol: SymbolRef,
+        typeexpr: NodeRef,
+    },
     FunctionLiteral {
         inputparams: Vec<NodeRef>,
         outputparams: Vec<NodeRef>,
@@ -376,6 +426,20 @@ impl ChildCollector for nodes::IntegerLiteral {
 
 impl ChildCollector for nodes::StringLiteral {
     fn collect_children(&self, _collector: &mut Vec<NodeRef>) {}
+}
+
+impl ChildCollector for nodes::StructLiteral {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        for n in &self.fields {
+            collector.push(*n);
+        }
+    }
+}
+
+impl ChildCollector for nodes::StructField {
+    fn collect_children(&self, collector: &mut Vec<NodeRef>) {
+        collector.push(self.typeexpr);
+    }
 }
 
 impl ChildCollector for nodes::FunctionLiteral {
@@ -527,7 +591,7 @@ impl<'a> AstPrinter<'a> {
             for m in match_slices {
                 let mut buf = nodetext.into_bytes();
                 let key = str::from_utf8(&buf[m.1]).unwrap().parse::<u64>();
-                if let Some(s) = self.ast.symbols.get(&SymbolRef { key: key.unwrap() }) {
+                if let Some(s) = self.ast.symbols.get(&StringRef { key: key.unwrap() }) {
                     buf.splice(m.0, s.bytes());
                 }
 

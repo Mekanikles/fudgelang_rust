@@ -6,7 +6,7 @@ use std::fmt;
 
 pub use u64 as StringKey;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct StringRef {
     pub key: StringKey,
 }

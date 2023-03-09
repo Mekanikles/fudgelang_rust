@@ -1,7 +1,7 @@
-use crate::parser::stringstore::*;
 use phf::phf_map;
 
-use StringKey as SymbolKey;
+// TODO
+use crate::parser::ast;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrimitiveType {
@@ -36,8 +36,13 @@ pub static PRIMITIVES: phf::Map<&'static str, PrimitiveType> = phf_map! {
 };
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct StructDefinition {
+    pub fields: Vec<(ast::SymbolRef, TypeId)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionSignature {
-    pub inputparams: Vec<(SymbolKey, TypeId)>,
+    pub inputparams: Vec<(ast::SymbolRef, TypeId)>,
     pub outputparams: Vec<TypeId>,
 }
 
@@ -56,5 +61,6 @@ pub enum TypeId {
     // Cheat for complex built in signatures, until we have a competent type system for argument-dependent function signatures
     BuiltInFunction(BuiltInFunction),
     Function(FunctionSignature),
+    Struct(StructDefinition),
     Module,
 }

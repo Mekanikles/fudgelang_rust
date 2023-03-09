@@ -3,11 +3,10 @@ use crate::parser::stringstore::*;
 use crate::typesystem::*;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::mem;
 
 use dyn_fmt::AsStrFormatExt;
-
-use StringKey as SymbolKey;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 struct AstRef {
@@ -41,50 +40,76 @@ struct Context<'a> {
 }
 
 #[derive(Debug)]
-struct SymbolEnvironment {
-    pub variables: HashMap<SymbolKey, Value>,
+struct VariableEnvironment {
+    symbol_storage_lookup: HashMap<ast::SymbolRef, usize>,
+    storage: Vec<Value>,
 }
 
-impl SymbolEnvironment {
-    fn new() -> SymbolEnvironment {
-        SymbolEnvironment {
-            variables: HashMap::new(),
+impl VariableEnvironment {
+    fn new() -> VariableEnvironment {
+        VariableEnvironment {
+            symbol_storage_lookup: HashMap::new(),
+            storage: Vec::new(),
         }
     }
 
-    fn insert(&mut self, s: SymbolKey, v: Value) -> Option<Value> {
-        self.variables.insert(s, v)
+    fn add(&mut self, v: Value) -> usize {
+        let index = self.storage.len();
+        self.storage.push(v);
+        index
     }
 
-    fn get(&self, s: &SymbolKey) -> Option<&Value> {
-        self.variables.get(s)
+    fn get(&self, index: usize) -> &Value {
+        &self.storage[index]
     }
 
-    fn get_mut(&mut self, s: &SymbolKey) -> Option<&mut Value> {
-        self.variables.get_mut(s)
+    fn get_mut(&mut self, index: usize) -> &mut Value {
+        self.storage.get_mut(index).unwrap()
     }
 
-    fn contains_key(&self, s: &SymbolKey) -> bool {
-        self.variables.contains_key(s)
+    fn add_with_symbol(&mut self, s: ast::SymbolRef, v: Value) -> usize {
+        let index = self.add(v);
+        self.symbol_storage_lookup.insert(s, index);
+        index
+    }
+
+    fn get_from_symbol(&self, s: &ast::SymbolRef) -> Option<&Value> {
+        if let Some(index) = self.symbol_storage_lookup.get(s) {
+            return Some(self.get(*index));
+        }
+        None
+    }
+
+    fn get_from_symbol_mut(&mut self, s: &ast::SymbolRef) -> Option<&mut Value> {
+        if let Some(index) = self.symbol_storage_lookup.get(s) {
+            return self.storage.get_mut(*index);
+        }
+        None
+    }
+
+    fn has_symbol(&self, s: &ast::SymbolRef) -> bool {
+        self.symbol_storage_lookup.contains_key(s)
     }
 }
 
 struct Module {
     pub name: String,
+    pub astref: Option<AstRef>,
     pub parent: Option<u64>,
-    pub globals: SymbolEnvironment,
+    pub globals: VariableEnvironment,
     pub functions: Vec<Function>,
-    pub modules: Vec<u64>,
+    pub modules: VariableEnvironment,
 }
 
 impl Module {
-    fn new(name: String, parent: Option<u64>) -> Module {
+    fn new(name: String, astref: Option<AstRef>, parent: Option<u64>) -> Module {
         Module {
             name: name,
+            astref: astref,
             parent: parent,
-            globals: SymbolEnvironment::new(),
+            globals: VariableEnvironment::new(),
             functions: Vec::new(),
-            modules: Vec::new(),
+            modules: VariableEnvironment::new(),
         }
     }
 }
@@ -116,7 +141,7 @@ pub struct TreeWalker<'a> {
 
 #[derive(Debug)]
 struct StackFrame {
-    variables: SymbolEnvironment,
+    variables: VariableEnvironment,
     returnvalue: Option<Value>,
 }
 
@@ -130,6 +155,12 @@ pub struct Function {
 pub struct FunctionRef {
     index: u64,
     module: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructInstance {
+    pub definition: StructDefinition,
+    pub fields: HashMap<ast::SymbolRef, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -276,32 +307,135 @@ primitive_binop_unsupported!(BinOp<GeaterThan>, Utf8StaticString,);
 primitive_comparison_impl!(BinOp<GreaterThanOrEq>, >=, U8, U16, U32, U64, S8, S16, S32, S64, F32, F64,);
 primitive_binop_unsupported!(BinOp<GreaterThanOrEq>, Utf8StaticString,);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Null,
     Type(TypeId),
     Primitive(PrimitiveValue),
     BuiltInFunction(BuiltInFunction),
     Function(FunctionRef),
+    StructInstance(StructInstance),
     Module(StringRef),
     ValueRef(ValueRef),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct StackValueRef {
-    index: u64,
+pub struct IndexedStackValueRef {
+    index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct GlobalValueRef {
+pub struct NamedStackValueRef {
+    symbol: ast::SymbolRef,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndexedGlobalValueRef {
     module: u64,
-    key: u64,
+    index: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NamedGlobalValueRef {
+    module: u64,
+    symbol: ast::SymbolRef,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubModuleValueRef {
+    module: u64,
+    submodule: ast::SymbolRef,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SimpleValueRef {
+    NamedStackValueRef(NamedStackValueRef),
+    IndexedStackValueRef(IndexedStackValueRef),
+    NamedGlobalValueRef(NamedGlobalValueRef),
+    IndexedGlobalValueRef(IndexedGlobalValueRef),
+    SubModuleValueRef(SubModuleValueRef),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SubscriptedValueRef {
+    vref: SimpleValueRef,
+    field: ast::SymbolRef,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueRef {
-    StackValueRef(StackValueRef),
-    GlobalValueRef(GlobalValueRef),
+    SimpleValueRef(SimpleValueRef),
+    SubscriptedValueRef(SubscriptedValueRef),
+}
+
+pub struct ValueRefDisplay<'a> {
+    pub vref: &'a ValueRef,
+    pub tw: &'a TreeWalker<'a>,
+}
+
+fn get_simple_valueref_debug_name<'a>(svref: &SimpleValueRef, tw: &TreeWalker<'a>) -> String {
+    match svref {
+        SimpleValueRef::NamedStackValueRef(r) => format!("NamedStackRef({})", r.symbol),
+        SimpleValueRef::IndexedStackValueRef(r) => format!("IndexedStackRef({})", r.index),
+        SimpleValueRef::NamedGlobalValueRef(r) => {
+            let module = tw.get_module(&r.module);
+            format!("NamedGlobal({}.{})", module.name, r.symbol)
+        }
+        SimpleValueRef::IndexedGlobalValueRef(r) => {
+            let module = tw.get_module(&r.module);
+            format!("IndexedGlobal({}.{})", module.name, r.index)
+        }
+        SimpleValueRef::SubModuleValueRef(r) => {
+            let module = tw.get_module(&r.module);
+            let submodule = match module.modules.get_from_symbol(&r.submodule).unwrap() {
+                Value::Module(m) => tw.get_module(&m.key),
+                _ => panic!("Found submodule value what was not a module"),
+            };
+            format!("SubModule({}.{})", module.name, submodule.name,)
+        }
+    }
+}
+
+// Debug formatter
+impl<'a> fmt::Debug for ValueRefDisplay<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.vref {
+            ValueRef::SimpleValueRef(r) => {
+                write!(
+                    f,
+                    "SimpleValueRef({})",
+                    get_simple_valueref_debug_name(r, self.tw)
+                )
+            }
+            ValueRef::SubscriptedValueRef(r) => {
+                write!(
+                    f,
+                    "SubscriptedValueRef({}.{})",
+                    get_simple_valueref_debug_name(&r.vref, self.tw),
+                    r.field
+                )
+            }
+        }
+    }
+}
+
+pub struct ValueDisplay<'a> {
+    pub v: &'a Value,
+    pub tw: &'a TreeWalker<'a>,
+}
+
+// Debug formatter
+impl<'a> fmt::Debug for ValueDisplay<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.v {
+            Value::ValueRef(vref) => ValueRefDisplay { vref, tw: self.tw }.fmt(f),
+            Value::Module(m) => f
+                .debug_tuple("Module")
+                .field(&self.tw.get_module(&m.key).name)
+                .finish(),
+            n => n.fmt(f),
+        }
+    }
 }
 
 impl Value {
@@ -331,6 +465,7 @@ impl Value {
                     .signature
                     .clone(),
             ),
+            Value::StructInstance(instance) => TypeId::Struct(instance.definition.clone()),
             Value::Module(_) => TypeId::Module,
             _ => panic!("Value type cannot be found: {:?}", &self),
         }
@@ -365,53 +500,16 @@ impl Value {
     }
 
     fn get_inner_ref_mut<'a>(&'a mut self, tw: &'a mut TreeWalker) -> &'a mut Value {
-        return match self {
-            Value::ValueRef(reftype) => match reftype {
-                ValueRef::StackValueRef(r) => tw
-                    .stackframes
-                    .last_mut()
-                    .unwrap()
-                    .variables
-                    .get_mut(&r.index)
-                    .unwrap(),
-                ValueRef::GlobalValueRef(r) => tw
-                    .get_module_mut(&r.module)
-                    .globals
-                    .get_mut(&r.key)
-                    .unwrap(),
-            },
-            _ => self,
-        };
-    }
-
-    fn is_ref(&self) -> bool {
         match self {
-            Value::ValueRef(_) => true,
-            _ => false,
+            Value::ValueRef(vref) => tw.full_deref_valueref_mut(vref.clone()),
+            _ => self,
         }
     }
 
     fn get_inner_ref<'a>(&'a self, tw: &'a TreeWalker) -> &'a Value {
-        let result = match self {
-            Value::ValueRef(reftype) => match reftype {
-                ValueRef::StackValueRef(r) => tw
-                    .stackframes
-                    .last()
-                    .unwrap()
-                    .variables
-                    .get(&r.index)
-                    .unwrap(),
-                ValueRef::GlobalValueRef(r) => {
-                    tw.get_module(&r.module).globals.get(&r.key).unwrap()
-                }
-            },
+        match self {
+            Value::ValueRef(vref) => tw.full_deref_valueref(vref),
             _ => self,
-        };
-        // Recurse until we have a non-ref value
-        if result.is_ref() {
-            return result.get_inner_ref(tw);
-        } else {
-            return result;
         }
     }
 
@@ -436,12 +534,9 @@ fn create_module_value(name: &StringRef) -> Value {
     return Value::Module(name.clone());
 }
 
-fn create_stack_valueref(index: u64) -> Value {
-    return Value::ValueRef(ValueRef::StackValueRef(StackValueRef { index }));
-}
-
-fn create_global_valueref(module: u64, key: u64) -> Value {
-    return Value::ValueRef(ValueRef::GlobalValueRef(GlobalValueRef { module, key }));
+fn create_stackframe_ref_from_value(frame: &mut StackFrame, value: Value) -> SimpleValueRef {
+    let index = frame.variables.add(value);
+    SimpleValueRef::IndexedStackValueRef(IndexedStackValueRef { index })
 }
 
 fn create_default_value(typeid: &TypeId) -> Value {
@@ -463,6 +558,18 @@ fn create_default_value(typeid: &TypeId) -> Value {
             PrimitiveType::F32 => Value::Primitive(PrimitiveValue::F32(F32(0.0))),
             PrimitiveType::F64 => Value::Primitive(PrimitiveValue::F64(F64(0.0))),
         },
+        TypeId::Struct(definition) => {
+            let mut fields = HashMap::new();
+
+            for field in &definition.fields {
+                fields.insert(field.0.clone(), create_default_value(&field.1));
+            }
+
+            Value::StructInstance(StructInstance {
+                definition: definition.clone(),
+                fields: fields,
+            })
+        }
         _ => panic!("No default value for typeid {:?}", typeid),
     }
 }
@@ -501,7 +608,7 @@ impl<'a> TreeWalker<'a> {
     fn evaluate_subscript(&mut self, astref: &AstRef, subscript: &ast::nodes::SubScript) -> Value {
         let exprvalue = self.evaluate_expression(&from_astref(&astref, &subscript.expr));
 
-        return match exprvalue {
+        return match &exprvalue {
             Value::Null => panic!("Null value in subscript {:?}!", subscript),
             Value::Type(_) => panic!("Type subscripts not yet supported"),
             Value::Module(m) => {
@@ -512,6 +619,33 @@ impl<'a> TreeWalker<'a> {
                 let result = self.evaluate_symbol(astref, &subscript.field);
                 self.current_module = old_module;
                 result
+            }
+            Value::StructInstance(instance) => {
+                // This is a weird scenario where the incoming is not a ref, thus an r-value
+                //  This should very rarely happen, and the left side of the subscript should
+                //  likely be discarded
+                instance.fields[&subscript.field].clone()
+            }
+            Value::ValueRef(vref) => {
+                match vref {
+                    ValueRef::SimpleValueRef(vref) => {
+                        Value::ValueRef(ValueRef::SubscriptedValueRef(SubscriptedValueRef {
+                            vref: vref.clone(),
+                            field: subscript.field.clone(),
+                        }))
+                    }
+                    ValueRef::SubscriptedValueRef(_) => {
+                        // To support chained subscripts, store the inner subscripted ref
+                        //  on the stack so we can reference it as a simple value ref
+                        Value::ValueRef(ValueRef::SubscriptedValueRef(SubscriptedValueRef {
+                            vref: create_stackframe_ref_from_value(
+                                self.stackframes.last_mut().unwrap(),
+                                exprvalue,
+                            ),
+                            field: subscript.field.clone(),
+                        }))
+                    }
+                }
             }
             _ => panic!("Unsupported subscript"),
         };
@@ -677,7 +811,7 @@ impl<'a> TreeWalker<'a> {
 
                 // Check signature and build frames
                 let mut frame = StackFrame {
-                    variables: SymbolEnvironment::new(),
+                    variables: VariableEnvironment::new(),
                     returnvalue: None,
                 };
                 for (i, arg) in args.into_iter().enumerate() {
@@ -690,7 +824,7 @@ impl<'a> TreeWalker<'a> {
                     // TODO: Does not need inner clone, probably
                     frame
                         .variables
-                        .insert(inputparams[i].0, arg.clone_or_move_inner());
+                        .add_with_symbol(inputparams[i].0.clone(), arg.clone_or_move_inner());
                 }
 
                 // Call
@@ -759,6 +893,32 @@ impl<'a> TreeWalker<'a> {
         }
     }
 
+    fn evaluate_structliteral(
+        &mut self,
+        astref: &AstRef,
+        sliteral: &ast::nodes::StructLiteral,
+    ) -> Value {
+        let mut definition = StructDefinition { fields: Vec::new() };
+
+        for field in &sliteral.fields {
+            let ast = self.context.get_ast(&astref);
+            let n = as_node!(ast, StructField, field);
+
+            let typeval: Value = self.evaluate_expression(&from_astref(&astref, &n.typeexpr));
+            let typeid = match typeval.get_inner_ref(self) {
+                Value::Type(n) => n,
+                _ => panic!(
+                    "Expected Type expression for input parameter, got {:?}",
+                    typeval
+                ),
+            };
+
+            definition.fields.push((n.symbol.clone(), typeid.clone()));
+        }
+
+        return Value::Type(TypeId::Struct(definition));
+    }
+
     fn evaluate_functionliteral(
         &mut self,
         astref: &AstRef,
@@ -772,7 +932,6 @@ impl<'a> TreeWalker<'a> {
         for inparam in &fnliteral.inputparams {
             let ast = self.context.get_ast(&astref);
             let n = as_node!(ast, InputParameter, inparam);
-            let key = n.symbol.key;
 
             // Skip symbol for now
 
@@ -785,7 +944,9 @@ impl<'a> TreeWalker<'a> {
                 ),
             };
 
-            signature.inputparams.push((key, typeid.clone()));
+            signature
+                .inputparams
+                .push((n.symbol.clone(), typeid.clone()));
         }
 
         for outparam in &fnliteral.outputparams {
@@ -822,17 +983,22 @@ impl<'a> TreeWalker<'a> {
         let ast = self.context.get_ast(astref);
 
         // TODO: Fallback for unnamed modules
-        let key = module_node.symbol.key;
+        // TODO: Stringref :(
+        let key = module_node.symbol.stringref.key;
 
         // Register module globally
         let module = Module::new(
             ast.get_symbol(&module_node.symbol).unwrap().clone(),
+            Some(*astref),
             self.current_module,
         );
         self.all_modules.insert(key, module);
 
         // And locally
-        self.get_current_module_mut().modules.push(key);
+        self.get_current_module_mut().modules.add_with_symbol(
+            module_node.symbol.clone(),
+            create_module_value(&StringRef { key: key }),
+        );
 
         let old_module = self.current_module;
         self.current_module = Some(key);
@@ -864,36 +1030,9 @@ impl<'a> TreeWalker<'a> {
         return self.evaluate_symbol(astref, &symref.symbol);
     }
 
-    fn evaluate_symbol(&mut self, astref: &AstRef, symbol: &StringRef) -> Value {
-        // Check stack frame first, if any
-        if let Some(frame) = self.stackframes.last() {
-            if frame.variables.get(&symbol.key).is_some() {
-                return create_stack_valueref(symbol.key);
-            }
-        }
-
-        let mut module_key = self.current_module;
-
-        // Check all modules up including the global module
-        while let Some(module) = module_key {
-            let module = self.get_module(&module);
-
-            // Module globals
-            if module.globals.get(&symbol.key).is_some() {
-                return create_global_valueref(module_key.unwrap(), symbol.key);
-            }
-
-            // Submodules
-            if module
-                .modules
-                .iter()
-                .find(|&module| *module == symbol.key)
-                .is_some()
-            {
-                return create_module_value(symbol);
-            }
-
-            module_key = module.parent;
+    fn evaluate_symbol(&mut self, astref: &AstRef, symbol: &ast::SymbolRef) -> Value {
+        if let Some(vref) = self.lookup_symbol_from_stack(symbol) {
+            return Value::ValueRef(vref);
         }
 
         panic!(
@@ -960,14 +1099,14 @@ impl<'a> TreeWalker<'a> {
         };
 
         assert!(
-            !symenv.contains_key(&symdecl.symbol.key),
+            !symenv.has_symbol(&symdecl.symbol),
             "Symbol {} is already defined!",
             self.context
                 .get_ast(astref)
                 .get_symbol(&symdecl.symbol)
                 .unwrap()
         );
-        symenv.insert(symdecl.symbol.key, actual_initval.clone_or_move_inner());
+        symenv.add_with_symbol(symdecl.symbol.clone(), actual_initval.clone_or_move_inner());
     }
 
     fn evaluate_expression(&mut self, astref: &AstRef) -> Value {
@@ -976,6 +1115,7 @@ impl<'a> TreeWalker<'a> {
             ast::Node::IntegerLiteral(n) => self.evaluate_integerliteral(n),
             ast::Node::BooleanLiteral(n) => self.evaluate_booleanliteral(n),
             ast::Node::StringLiteral(n) => self.evaluate_stringliteral(n),
+            ast::Node::StructLiteral(n) => self.evaluate_structliteral(astref, n),
             ast::Node::FunctionLiteral(n) => self.evaluate_functionliteral(astref, n),
             ast::Node::SymbolReference(n) => self.evaluate_symbolreference(astref, n),
             ast::Node::CallOperation(n) => self.evaluate_calloperation(astref, n),
@@ -1034,12 +1174,244 @@ impl<'a> TreeWalker<'a> {
         return self.get_module_mut(&self.current_module.unwrap());
     }
 
+    fn get_indexed_stack_value(&self, sref: &IndexedStackValueRef) -> &Value {
+        self.stackframes.last().unwrap().variables.get(sref.index)
+    }
+
+    fn get_indexed_stack_value_mut(&mut self, sref: &IndexedStackValueRef) -> &mut Value {
+        self.stackframes
+            .last_mut()
+            .unwrap()
+            .variables
+            .get_mut(sref.index)
+    }
+
+    fn get_named_stack_value(&self, sref: &NamedStackValueRef) -> &Value {
+        self.stackframes
+            .last()
+            .unwrap()
+            .variables
+            .get_from_symbol(&sref.symbol)
+            .unwrap()
+    }
+
+    fn get_named_stack_value_mut(&mut self, sref: &NamedStackValueRef) -> &mut Value {
+        self.stackframes
+            .last_mut()
+            .unwrap()
+            .variables
+            .get_from_symbol_mut(&sref.symbol)
+            .unwrap()
+    }
+
+    fn get_indexed_global_value(&self, gref: &IndexedGlobalValueRef) -> &Value {
+        self.get_module(&gref.module).globals.get(gref.index)
+    }
+
+    fn get_indexed_global_value_mut(&mut self, gref: &IndexedGlobalValueRef) -> &mut Value {
+        self.get_module_mut(&gref.module)
+            .globals
+            .get_mut(gref.index)
+    }
+
+    fn get_named_global_value(&self, gref: &NamedGlobalValueRef) -> &Value {
+        self.get_module(&gref.module)
+            .globals
+            .get_from_symbol(&gref.symbol)
+            .unwrap()
+    }
+
+    fn get_named_global_value_mut(&mut self, gref: &NamedGlobalValueRef) -> &mut Value {
+        self.get_module_mut(&gref.module)
+            .globals
+            .get_from_symbol_mut(&gref.symbol)
+            .unwrap()
+    }
+
+    fn get_submodule_value(&self, smref: &SubModuleValueRef) -> &Value {
+        self.get_module(&smref.module)
+            .modules
+            .get_from_symbol(&smref.submodule)
+            .unwrap()
+    }
+
+    fn get_submodule_value_mut(&mut self, smref: &SubModuleValueRef) -> &mut Value {
+        self.get_module_mut(&smref.module)
+            .modules
+            .get_from_symbol_mut(&smref.submodule)
+            .unwrap()
+    }
+
+    fn resolve_simple_valueref(&self, vref: &SimpleValueRef) -> &Value {
+        match vref {
+            SimpleValueRef::IndexedStackValueRef(r) => self.get_indexed_stack_value(r),
+            SimpleValueRef::NamedStackValueRef(r) => self.get_named_stack_value(r),
+            SimpleValueRef::IndexedGlobalValueRef(r) => self.get_indexed_global_value(r),
+            SimpleValueRef::NamedGlobalValueRef(r) => self.get_named_global_value(r),
+            SimpleValueRef::SubModuleValueRef(r) => self.get_submodule_value(r),
+        }
+    }
+
+    fn resolve_subscripted_valueref(&self, svref: &SubscriptedValueRef) -> &Value {
+        let v = match self.resolve_simple_valueref(&svref.vref) {
+            Value::ValueRef(vref) => self.full_deref_valueref(vref),
+            n => n,
+        };
+
+        match v {
+            Value::StructInstance(instance) => instance.fields.get(&svref.field).unwrap(),
+            Value::Module(m) => {
+                let vref = self.lookup_symbol_from_module(m.key, &svref.field);
+                self.resolve_valueref(&vref.unwrap())
+            }
+            n => panic!("SubscriptedValueRef not supported on value {:?}", n),
+        }
+    }
+
+    fn resolve_valueref(&self, vref: &ValueRef) -> &Value {
+        match vref {
+            ValueRef::SimpleValueRef(r) => self.resolve_simple_valueref(r),
+            ValueRef::SubscriptedValueRef(r) => self.resolve_subscripted_valueref(r),
+        }
+    }
+
+    fn resolve_simple_valueref_mut(&mut self, vref: SimpleValueRef) -> &mut Value {
+        match vref {
+            SimpleValueRef::IndexedStackValueRef(r) => self.get_indexed_stack_value_mut(&r),
+            SimpleValueRef::NamedStackValueRef(r) => self.get_named_stack_value_mut(&r),
+            SimpleValueRef::IndexedGlobalValueRef(r) => self.get_indexed_global_value_mut(&r),
+            SimpleValueRef::NamedGlobalValueRef(r) => self.get_named_global_value_mut(&r),
+            SimpleValueRef::SubModuleValueRef(r) => self.get_submodule_value_mut(&r),
+        }
+    }
+
+    fn resolve_subscripted_valueref_mut(&mut self, svref: SubscriptedValueRef) -> &mut Value {
+        // Find final ref non-mutably
+        let leaf_ref = self.find_ref_to_leaf_value(&ValueRef::SimpleValueRef(svref.vref));
+
+        // Rust seems to not be able to deal with conditionally ending lifetimes
+        //  so for module lookups which requires &self, do this non-mut resolve separately
+        if let Some(module_key) = match self.resolve_valueref(&leaf_ref) {
+            Value::Module(m) => Some(m.key),
+            _ => None,
+        } {
+            let vref = self.lookup_symbol_from_module(module_key, &svref.field);
+            return self.resolve_valueref_mut(vref.unwrap());
+        }
+
+        // Deref it mutably
+        return match self.resolve_valueref_mut(leaf_ref) {
+            Value::StructInstance(instance) => instance.fields.get_mut(&svref.field).unwrap(),
+            n => panic!("SubscriptedValueRef not supported on value {:?}", n),
+        };
+    }
+
+    fn resolve_valueref_mut(&mut self, vref: ValueRef) -> &mut Value {
+        match vref {
+            ValueRef::SimpleValueRef(r) => self.resolve_simple_valueref_mut(r),
+            ValueRef::SubscriptedValueRef(r) => self.resolve_subscripted_valueref_mut(r),
+        }
+    }
+
+    fn full_deref_valueref(&self, vref: &ValueRef) -> &Value {
+        /*
+        {
+            let x = ValueRefDisplay { vref, tw: self };
+            println!("Dereffing: {:?}", x);
+        }
+        */
+
+        let v = self.resolve_valueref(&vref);
+
+        /*
+        {
+            let x = ValueDisplay { v, tw: self };
+            println!("Got: {:?}", x);
+        }
+        */
+
+        if let Value::ValueRef(vref) = v {
+            self.full_deref_valueref(vref)
+        } else {
+            v
+        }
+    }
+
+    // Needed for really awkward mut-traversials of ref-chains
+    //  returns the value ref to the non-ref value at the end of the chain
+    fn find_ref_to_leaf_value(&self, vref: &ValueRef) -> ValueRef {
+        match self.resolve_valueref(vref) {
+            Value::ValueRef(vref) => self.find_ref_to_leaf_value(vref),
+            _ => vref.clone(),
+        }
+    }
+
+    // Non-ref vref here because of borrow checking sadness
+    fn full_deref_valueref_mut(&mut self, vref: ValueRef) -> &mut Value {
+        // Find final ref non-mutably
+        let leaf_ref = self.find_ref_to_leaf_value(&vref);
+
+        return self.resolve_valueref_mut(leaf_ref);
+    }
+
+    fn lookup_symbol_from_module(
+        &self,
+        module_key: u64,
+        symbol: &ast::SymbolRef,
+    ) -> Option<ValueRef> {
+        let mut module_key_iter = Some(module_key);
+
+        // Check all modules up including the global module
+        while let Some(module_key) = module_key_iter {
+            let module = self.get_module(&module_key);
+
+            // Module globals
+            if module.globals.get_from_symbol(&symbol).is_some() {
+                return Some(ValueRef::SimpleValueRef(
+                    SimpleValueRef::NamedGlobalValueRef(NamedGlobalValueRef {
+                        module: module_key,
+                        symbol: symbol.clone(),
+                    }),
+                ));
+            }
+
+            // Submodules
+            if module.modules.get_from_symbol(&symbol).is_some() {
+                return Some(ValueRef::SimpleValueRef(SimpleValueRef::SubModuleValueRef(
+                    SubModuleValueRef {
+                        module: module_key,
+                        submodule: symbol.clone(),
+                    },
+                )));
+            }
+
+            module_key_iter = module.parent;
+        }
+        None
+    }
+
+    fn lookup_symbol_from_stack(&self, symbol: &ast::SymbolRef) -> Option<ValueRef> {
+        // Check stack frame first, if any
+        if let Some(frame) = self.stackframes.last() {
+            // TODO: stringref
+            if frame.variables.get_from_symbol(&symbol).is_some() {
+                return Some(ValueRef::SimpleValueRef(
+                    SimpleValueRef::NamedStackValueRef(NamedStackValueRef {
+                        symbol: symbol.clone(),
+                    }),
+                ));
+            }
+        }
+
+        self.lookup_symbol_from_module(self.current_module.unwrap(), symbol)
+    }
+
     pub fn interpret(&mut self) {
         let mut main: Option<AstRef> = None;
 
         // Register main module so other modules can use it to register themselves
         // TODO: Use 0 as main module key for now
-        let module = Module::new("global".into(), None);
+        let module = Module::new("global".into(), None, None);
         self.all_modules.insert(0, module);
         self.global_module = 0;
         self.current_module = Some(self.global_module);
@@ -1054,6 +1426,7 @@ impl<'a> TreeWalker<'a> {
                 ast::Node::EntryPoint(n) => {
                     // We save main for later and evaluate all modules first
                     main = Some(from_ast_and_node(&ast, &n.statementbody));
+                    self.get_module_mut(&0).astref = main;
                 }
                 n => panic!("Invalid ast root node: {:?}", n),
             }
@@ -1064,7 +1437,7 @@ impl<'a> TreeWalker<'a> {
 
         // Main is treated like a function, push a new stack frame
         self.stackframes.push(StackFrame {
-            variables: SymbolEnvironment::new(),
+            variables: VariableEnvironment::new(),
             returnvalue: None,
         });
 

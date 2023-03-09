@@ -45,6 +45,7 @@ pub enum TokenType {
     Def,
     Var,
     Func,
+    Struct,
     Do,
     Begin,
     End,

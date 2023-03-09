@@ -227,6 +227,8 @@ impl<'a> Parser<'a> {
             return Ok(Some(n));
         } else if let Some(n) = self.parse_function_literal_or_type()? {
             return Ok(Some(n));
+        } else if let Some(n) = self.parse_struct_literal()? {
+            return Ok(Some(n));
         } else if let Some(n) = self.parse_builtin_expression()? {
             return Ok(Some(n));
         }

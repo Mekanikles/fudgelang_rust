@@ -6,13 +6,10 @@ use crate::error::errors;
 use crate::scanner::*;
 use crate::source::*;
 
-use crate::parser::stringstore::*;
 use crate::typesystem::*;
 
 mod builtins;
 mod expressions;
-
-use StringRef as SymbolRef;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct LineInfo {
@@ -291,7 +288,7 @@ impl<'a> Parser<'a> {
             .get_token_string(self.last_token.as_ref().unwrap());
     }
 
-    fn get_last_token_symbol(&mut self) -> SymbolRef {
+    fn get_last_token_symbol(&mut self) -> ast::SymbolRef {
         let text = self.get_last_token_text().to_string();
         return self.ast.add_symbol(&*text);
     }
@@ -405,6 +402,53 @@ impl<'a> Parser<'a> {
         }
 
         self.ast.undo_node_reservation(node);
+        return Ok(None);
+    }
+
+    fn parse_struct_literal(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        if self.accept(TokenType::Struct) {
+            self.expect_with_layout(TokenType::Begin, TokenLayoutType::BlockKeyword)?;
+
+            let node = self.ast.reserve_node();
+            let mut fields = Vec::new();
+
+            while let Some(s) = self.parse_structfield()? {
+                fields.push(s);
+            }
+
+            self.expect_with_layout(TokenType::End, TokenLayoutType::BlockEnd)?;
+
+            return Ok(Some(
+                self.ast
+                    .replace_node(node, ast::nodes::StructLiteral { fields }.into()),
+            ));
+        }
+        return Ok(None);
+    }
+
+    fn parse_structfield(&mut self) -> Result<Option<ast::NodeRef>, error::ErrorId> {
+        if self.accept(TokenType::Var) {
+            let node = self.ast.reserve_node();
+
+            self.expect(TokenType::Identifier)?;
+            let symbol = self.get_last_token_symbol();
+
+            // Mandatory type specifier
+            self.expect(TokenType::Colon)?;
+            let typeexpr = self.expect_expression()?;
+
+            return Ok(Some(
+                self.ast.replace_node(
+                    node,
+                    ast::nodes::StructField {
+                        symbol: symbol,
+                        typeexpr: typeexpr,
+                    }
+                    .into(),
+                ),
+            ));
+        }
+
         return Ok(None);
     }
 
@@ -613,11 +657,16 @@ impl<'a> Parser<'a> {
                 // TODO: Probably should not happen here
                 // Feels like this should happen in some symbol declaration step
                 //  publishing the module name together with the symbols
-                self.ast.module = Some(symbol);
+                self.ast.module = Some(symbol.clone());
 
-                return Ok(Some(self.ast.add_node(
-                    ast::nodes::ModuleSelfDeclaration { symbol: symbol }.into(),
-                )));
+                return Ok(Some(
+                    self.ast.add_node(
+                        ast::nodes::ModuleSelfDeclaration {
+                            symbol: symbol.clone(),
+                        }
+                        .into(),
+                    ),
+                ));
             }
         }
 
@@ -855,7 +904,9 @@ impl<'a> Parser<'a> {
         let symbol = self
             .ast
             .module
-            .unwrap_or(self.ast.add_symbol("TODO_Need_default_name"));
+            .clone()
+            .unwrap_or(self.ast.add_symbol("TODO_Need_default_name"))
+            .clone();
         self.ast.replace_node(
             node,
             ast::nodes::Module {

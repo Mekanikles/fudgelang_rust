@@ -1,24 +1,25 @@
 
 module local2 begin
 	def print_compare =
-		func(a : std.u32, b : std.u32) do
+		func(a : std.mystruct, b : std.mystruct) do
 			var msg =
-				if      a > b => "Hurra! Ditt nummer, {}, är större än {}"
-				elseif a < b => "Buu. Ditt nummer, {}, är mindre än {}"
-				else             "Va? Ditt nummer, {}, är ju samma som {}"
+				if     a.value > b.value => "Hurra! Ditt nummer, {}, är större än {}"
+				elseif a.value < b.value => "Buu. Ditt nummer, {}, är mindre än {}"
+				else                        "Va? Ditt nummer, {}, är ju samma som {}"
 
-			#output.print_format(msg, a, b)
+			#output.print_format(msg, a.value, b.value)
 		end
 end
 
 module outer_local begin
-	var a : std.u32
-	a = 2 * (123 + 2 - 1) / 3
+	var a : std.mystruct
+	a.value = 2 * (123 + 2 - 1) / 3
 
 	module local begin
-		var b =
-			if a < 0 => 42
-			else if a > 0 => 43 else 666
+		var b : std.mystruct
+		b.value =
+			if a.value < 0 => 42
+			else if a.value > 0 => 43 else 666
 	end
 end
 
@@ -26,4 +27,4 @@ module local3 begin
 	def print_compare = local2.print_compare
 end
 
-local3.print_compare(outer_local.a, outer_local.local.b)
+local3.print_compare(outer_local.a, outer_local.a)
