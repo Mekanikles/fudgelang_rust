@@ -28,7 +28,7 @@ impl StringStore {
         }
     }
 
-    fn get_key(string: &str) -> StringKey {
+    pub fn get_key(string: &str) -> StringKey {
         let mut hasher = DefaultHasher::new();
         string.hash(&mut hasher);
         return hasher.finish();

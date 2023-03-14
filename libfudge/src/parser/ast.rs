@@ -18,6 +18,28 @@ pub struct SymbolRef {
     debugname: String,
 }
 
+impl SymbolRef {
+    #[cfg(debug_assertions)]
+    pub fn from_str(symbol: &str) -> SymbolRef {
+        SymbolRef {
+            stringref: StringRef {
+                key: StringStore::get_key(symbol),
+            },
+            debugname: symbol.to_string(),
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn from_str(symbol: &str) -> SymbolRef {
+        SymbolRef {
+            stringref: StringRef {
+                key: StringStore::get_key(symbol),
+            },
+            debugname: symbol,
+        }
+    }
+}
+
 impl Hash for SymbolRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.stringref.key.hash(state);
