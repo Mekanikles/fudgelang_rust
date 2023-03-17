@@ -1,4 +1,6 @@
 pub mod basic;
+pub mod structs;
+pub mod utils;
 
 use crate::interpreter::*;
 use crate::parser;
@@ -8,12 +10,12 @@ use crate::parser::tokenstream::TokenStream;
 use crate::scanner;
 use crate::source;
 
-trait InterpreterTestingHarness<ResultT: InterpreterTestingResult> {
+pub trait InterpreterTestingHarness<ResultT: InterpreterTestingResult> {
     fn load_module_source(&mut self, module_source: &str);
     fn run(&mut self, main_source: &str) -> ResultT;
 }
 
-trait InterpreterTestingResult {
+pub trait InterpreterTestingResult {
     fn read_symbol_as_str(&self, module: Option<&str>, global: &str) -> String;
 }
 

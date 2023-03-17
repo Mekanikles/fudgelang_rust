@@ -6,4 +6,6 @@ pub mod ifexpressions;
 pub mod ifstatements;
 pub mod layout;
 pub mod primitives;
+pub mod structs;
+pub mod subscripts;
 pub mod utils;
