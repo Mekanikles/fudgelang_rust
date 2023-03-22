@@ -1,8 +1,19 @@
 use super::*;
 
-pub fn test_interpreters(source: &str, test: &dyn Fn(&dyn InterpreterTestingResult) -> ()) {
+pub fn test_interpreters_with_modules(
+    source: &str,
+    modules: &[&str],
+    test: &dyn Fn(&dyn InterpreterTestingResult) -> (),
+) {
     let mut twth = TreeWalkerTestingHarness::new();
+    for module in modules {
+        twth.load_module_source(module);
+    }
     test(&twth.run(source));
+}
+
+pub fn test_interpreters(source: &str, test: &dyn Fn(&dyn InterpreterTestingResult) -> ()) {
+    test_interpreters_with_modules(source, &[], test)
 }
 
 pub fn assert_expression_as_str_with_fixture(fixture: &str, exp: &str, expected: &str) {

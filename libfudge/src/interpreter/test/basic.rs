@@ -15,11 +15,6 @@ fn test_var_assign() {
 }
 
 #[test]
-fn test_int_iteral_expression() {
+fn test_int_literal_expression() {
     assert_expression_as_str("5", "5");
-}
-
-#[test]
-fn test_int_binop_expression() {
-    assert_expression_as_str("5 + 5", "10");
 }

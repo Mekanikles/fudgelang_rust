@@ -1,4 +1,6 @@
+pub mod arithmetics;
 pub mod basic;
+pub mod modules;
 pub mod structs;
 pub mod utils;
 

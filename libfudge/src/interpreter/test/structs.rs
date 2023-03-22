@@ -1,6 +1,6 @@
 use super::utils::*;
 
-const STRUCT_FIXTURE: &str = "\
+static STRUCT_FIXTURE: &str = "\
     def A =\n\
         \tstruct begin\n\
             \t\tvar a : #primitives.u32\n\
