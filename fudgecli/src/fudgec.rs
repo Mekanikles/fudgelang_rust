@@ -68,7 +68,7 @@ fn scan_and_parse_file<P: AsRef<std::path::Path>>(
     file: P,
     ismain: bool,
     params: &CommandLineParameters,
-) -> parser::ast::Ast {
+) -> ast::Ast {
     let source = source::Source::from_file(&file);
     let scanner_result = scan(&source, &params);
     let parser_result = parse(&source, &scanner_result, ismain, &params);
@@ -82,7 +82,7 @@ fn scan_and_parse_file<P: AsRef<std::path::Path>>(
 fn main() {
     let params = CommandLineParameters::from_args();
 
-    let mut module_asts: Vec<parser::ast::Ast> = Vec::new();
+    let mut module_asts: Vec<ast::Ast> = Vec::new();
 
     let main_ast = scan_and_parse_file(&params.main, true, &params);
 

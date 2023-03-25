@@ -1,7 +1,7 @@
 use super::utils::*;
 
-use crate::parser::ast;
-use crate::parser::ast::NodeId::*;
+use crate::ast;
+use crate::ast::NodeId::*;
 
 use phf::phf_map;
 

@@ -1,5 +1,5 @@
 use super::utils::*;
-use crate::parser::ast::NodeId::*;
+use crate::ast::NodeId::*;
 
 #[test]
 fn test_symbol_subscript() {

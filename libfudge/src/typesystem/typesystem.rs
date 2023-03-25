@@ -1,7 +1,7 @@
 use phf::phf_map;
 
 // TODO
-use crate::parser::ast;
+use crate::ast;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrimitiveType {

@@ -1,6 +1,6 @@
 use super::utils::*;
+use crate::ast::NodeId::*;
 use crate::error::*;
-use crate::parser::ast::NodeId::*;
 
 #[test]
 fn test_statement_if_empty() {

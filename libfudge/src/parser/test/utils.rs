@@ -1,5 +1,5 @@
-use crate::parser::ast;
-use crate::parser::ast::NodeInfo;
+use crate::ast;
+use crate::ast::NodeInfo;
 
 use crate::error;
 use crate::parser::*;
@@ -115,6 +115,6 @@ impl<'a> fmt::Debug for NodeIdTree {
 }
 
 pub fn entrypoint_wrapper_tree(body: &[NodeIdTree]) -> NodeIdTree {
-    use crate::parser::ast::NodeId::*;
+    use crate::ast::NodeId::*;
     return tree(EntryPoint, &[tree(StatementBody, body)]);
 }

@@ -1,6 +1,6 @@
-use super::ast;
-use super::ast::Ast;
 use super::tokenstream::TokenStream;
+use crate::ast;
+use crate::ast::Ast;
 use crate::error;
 use crate::error::errors;
 use crate::scanner::*;

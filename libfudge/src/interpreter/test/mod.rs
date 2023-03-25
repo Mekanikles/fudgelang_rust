@@ -4,9 +4,9 @@ pub mod modules;
 pub mod structs;
 pub mod utils;
 
+use crate::ast;
 use crate::interpreter::*;
 use crate::parser;
-use crate::parser::ast;
 use crate::parser::stringstore::StringStore;
 use crate::parser::tokenstream::TokenStream;
 use crate::scanner;
@@ -22,7 +22,7 @@ pub trait InterpreterTestingResult {
 }
 
 struct TreeWalkerTestingHarness {
-    module_asts: Vec<parser::ast::Ast>,
+    module_asts: Vec<ast::Ast>,
 }
 
 struct TreeWalkerTestingResult {
@@ -76,7 +76,7 @@ impl TreeWalkerTestingHarness {
         }
     }
 
-    fn scan_and_parse(source: &str, ismain: bool) -> parser::ast::Ast {
+    fn scan_and_parse(source: &str, ismain: bool) -> ast::Ast {
         let source = source::Source::from_str(&source);
         let scanner_result = scanner::tokenize(&source);
         let parser_result = parser::parse(

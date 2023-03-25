@@ -1,8 +1,8 @@
 use super::utils::*;
 use crate::typesystem::*;
 
-use crate::parser::ast;
-use crate::parser::ast::NodeId::*;
+use crate::ast;
+use crate::ast::NodeId::*;
 
 fn wrap_in_simple_declaration(typename: &str) -> String {
     return format!("def _ = {}", typename);

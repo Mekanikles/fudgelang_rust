@@ -1,5 +1,5 @@
 use super::utils::*;
-use crate::parser::ast::NodeId::*;
+use crate::ast::NodeId::*;
 
 fn wrap_in_simple_function_literal(body: &str) -> String {
     return format!("func() do\n{}\nend", body);

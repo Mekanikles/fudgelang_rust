@@ -1,6 +1,6 @@
 use super::utils::*;
+use crate::ast::NodeId::*;
 use crate::error::*;
-use crate::parser::ast::NodeId::*;
 
 #[test]
 fn test_expression_if_simple() {
