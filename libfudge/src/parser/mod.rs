@@ -1,6 +1,5 @@
 pub mod parser;
 
-pub mod stringstore;
 pub mod tokenstream;
 
 pub use parser::*;

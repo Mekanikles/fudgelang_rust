@@ -4,66 +4,15 @@ use std::fmt;
 use std::fmt::*;
 use std::str;
 
-pub use crate::parser::stringstore::*;
-use crate::typesystem::*;
-
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-// TODO: Move out of ast
-#[derive(Debug, Clone)]
-pub struct SymbolRef {
-    pub stringref: StringRef,
-    #[cfg(debug_assertions)]
-    debugname: String,
-}
+use crate::typesystem::*;
 
-impl SymbolRef {
-    #[cfg(debug_assertions)]
-    pub fn from_str(symbol: &str) -> SymbolRef {
-        SymbolRef {
-            stringref: StringRef {
-                key: StringStore::get_key(symbol),
-            },
-            debugname: symbol.to_string(),
-        }
-    }
+use crate::shared::BinaryOperationType;
 
-    #[cfg(not(debug_assertions))]
-    pub fn from_str(symbol: &str) -> SymbolRef {
-        SymbolRef {
-            stringref: StringRef {
-                key: StringStore::get_key(symbol),
-            },
-            debugname: symbol,
-        }
-    }
-}
-
-impl Hash for SymbolRef {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.stringref.key.hash(state);
-    }
-}
-
-impl PartialEq for SymbolRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.stringref.key == other.stringref.key
-    }
-}
-impl Eq for SymbolRef {}
-
-impl Display for SymbolRef {
-    #[cfg(debug_assertions)]
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.debugname)
-    }
-
-    #[cfg(not(debug_assertions))]
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{}", self.stringref.key)
-    }
-}
+use crate::utils::stringstore::StringStore;
+pub use crate::utils::StringKey as SymbolRef;
 
 #[derive(Debug)]
 pub enum BuiltInObject {
@@ -169,10 +118,7 @@ impl Ast {
 
     #[cfg(debug_assertions)]
     pub fn add_symbol(&mut self, symbol: &str) -> SymbolRef {
-        return SymbolRef {
-            stringref: self.symbols.insert(symbol),
-            debugname: symbol.into(),
-        };
+        return self.symbols.insert(symbol);
     }
 
     #[cfg(not(debug_assertions))]
@@ -183,7 +129,7 @@ impl Ast {
     }
 
     pub fn get_symbol(&self, symbolref: &SymbolRef) -> Option<&String> {
-        return self.symbols.get(&symbolref.stringref);
+        return self.symbols.get(&symbolref);
     }
 
     pub fn find_first_node(&self, nodeid: NodeId) -> Option<NodeRef> {
@@ -212,19 +158,6 @@ impl Ast {
 
         return None;
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BinaryOperationType {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Equals,
-    LessThan,
-    LessThanOrEq,
-    GreaterThan,
-    GreaterThanOrEq,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -612,8 +545,10 @@ impl<'a> AstPrinter<'a> {
             }
             for m in match_slices {
                 let mut buf = nodetext.into_bytes();
-                let key = str::from_utf8(&buf[m.1]).unwrap().parse::<u64>();
-                if let Some(s) = self.ast.symbols.get(&StringRef { key: key.unwrap() }) {
+                let hash = str::from_utf8(&buf[m.1]).unwrap().parse::<u64>();
+                // TODO: This is a bit awkward, resulting key will have a nonsense debugname
+                let key = crate::utils::StringKey::from_hash(&hash.unwrap());
+                if let Some(s) = self.ast.symbols.get(&key) {
                     buf.splice(m.0, s.bytes());
                 }
 

@@ -90,7 +90,7 @@ fn main() {
         module_asts.push(scan_and_parse_file(path, false, &params));
     }
 
-    interpreter::run(&main_ast, &module_asts);
+    interpreter::treewalker::run(&main_ast, &module_asts);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

@@ -1,5 +1,4 @@
 use crate::ast;
-use crate::parser::stringstore::*;
 use crate::typesystem::*;
 
 use std::collections::HashMap;
@@ -7,6 +6,9 @@ use std::fmt;
 use std::mem;
 
 use dyn_fmt::AsStrFormatExt;
+
+use crate::shared::BinaryOperationType;
+use crate::utils::StringKey;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct AstRef {
@@ -95,14 +97,14 @@ impl VariableEnvironment {
 pub struct Module {
     pub name: String,
     pub astref: Option<AstRef>,
-    pub parent: Option<u64>,
+    pub parent: Option<StringKey>,
     pub globals: VariableEnvironment,
     pub functions: Vec<Function>,
     pub modules: VariableEnvironment,
 }
 
 impl Module {
-    fn new(name: String, astref: Option<AstRef>, parent: Option<u64>) -> Module {
+    fn new(name: String, astref: Option<AstRef>, parent: Option<StringKey>) -> Module {
         Module {
             name: name,
             astref: astref,
@@ -131,11 +133,11 @@ impl<'a> Context<'a> {
 }
 
 pub struct State {
-    pub all_modules: HashMap<u64, Module>,
-    pub global_module: u64,
+    pub all_modules: HashMap<StringKey, Module>,
+    pub global_module: StringKey,
     pub strings: Vec<String>,
     pub stackframes: Vec<StackFrame>,
-    pub current_module: Option<u64>,
+    pub current_module: Option<StringKey>,
 }
 
 pub struct TreeWalker<'a> {
@@ -151,7 +153,7 @@ pub struct StackFrame {
 }
 
 pub struct Function {
-    module: u64,
+    module: StringKey,
     signature: FunctionSignature,
     body: AstRef,
 }
@@ -159,7 +161,7 @@ pub struct Function {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionRef {
     index: u64,
-    module: u64,
+    module: StringKey,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -235,20 +237,20 @@ fn perform_binop<
         + BinOp<GeaterThan>
         + BinOp<GreaterThanOrEq>,
 >(
-    op: &ast::BinaryOperationType,
+    op: &BinaryOperationType,
     lhs: &T,
     rhs: &T,
 ) -> Value {
     return match op {
-        ast::BinaryOperationType::Add => BinOp::<Add>::perform(lhs, rhs),
-        ast::BinaryOperationType::Sub => BinOp::<Sub>::perform(lhs, rhs),
-        ast::BinaryOperationType::Mul => BinOp::<Mul>::perform(lhs, rhs),
-        ast::BinaryOperationType::Div => BinOp::<Div>::perform(lhs, rhs),
-        ast::BinaryOperationType::Equals => BinOp::<Equals>::perform(lhs, rhs),
-        ast::BinaryOperationType::LessThan => BinOp::<LessThan>::perform(lhs, rhs),
-        ast::BinaryOperationType::LessThanOrEq => BinOp::<LessThanOrEq>::perform(lhs, rhs),
-        ast::BinaryOperationType::GreaterThan => BinOp::<GeaterThan>::perform(lhs, rhs),
-        ast::BinaryOperationType::GreaterThanOrEq => BinOp::<GreaterThanOrEq>::perform(lhs, rhs),
+        BinaryOperationType::Add => BinOp::<Add>::perform(lhs, rhs),
+        BinaryOperationType::Sub => BinOp::<Sub>::perform(lhs, rhs),
+        BinaryOperationType::Mul => BinOp::<Mul>::perform(lhs, rhs),
+        BinaryOperationType::Div => BinOp::<Div>::perform(lhs, rhs),
+        BinaryOperationType::Equals => BinOp::<Equals>::perform(lhs, rhs),
+        BinaryOperationType::LessThan => BinOp::<LessThan>::perform(lhs, rhs),
+        BinaryOperationType::LessThanOrEq => BinOp::<LessThanOrEq>::perform(lhs, rhs),
+        BinaryOperationType::GreaterThan => BinOp::<GeaterThan>::perform(lhs, rhs),
+        BinaryOperationType::GreaterThanOrEq => BinOp::<GreaterThanOrEq>::perform(lhs, rhs),
     };
 }
 
@@ -320,7 +322,7 @@ pub enum Value {
     BuiltInFunction(BuiltInFunction),
     Function(FunctionRef),
     StructInstance(StructInstance),
-    Module(StringRef),
+    Module(StringKey),
     ValueRef(ValueRef),
 }
 
@@ -338,19 +340,19 @@ pub struct NamedStackValueRef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IndexedGlobalValueRef {
-    module: u64,
+    module: StringKey,
     index: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedGlobalValueRef {
-    module: u64,
+    module: StringKey,
     symbol: ast::SymbolRef,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubModuleValueRef {
-    module: u64,
+    module: StringKey,
     submodule: ast::SymbolRef,
 }
 
@@ -395,7 +397,7 @@ fn get_simple_valueref_debug_name<'a>(svref: &SimpleValueRef, state: &State) -> 
         SimpleValueRef::SubModuleValueRef(r) => {
             let module = state.get_module(&r.module);
             let submodule = match module.modules.get_from_symbol(&r.submodule).unwrap() {
-                Value::Module(m) => state.get_module(&m.key),
+                Value::Module(m) => state.get_module(&m),
                 _ => panic!("Found submodule value what was not a module"),
             };
             format!("SubModule({}.{})", module.name, submodule.name,)
@@ -442,7 +444,7 @@ impl<'a> fmt::Debug for ValueDisplay<'a> {
             .fmt(f),
             Value::Module(m) => f
                 .debug_tuple("Module")
-                .field(&self.state.get_module(&m.key).name)
+                .field(&self.state.get_module(&m).name)
                 .finish(),
             n => n.fmt(f),
         }
@@ -544,7 +546,7 @@ fn create_null_value() -> Value {
     return Value::Null;
 }
 
-fn create_module_value(name: &StringRef) -> Value {
+fn create_module_value(name: &StringKey) -> Value {
     return Value::Module(name.clone());
 }
 
@@ -631,8 +633,8 @@ impl<'a> TreeWalker<'a> {
             Value::Module(m) => {
                 // TODO: What happens with the stackframe here, it should not be valid for module lookups
                 // Push the referenced module around the evaluation
-                let old_module = self.state.current_module;
-                self.state.current_module = Some(m.key);
+                let old_module = self.state.current_module.clone();
+                self.state.current_module = Some(m.clone());
                 let result = self.evaluate_symbol(astref, &subscript.field);
                 self.state.current_module = old_module;
                 result
@@ -880,8 +882,8 @@ impl<'a> TreeWalker<'a> {
                 let node = as_node!(fnast, StatementBody, &fnastref.noderef);
 
                 // TODO: This is pretty hacky, but push the module of the function before calling
-                let old_module = self.state.current_module;
-                self.state.current_module = Some(function.module);
+                let old_module = self.state.current_module.clone();
+                self.state.current_module = Some(function.module.clone());
 
                 self.state.stackframes.push(frame);
                 self.evaluate_statementbody(&fnastref, node);
@@ -1015,10 +1017,10 @@ impl<'a> TreeWalker<'a> {
             signature.outputparams.push(typeid);
         }
 
-        let module = self.state.current_module.unwrap();
+        let module = self.state.current_module.as_ref().unwrap().clone();
         let funcref = FunctionRef {
             index: self.state.get_current_module().functions.len() as u64,
-            module: module,
+            module: module.clone(),
         };
         self.state
             .get_current_module_mut()
@@ -1036,25 +1038,24 @@ impl<'a> TreeWalker<'a> {
         let ast = self.context.get_ast(astref);
 
         // TODO: Fallback for unnamed modules
-        // TODO: Stringref :(
-        let key = module_node.symbol.stringref.key;
+        let key = &module_node.symbol;
 
         // Register module globally
         let module = Module::new(
             ast.get_symbol(&module_node.symbol).unwrap().clone(),
             Some(*astref),
-            self.state.current_module,
+            self.state.current_module.clone(),
         );
-        self.state.all_modules.insert(key, module);
+        self.state.all_modules.insert(key.clone(), module);
 
         // And locally
-        self.state.get_current_module_mut().modules.add_with_symbol(
-            module_node.symbol.clone(),
-            create_module_value(&StringRef { key: key }),
-        );
+        self.state
+            .get_current_module_mut()
+            .modules
+            .add_with_symbol(module_node.symbol.clone(), create_module_value(&key));
 
-        let old_module = self.state.current_module;
-        self.state.current_module = Some(key);
+        let old_module = self.state.current_module.clone();
+        self.state.current_module = Some(key.clone());
 
         // Gah, this sucks. But a new module has no stack.
         let mut old_stackframes: Vec<StackFrame> = Vec::new();
@@ -1202,20 +1203,20 @@ impl<'a> TreeWalker<'a> {
 }
 
 impl State {
-    fn get_module(&self, key: &u64) -> &Module {
+    fn get_module(&self, key: &StringKey) -> &Module {
         return self.all_modules.get(key).unwrap();
     }
 
-    fn get_module_mut(&mut self, key: &u64) -> &mut Module {
+    fn get_module_mut(&mut self, key: &StringKey) -> &mut Module {
         return self.all_modules.get_mut(key).unwrap();
     }
 
     fn get_current_module(&self) -> &Module {
-        return self.get_module(&self.current_module.unwrap());
+        return self.get_module(&self.current_module.as_ref().unwrap().clone());
     }
 
     fn get_current_module_mut(&mut self) -> &mut Module {
-        return self.get_module_mut(&self.current_module.unwrap());
+        return self.get_module_mut(&self.current_module.as_ref().unwrap().clone());
     }
 
     fn get_indexed_stack_value(&self, sref: &IndexedStackValueRef) -> &Value {
@@ -1303,7 +1304,7 @@ impl State {
         match v {
             Value::StructInstance(instance) => instance.fields.get(&svref.field).unwrap(),
             Value::Module(m) => {
-                let vref = self.lookup_symbol_from_module(m.key, &svref.field);
+                let vref = self.lookup_symbol_from_module(m, &svref.field);
                 self.resolve_valueref(&vref.unwrap())
             }
             n => panic!("SubscriptedValueRef not supported on value {:?}", n),
@@ -1334,10 +1335,10 @@ impl State {
         // Rust seems to not be able to deal with conditionally ending lifetimes
         //  so for module lookups which requires &self, do this non-mut resolve separately
         if let Some(module_key) = match self.resolve_valueref(&leaf_ref) {
-            Value::Module(m) => Some(m.key),
+            Value::Module(m) => Some(m),
             _ => None,
         } {
-            let vref = self.lookup_symbol_from_module(module_key, &svref.field);
+            let vref = self.lookup_symbol_from_module(&module_key, &svref.field);
             return self.resolve_valueref_mut(vref.unwrap());
         }
 
@@ -1398,10 +1399,10 @@ impl State {
 
     pub fn lookup_symbol_from_module(
         &self,
-        module_key: u64,
+        module_key: &StringKey,
         symbol: &ast::SymbolRef,
     ) -> Option<ValueRef> {
-        let mut module_key_iter = Some(module_key);
+        let mut module_key_iter = Some(module_key.clone());
 
         // Check all modules up including the global module
         while let Some(module_key) = module_key_iter {
@@ -1427,7 +1428,7 @@ impl State {
                 )));
             }
 
-            module_key_iter = module.parent;
+            module_key_iter = module.parent.clone();
         }
         None
     }
@@ -1445,7 +1446,7 @@ impl State {
             }
         }
 
-        self.lookup_symbol_from_module(self.current_module.unwrap(), symbol)
+        self.lookup_symbol_from_module(&self.current_module.as_ref().unwrap().clone(), symbol)
     }
 }
 
@@ -1454,7 +1455,7 @@ impl<'a> TreeWalker<'a> {
         TreeWalker {
             state: State {
                 all_modules: HashMap::new(),
-                global_module: 0,
+                global_module: StringKey::from_str("Global"),
                 strings: Vec::new(),
                 stackframes: Vec::new(),
                 current_module: None,
@@ -1469,9 +1470,10 @@ impl<'a> TreeWalker<'a> {
         // Register main module so other modules can use it to register themselves
         // TODO: Use 0 as main module key for now
         let module = Module::new("global".into(), None, None);
-        self.state.all_modules.insert(0, module);
-        self.state.global_module = 0;
-        self.state.current_module = Some(self.state.global_module);
+        self.state
+            .all_modules
+            .insert(self.state.global_module.clone(), module);
+        self.state.current_module = Some(self.state.global_module.clone());
 
         // Evaluate all asts
         // TODO: This needs to happen in some specific order
@@ -1483,14 +1485,15 @@ impl<'a> TreeWalker<'a> {
                 ast::Node::EntryPoint(n) => {
                     // We save main for later and evaluate all modules first
                     main = Some(from_ast_and_node(&ast, &n.statementbody));
-                    self.state.get_module_mut(&0).astref = main;
+                    let global_module = self.state.global_module.clone();
+                    self.state.get_module_mut(&global_module).astref = main;
                 }
                 n => panic!("Invalid ast root node: {:?}", n),
             }
         }
 
         // Finally run main module
-        assert!(self.state.current_module == Some(self.state.global_module));
+        assert!(self.state.current_module == Some(self.state.global_module.clone()));
 
         // Main is treated like a function, push a new stack frame
         self.state.stackframes.push(StackFrame {

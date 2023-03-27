@@ -1,7 +1,8 @@
 use phf::phf_map;
 
-// TODO
-use crate::ast;
+use crate::utils::*;
+
+use StringKey as SymbolKey;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrimitiveType {
@@ -37,12 +38,12 @@ pub static PRIMITIVES: phf::Map<&'static str, PrimitiveType> = phf_map! {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDefinition {
-    pub fields: Vec<(ast::SymbolRef, TypeId)>,
+    pub fields: Vec<(SymbolKey, TypeId)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionSignature {
-    pub inputparams: Vec<(ast::SymbolRef, TypeId)>,
+    pub inputparams: Vec<(SymbolKey, TypeId)>,
     pub outputparams: Vec<TypeId>,
 }
 

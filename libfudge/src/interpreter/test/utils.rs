@@ -5,11 +5,17 @@ pub fn test_interpreters_with_modules(
     modules: &[&str],
     test: &dyn Fn(&dyn InterpreterTestingResult) -> (),
 ) {
-    let mut twth = TreeWalkerTestingHarness::new();
-    for module in modules {
-        twth.load_module_source(module);
+    let interpreters: Vec<Box<dyn InterpreterTestingHarness>> = vec![
+        Box::new(TreeWalkerTestingHarness::new()),
+        /*Box::new(GraphWalkerTestingHarness::new()),*/
+    ];
+
+    for mut i in interpreters {
+        for module in modules {
+            i.load_module_source(module);
+        }
+        test(&*i.run(source))
     }
-    test(&twth.run(source));
 }
 
 pub fn test_interpreters(source: &str, test: &dyn Fn(&dyn InterpreterTestingResult) -> ()) {

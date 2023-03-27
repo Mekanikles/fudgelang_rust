@@ -1,13 +1,15 @@
 use super::*;
 
+use crate::shared::BinaryOperationType;
+
 pub enum OpPrecedence {
     MulDiv,
     AddSub,
     Comparisons,
 }
 
-pub const fn binop_precedence(optype: &ast::BinaryOperationType) -> u32 {
-    use ast::BinaryOperationType::*;
+pub const fn binop_precedence(optype: &BinaryOperationType) -> u32 {
+    use BinaryOperationType::*;
     match optype {
         Add => OpPrecedence::AddSub as u32,
         Sub => OpPrecedence::AddSub as u32,
@@ -21,10 +23,7 @@ pub const fn binop_precedence(optype: &ast::BinaryOperationType) -> u32 {
     }
 }
 
-pub const fn has_higher_precedence(
-    a: &ast::BinaryOperationType,
-    b: &ast::BinaryOperationType,
-) -> bool {
+pub const fn has_higher_precedence(a: &BinaryOperationType, b: &BinaryOperationType) -> bool {
     binop_precedence(a) < binop_precedence(b)
 }
 
@@ -41,7 +40,7 @@ impl<'a> Parser<'a> {
         // For more info, see Shunting Yard Algorithm
 
         let mut exprstack: Vec<ast::NodeRef> = Vec::new();
-        let mut binopstack: Vec<ast::BinaryOperationType> = Vec::new();
+        let mut binopstack: Vec<BinaryOperationType> = Vec::new();
 
         if let Some(expr) = self.parse_left_recursive_expression()? {
             exprstack.push(expr);
@@ -54,7 +53,7 @@ impl<'a> Parser<'a> {
         fn consume_last_op(
             ast: &mut ast::Ast,
             exprstack: &mut Vec<ast::NodeRef>,
-            binopstack: &mut Vec<ast::BinaryOperationType>,
+            binopstack: &mut Vec<BinaryOperationType>,
         ) {
             assert!(exprstack.len() > 1);
             let rhs = exprstack.pop().unwrap();

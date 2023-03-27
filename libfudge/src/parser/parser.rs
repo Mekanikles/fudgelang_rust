@@ -8,6 +8,8 @@ use crate::source::*;
 
 use crate::typesystem::*;
 
+use crate::shared::BinaryOperationType;
+
 mod builtins;
 mod expressions;
 
@@ -562,18 +564,18 @@ impl<'a> Parser<'a> {
             .replace_node(node, ast::nodes::ArgumentList { args: args }.into()));
     }
 
-    fn accept_binaryoperator(&mut self) -> Option<ast::BinaryOperationType> {
+    fn accept_binaryoperator(&mut self) -> Option<BinaryOperationType> {
         if let Some(tt) = &self.current_token {
             let r = match tt.tokentype {
-                TokenType::Plus => Some(ast::BinaryOperationType::Add),
-                TokenType::Minus => Some(ast::BinaryOperationType::Sub),
-                TokenType::Star => Some(ast::BinaryOperationType::Mul),
-                TokenType::Slash => Some(ast::BinaryOperationType::Div),
-                TokenType::CompareEq => Some(ast::BinaryOperationType::Equals),
-                TokenType::GreaterThan => Some(ast::BinaryOperationType::GreaterThan),
-                TokenType::GreaterThanOrEq => Some(ast::BinaryOperationType::GreaterThanOrEq),
-                TokenType::LessThan => Some(ast::BinaryOperationType::LessThan),
-                TokenType::LessThanOrEq => Some(ast::BinaryOperationType::LessThanOrEq),
+                TokenType::Plus => Some(BinaryOperationType::Add),
+                TokenType::Minus => Some(BinaryOperationType::Sub),
+                TokenType::Star => Some(BinaryOperationType::Mul),
+                TokenType::Slash => Some(BinaryOperationType::Div),
+                TokenType::CompareEq => Some(BinaryOperationType::Equals),
+                TokenType::GreaterThan => Some(BinaryOperationType::GreaterThan),
+                TokenType::GreaterThanOrEq => Some(BinaryOperationType::GreaterThanOrEq),
+                TokenType::LessThan => Some(BinaryOperationType::LessThan),
+                TokenType::LessThanOrEq => Some(BinaryOperationType::LessThanOrEq),
                 _ => None,
             };
 

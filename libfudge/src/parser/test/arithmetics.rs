@@ -5,22 +5,24 @@ use crate::ast::NodeId::*;
 
 use phf::phf_map;
 
+use crate::shared::BinaryOperationType;
+
 // Map with all addressable binary operators
-static BINOPS: phf::Map<&'static str, ast::BinaryOperationType> = phf_map! {
-    "+" => ast::BinaryOperationType::Add,
-    "-" => ast::BinaryOperationType::Sub,
-    "*" => ast::BinaryOperationType::Mul,
-    "/" => ast::BinaryOperationType::Div,
-    "==" => ast::BinaryOperationType::Equals,
-    ">" => ast::BinaryOperationType::GreaterThan,
-    ">=" => ast::BinaryOperationType::GreaterThanOrEq,
-    "<" => ast::BinaryOperationType::LessThan,
-    "<=" => ast::BinaryOperationType::LessThanOrEq,
+static BINOPS: phf::Map<&'static str, BinaryOperationType> = phf_map! {
+    "+" => BinaryOperationType::Add,
+    "-" => BinaryOperationType::Sub,
+    "*" => BinaryOperationType::Mul,
+    "/" => BinaryOperationType::Div,
+    "==" => BinaryOperationType::Equals,
+    ">" => BinaryOperationType::GreaterThan,
+    ">=" => BinaryOperationType::GreaterThanOrEq,
+    "<" => BinaryOperationType::LessThan,
+    "<=" => BinaryOperationType::LessThanOrEq,
 };
 
 #[test]
 fn test_all_simple_binary_operations() {
-    fn test_simple_binary_operation(opstr: &str, optype: ast::BinaryOperationType) {
+    fn test_simple_binary_operation(opstr: &str, optype: BinaryOperationType) {
         let source = format!("a {} b", opstr);
         let expected = entrypoint_wrapper_tree(&[tree(
             BinaryOperation,
