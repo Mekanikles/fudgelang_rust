@@ -1,3 +1,4 @@
+pub mod objectstore;
 pub mod stringstore;
 
 use std::collections::hash_map::DefaultHasher;

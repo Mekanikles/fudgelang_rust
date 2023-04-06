@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::ast::*;
 use crate::typesystem::*;
 
 use std::collections::HashMap;
@@ -10,35 +11,35 @@ use dyn_fmt::AsStrFormatExt;
 use crate::shared::BinaryOperationType;
 use crate::utils::StringKey;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct AstRef {
-    ast_key: ast::AstKey,
-    noderef: ast::NodeRef,
+pub struct Context<'a> {
+    pub asts: HashMap<ast::AstKey, &'a ast::Ast>,
 }
 
-fn from_astref(astref: &AstRef, noderef: &ast::NodeRef) -> AstRef {
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct AstRef {
+    pub ast_key: AstKey,
+    pub noderef: NodeRef,
+}
+
+pub fn from_astref(astref: &AstRef, noderef: &NodeRef) -> AstRef {
     return AstRef {
         ast_key: astref.ast_key,
         noderef: *noderef,
     };
 }
 
-fn from_ast(ast: &ast::Ast) -> AstRef {
+pub fn from_ast(ast: &Ast) -> AstRef {
     return AstRef {
         ast_key: ast.key,
         noderef: ast.get_root().unwrap(),
     };
 }
 
-fn from_ast_and_node(ast: &ast::Ast, noderef: &ast::NodeRef) -> AstRef {
+pub fn from_ast_and_node(ast: &Ast, noderef: &NodeRef) -> AstRef {
     return AstRef {
         ast_key: ast.key,
         noderef: *noderef,
     };
-}
-
-pub struct Context<'a> {
-    pub asts: HashMap<ast::AstKey, &'a ast::Ast>,
 }
 
 #[derive(Debug)]
@@ -593,15 +594,6 @@ fn create_default_value(typeid: &TypeId) -> Value {
     }
 }
 
-macro_rules! as_node {
-    ($ast:ident, $nodet:ident, $noderef:expr) => {
-        match $ast.get_node($noderef) {
-            ast::Node::$nodet(n) => n,
-            n => panic!("Could not cast node {:?} to {}!", n, stringify!($nodet)),
-        }
-    };
-}
-
 impl<'a> TreeWalker<'a> {
     fn evaluate_integerliteral(&mut self, intlit: &ast::nodes::IntegerLiteral) -> Value {
         return Value::Primitive(PrimitiveValue::U32(U32(intlit.value as u32)));
@@ -1148,6 +1140,7 @@ impl<'a> TreeWalker<'a> {
 
         let actual_initval = actual_initval.clone_or_move_inner(&self.state);
 
+        // TODO: This is not correct for modules inside functions
         let symenv = if !self.state.stackframes.is_empty() {
             &mut self.state.stackframes.last_mut().unwrap().variables
         } else {

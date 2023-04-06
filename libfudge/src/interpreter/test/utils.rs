@@ -1,5 +1,21 @@
 use super::*;
 
+use crate::ast;
+use crate::parser;
+use crate::parser::tokenstream::TokenStream;
+use crate::scanner;
+use crate::source;
+
+pub fn scan_and_parse(source: &str, ismain: bool) -> ast::Ast {
+    let source = source::Source::from_str(&source);
+    let scanner_result = scanner::tokenize(&source);
+    let parser_result = parser::parse(
+        &mut TokenStream::new(&scanner_result.tokens, &source),
+        ismain,
+    );
+    parser_result.ast
+}
+
 pub fn test_interpreters_with_modules(
     source: &str,
     modules: &[&str],

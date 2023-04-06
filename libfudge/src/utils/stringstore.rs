@@ -1,29 +1,9 @@
-use std::collections::HashMap;
+use crate::utils::*;
 
-use crate::utils::StringKey;
+pub type StringStore = objectstore::HashedObjectStore<StringKey, String>;
 
-pub struct StringStore {
-    strings: HashMap<StringKey, String>,
-}
-
-impl StringStore {
-    pub fn new() -> Self {
-        StringStore {
-            strings: HashMap::new(),
-        }
-    }
-
-    pub fn insert(&mut self, string: &str) -> StringKey {
-        let key = StringKey::from_str(string);
-
-        if !self.strings.contains_key(&key) {
-            self.strings.insert(key.clone(), string.into());
-        }
-
-        return key;
-    }
-
-    pub fn get(&self, key: &StringKey) -> Option<&String> {
-        self.strings.get(&key)
+impl objectstore::HashedStoreKey<String> for StringKey {
+    fn from_obj(object: &String) -> Self {
+        StringKey::from_str(object.as_str())
     }
 }

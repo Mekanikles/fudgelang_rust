@@ -47,6 +47,15 @@ pub struct FunctionSignature {
     pub outputparams: Vec<TypeId>,
 }
 
+impl FunctionSignature {
+    pub fn new_simple() -> Self {
+        Self {
+            inputparams: Vec::new(),
+            outputparams: Vec::new(),
+        }
+    }
+}
+
 // Cheat a bit and treat all built-ins as their own unique types
 // TODO: We want to express the type of built-ins through the regular type system, including signatures with dependent types
 #[derive(Debug, Clone, PartialEq)]

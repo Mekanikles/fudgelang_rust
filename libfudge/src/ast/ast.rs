@@ -14,6 +14,8 @@ use crate::shared::BinaryOperationType;
 use crate::utils::stringstore::StringStore;
 pub use crate::utils::StringKey as SymbolRef;
 
+use crate::utils::objectstore::*;
+
 #[derive(Debug)]
 pub enum BuiltInObject {
     Function(BuiltInFunction),
@@ -118,7 +120,7 @@ impl Ast {
 
     #[cfg(debug_assertions)]
     pub fn add_symbol(&mut self, symbol: &str) -> SymbolRef {
-        return self.symbols.insert(symbol);
+        return self.symbols.add(symbol.into());
     }
 
     #[cfg(not(debug_assertions))]
@@ -129,7 +131,7 @@ impl Ast {
     }
 
     pub fn get_symbol(&self, symbolref: &SymbolRef) -> Option<&String> {
-        return self.symbols.get(&symbolref);
+        return self.symbols.try_get(&symbolref);
     }
 
     pub fn find_first_node(&self, nodeid: NodeId) -> Option<NodeRef> {
@@ -335,6 +337,17 @@ declare_nodes!(
         field: SymbolRef,
     },
 );
+
+macro_rules! as_node {
+    ($ast:ident, $nodet:ident, $noderef:expr) => {
+        match $ast.get_node($noderef) {
+            ast::Node::$nodet(n) => n,
+            n => panic!("Could not cast node {:?} to {}!", n, stringify!($nodet)),
+        }
+    };
+}
+
+pub(crate) use as_node;
 
 // Why no trait specializations :(
 trait ChildCollector {
@@ -548,7 +561,7 @@ impl<'a> AstPrinter<'a> {
                 let hash = str::from_utf8(&buf[m.1]).unwrap().parse::<u64>();
                 // TODO: This is a bit awkward, resulting key will have a nonsense debugname
                 let key = crate::utils::StringKey::from_hash(&hash.unwrap());
-                if let Some(s) = self.ast.symbols.get(&key) {
+                if let Some(s) = self.ast.symbols.try_get(&key) {
                     buf.splice(m.0, s.bytes());
                 }
 
