@@ -46,11 +46,22 @@ impl objectstore::HashedStoreKey<SymbolDeclaration> for StringKey {
     }
 }
 
-pub struct SymbolReference {
-    symbol: String,
+pub struct UnresolvedSymbolReference {
+    pub symbol: String,
 }
 
-pub type SymbolReferenceStore = stringstore::StringStore;
+pub struct ResolvedSymbolReference {
+    pub scope: SymbolScopeKey,
+    pub symbol: SymbolKey,
+}
+
+pub enum SymbolReference {
+    ResolvedReference(ResolvedSymbolReference),
+    UnresolvedReference(UnresolvedSymbolReference),
+}
+
+pub type SymbolReferenceStore = IndexedObjectStore<SymbolReference>;
+pub type SymbolReferenceKey = usize;
 
 pub struct SymbolScope {
     pub declarations: SymbolDeclarationStore,
@@ -97,7 +108,7 @@ impl Asg {
         let module = Module::new(&mut store, "global".into(), None);
         let global_module = store.modules.add(module);
         // Note: main should not be available for symbol lookup, so don't add it to any module
-        let main = store.functions.add(Function::new_simple("main".into()));
+        let main = store.functions.add(Function::new("main".into()));
 
         Asg {
             store,
@@ -136,30 +147,37 @@ impl Module {
     }
 }
 
+pub struct FunctionParameter {
+    pub name: String,
+    pub typeexpr: ExpressionKey,
+}
+
 pub struct Function {
     pub name: String,
-    pub signature: FunctionSignature,
+    pub inparams: Vec<FunctionParameter>,
     pub body: StatementBody,
 }
 
 impl Function {
-    pub fn new_simple(name: String) -> Self {
+    pub fn new(name: String) -> Self {
         Self {
             name: name,
-            signature: FunctionSignature::new_simple(),
+            inparams: Vec::new(),
             body: StatementBody::new(),
         }
     }
 }
 
 pub mod statements {
+    use super::*;
+
     pub struct Return {
-        pub expr: super::ExpressionKey,
+        pub expr: ExpressionKey,
     }
 
     pub struct Assign {
-        pub symbol: super::SymbolKey,
-        pub expr: super::ExpressionKey,
+        pub symbol: SymbolKey,
+        pub expr: ExpressionKey,
     }
 }
 
@@ -197,10 +215,10 @@ pub mod expressions {
             pub fields: Vec<misc::StructField>,
         }
         pub struct FunctionLiteral {
-            pub key: FunctionKey,
+            pub functionkey: FunctionKey,
         }
         pub struct ModuleLiteral {
-            pub key: ModuleKey,
+            pub modulekey: ModuleKey,
         }
     }
 
@@ -213,22 +231,49 @@ pub mod expressions {
         ModuleLiteral(literals::ModuleLiteral),
     }
 
+    pub struct BuiltInFunction {
+        pub function: typesystem::BuiltInFunction,
+    }
+
+    pub struct PrimitiveType {
+        pub ptype: typesystem::PrimitiveType,
+    }
+
+    pub struct SymbolReference {
+        pub symbolref: SymbolReferenceKey,
+    }
+
+    pub struct If {
+        pub branches: Vec<(ExpressionKey, ExpressionKey)>,
+        pub elsebranch: Option<ExpressionKey>,
+    }
+
     pub struct Call {
-        pub callable: super::ExpressionKey,
-        pub arguments: Vec<super::ExpressionKey>,
+        pub callable: ExpressionKey,
+        pub args: Vec<ExpressionKey>,
     }
 
     pub struct BinOp {
-        pub op: super::BinaryOperationType,
-        pub lhs: super::ExpressionKey,
-        pub rhs: super::ExpressionKey,
+        pub op: BinaryOperationType,
+        pub lhs: ExpressionKey,
+        pub rhs: ExpressionKey,
+    }
+
+    pub struct Subscript {
+        pub expr: ExpressionKey,
+        pub symbol: String,
     }
 }
 
 pub enum Expression {
     Literal(expressions::Literal),
+    BuiltInFunction(expressions::BuiltInFunction),
+    PrimitiveType(expressions::PrimitiveType),
+    SymbolReference(expressions::SymbolReference),
+    If(expressions::If),
     Call(expressions::Call),
     BinOp(expressions::BinOp),
+    Subscript(expressions::Subscript),
 }
 
 pub struct StatementBody {

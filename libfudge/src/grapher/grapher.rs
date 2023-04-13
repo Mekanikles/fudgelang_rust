@@ -1,3 +1,7 @@
+mod builtins;
+mod expressions;
+mod statements;
+
 use std::collections::HashMap;
 
 use crate::asg;
@@ -22,6 +26,8 @@ struct State {
     asg: asg::Asg,
     current_module: asg::ModuleKey,
     current_function: Option<asg::FunctionKey>,
+    // TODO: This sucks, the goal is to give literals decent names
+    current_symdecl_name: String,
 }
 
 impl<'a> Context<'a> {
@@ -89,6 +95,7 @@ impl<'a> Grapher<'a> {
                 asg,
                 current_module,
                 current_function,
+                current_symdecl_name: "".into(),
             },
             errors: error::ErrorManager::new(),
         }
@@ -152,7 +159,7 @@ impl<'a> Grapher<'a> {
             .expressions
             .add(asg::Expression::Literal(
                 asg::expressions::Literal::ModuleLiteral(
-                    asg::expressions::literals::ModuleLiteral { key: modulekey },
+                    asg::expressions::literals::ModuleLiteral { modulekey },
                 ),
             ));
 
@@ -195,96 +202,6 @@ impl<'a> Grapher<'a> {
         for s in &ast_body.statements {
             self.parse_statement(astkey, s);
         }
-    }
-
-    fn parse_statement(&mut self, astkey: ast::AstKey, node: &ast::NodeRef) {
-        return match self.context.get_ast(astkey).get_node(node) {
-            ast::Node::ModuleSelfDeclaration(_) => {
-                /* TODO: This should be pruned before any intepretation step */
-            }
-            ast::Node::Module(n) => self.parse_module(astkey, n),
-            ast::Node::StatementBody(_n) => todo!(), // TODO: Can this happen?
-            ast::Node::SymbolDeclaration(n) => self.parse_symbol_declaration(astkey, n),
-            ast::Node::IfStatement(n) => todo!(),
-            ast::Node::ReturnStatement(n) => todo!(),
-            ast::Node::AssignStatement(n) => todo!(),
-            n => {
-                panic!("{:?} is not a valid statement", n);
-            }
-        };
-    }
-
-    fn parse_symbol_declaration(
-        &mut self,
-        astkey: ast::AstKey,
-        ast_symdecl: &ast::nodes::SymbolDeclaration,
-    ) {
-        let ast = self.context.get_ast(astkey);
-
-        let type_expr = if let Some(e) = ast_symdecl.typeexpr {
-            Some(self.parse_expression(astkey, &e))
-        } else {
-            None
-        };
-
-        let init_expr = if let Some(e) = ast_symdecl.initexpr {
-            Some(self.parse_expression(astkey, &e))
-        } else {
-            None
-        };
-
-        self.state
-            .get_current_symbolscope()
-            .declarations
-            .add(asg::SymbolDeclaration::new(
-                ast.get_symbol(&ast_symdecl.symbol).unwrap().into(),
-                type_expr,
-                init_expr,
-            ));
-    }
-
-    fn parse_expression(&mut self, astkey: ast::AstKey, node: &ast::NodeRef) -> asg::ExpressionKey {
-        match self.context.get_ast(astkey).get_node(node) {
-            ast::Node::StructLiteral(n) => self.parse_struct_literal(astkey, n),
-            ast::Node::StringLiteral(n) => todo!(),
-            ast::Node::FunctionLiteral(n) => todo!(),
-            ast::Node::BuiltInObjectReference(n) => todo!(),
-            ast::Node::SymbolReference(n) => todo!(),
-            ast::Node::IfExpression(n) => todo!(),
-            ast::Node::CallOperation(n) => todo!(),
-            ast::Node::BinaryOperation(n) => todo!(),
-            ast::Node::SubScript(n) => todo!(),
-            n => {
-                panic!("{:?} is not a valid expression!", n);
-            }
-        }
-    }
-
-    fn parse_struct_literal(
-        &mut self,
-        astkey: ast::AstKey,
-        ast_lit: &ast::nodes::StructLiteral,
-    ) -> asg::ExpressionKey {
-        let mut fields = Vec::new();
-
-        let ast = self.context.get_ast(astkey);
-        for f in &ast_lit.fields {
-            let sf = ast::as_node!(ast, StructField, &f);
-            fields.push(asg::misc::StructField {
-                name: ast.get_symbol(&sf.symbol).unwrap().clone(),
-                typeexpr: self.parse_expression(astkey, &sf.typeexpr),
-            });
-        }
-
-        let literal = asg::expressions::literals::StructLiteral { fields };
-
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::StructLiteral(literal),
-            ))
     }
 }
 
