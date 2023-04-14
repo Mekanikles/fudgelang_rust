@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::typesystem::*;
 use crate::utils::objectstore::*;
 pub use crate::utils::*;
@@ -171,17 +169,23 @@ impl Function {
 pub mod statements {
     use super::*;
 
+    pub struct If {
+        pub branches: Vec<(ExpressionKey, StatementBody)>,
+        pub elsebranch: Option<StatementBody>,
+    }
+
     pub struct Return {
-        pub expr: ExpressionKey,
+        pub expr: Option<ExpressionKey>,
     }
 
     pub struct Assign {
-        pub symbol: SymbolKey,
-        pub expr: ExpressionKey,
+        pub lhs: ExpressionKey,
+        pub rhs: ExpressionKey,
     }
 }
 
 pub enum Statement {
+    If(statements::If),
     Return(statements::Return),
     Assign(statements::Assign),
 }

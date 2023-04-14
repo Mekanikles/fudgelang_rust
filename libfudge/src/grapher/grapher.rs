@@ -5,9 +5,9 @@ mod statements;
 use std::collections::HashMap;
 
 use crate::asg;
+use crate::asg::StatementBody;
 use crate::ast;
 use crate::error;
-use crate::typesystem;
 
 // To be able to call methods on "Stores"... :(
 use crate::utils::objectstore::ObjectStore;
@@ -65,19 +65,6 @@ impl State {
         return self.get_module_mut(&key);
     }
 
-    fn get_current_statementbody(&mut self) -> &mut asg::StatementBody {
-        if let Some(function) = self.current_function {
-            &mut self.asg.store.functions.get_mut(&function).body
-        } else {
-            &mut self
-                .asg
-                .store
-                .modules
-                .get_mut(&self.current_module)
-                .initalizer
-        }
-    }
-
     fn get_current_symbolscope(&mut self) -> &mut asg::SymbolScope {
         let scope = self.get_current_module_mut().symbolscope.clone();
         self.asg.store.symbolscopes.get_mut(&scope)
@@ -125,7 +112,7 @@ impl<'a> Grapher<'a> {
         self.state.current_function = Some(self.state.asg.main);
 
         let ast = self.context.get_ast(astkey);
-        self.parse_function_statement_body(
+        self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_entrypoint.statementbody),
         );
@@ -176,7 +163,7 @@ impl<'a> Grapher<'a> {
         let old_module = self.state.current_module.clone();
         self.state.current_module = modulekey.clone();
 
-        self.parse_module_statement_body(
+        self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_module.statementbody),
         );
@@ -184,24 +171,20 @@ impl<'a> Grapher<'a> {
         self.state.current_module = old_module;
     }
 
-    fn parse_module_statement_body(
+    fn parse_statement_body(
         &mut self,
         astkey: ast::AstKey,
         ast_body: &ast::nodes::StatementBody,
-    ) {
-        for s in &ast_body.statements {
-            self.parse_statement(astkey, s);
-        }
-    }
+    ) -> StatementBody {
+        let mut body = StatementBody::new();
 
-    fn parse_function_statement_body(
-        &mut self,
-        astkey: ast::AstKey,
-        ast_body: &ast::nodes::StatementBody,
-    ) {
         for s in &ast_body.statements {
-            self.parse_statement(astkey, s);
+            if let Some(s) = self.parse_statement(astkey, s) {
+                body.statements.push(s);
+            };
         }
+
+        body
     }
 }
 
