@@ -12,6 +12,7 @@ pub trait ObjectStore<KeyT, ObjectT> {
     fn try_get_mut(&mut self, key: &KeyT) -> Option<&mut ObjectT>;
 }
 
+#[derive(Debug)]
 pub struct IndexedObjectStore<ObjectT> {
     objects: Vec<ObjectT>,
 }
@@ -21,6 +22,10 @@ impl<ObjectT> IndexedObjectStore<ObjectT> {
         Self {
             objects: Vec::new(),
         }
+    }
+
+    pub fn keys(&self) -> std::ops::Range<usize> {
+        0..self.objects.len()
     }
 }
 
@@ -52,6 +57,7 @@ pub trait HashedStoreKey<ObjectT>: Hash + Eq + Clone {
     fn from_obj(object: &ObjectT) -> Self;
 }
 
+#[derive(Debug)]
 pub struct HashedObjectStore<KeyT: HashedStoreKey<ObjectT>, ObjectT: Eq> {
     objects: HashMap<KeyT, ObjectT>,
 }
@@ -61,6 +67,10 @@ impl<KeyT: HashedStoreKey<ObjectT>, ObjectT: Eq> HashedObjectStore<KeyT, ObjectT
         Self {
             objects: HashMap::new(),
         }
+    }
+
+    pub fn keys(&self) -> std::collections::hash_map::Keys<'_, KeyT, ObjectT> {
+        self.objects.keys()
     }
 }
 

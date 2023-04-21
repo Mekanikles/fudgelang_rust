@@ -1,3 +1,5 @@
+mod dotfilegenerator;
+
 use libfudgec::*;
 
 use parser::tokenstream::TokenStream;
@@ -91,6 +93,13 @@ fn main() {
     }
 
     interpreter::treewalker::run(&main_ast, &module_asts);
-
     println!("{}", Color::Green.bold().paint("Done"));
+
+    let grapher_result = grapher::create_graph(&main_ast, &module_asts);
+
+    // Generate dotfile for asg
+    dotfilegenerator::generate_dotfile(
+        &grapher_result.asg,
+        params.main.file_stem().unwrap().to_str().unwrap(),
+    );
 }

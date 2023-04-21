@@ -14,3 +14,4 @@ bench = false
 fudgelang-lib = { path = "../libfudge" }
 ansi_term = "0.12"
 structopt = "0.3.13"
+dot = "0.1.4"

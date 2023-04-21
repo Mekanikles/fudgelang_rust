@@ -9,8 +9,10 @@ impl<'a> Grapher<'a> {
         node: &ast::NodeRef,
     ) -> asg::ExpressionKey {
         match self.context.get_ast(astkey).get_node(node) {
-            ast::Node::StructLiteral(n) => self.parse_structliteral(astkey, n),
             ast::Node::StringLiteral(n) => self.parse_stringliteral(astkey, n),
+            ast::Node::BooleanLiteral(n) => self.parse_booleanliteral(astkey, n),
+            ast::Node::IntegerLiteral(n) => self.parse_integerliteral(astkey, n),
+            ast::Node::StructLiteral(n) => self.parse_structliteral(astkey, n),
             ast::Node::FunctionLiteral(n) => self.parse_functionliteral(astkey, n),
             ast::Node::BuiltInObjectReference(n) => self.parse_builtinobjectreference(astkey, n),
             ast::Node::SymbolReference(n) => self.parse_symbolreference(astkey, n),
@@ -22,6 +24,58 @@ impl<'a> Grapher<'a> {
                 panic!("{:?} is not a valid expression!", n);
             }
         }
+    }
+
+    pub fn parse_stringliteral(
+        &mut self,
+        _astkey: ast::AstKey,
+        ast_lit: &ast::nodes::StringLiteral,
+    ) -> asg::ExpressionKey {
+        let literal = asg::expressions::literals::StringLiteral {
+            string: ast_lit.text.clone(),
+        };
+        self.state
+            .asg
+            .store
+            .expressions
+            .add(asg::Expression::Literal(
+                asg::expressions::Literal::StringLiteral(literal),
+            ))
+    }
+
+    pub fn parse_booleanliteral(
+        &mut self,
+        _astkey: ast::AstKey,
+        ast_lit: &ast::nodes::BooleanLiteral,
+    ) -> asg::ExpressionKey {
+        let literal = asg::expressions::literals::BoolLiteral {
+            value: ast_lit.value,
+        };
+        self.state
+            .asg
+            .store
+            .expressions
+            .add(asg::Expression::Literal(
+                asg::expressions::Literal::BoolLiteral(literal),
+            ))
+    }
+
+    pub fn parse_integerliteral(
+        &mut self,
+        _astkey: ast::AstKey,
+        ast_lit: &ast::nodes::IntegerLiteral,
+    ) -> asg::ExpressionKey {
+        let literal = asg::expressions::literals::IntegerLiteral {
+            data: ast_lit.value,
+            signed: ast_lit.signed,
+        };
+        self.state
+            .asg
+            .store
+            .expressions
+            .add(asg::Expression::Literal(
+                asg::expressions::Literal::IntegerLiteral(literal),
+            ))
     }
 
     pub fn parse_structliteral(
@@ -51,23 +105,6 @@ impl<'a> Grapher<'a> {
             ))
     }
 
-    pub fn parse_stringliteral(
-        &mut self,
-        _astkey: ast::AstKey,
-        ast_lit: &ast::nodes::StringLiteral,
-    ) -> asg::ExpressionKey {
-        let literal = asg::expressions::literals::StringLiteral {
-            string: ast_lit.text.clone(),
-        };
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::StringLiteral(literal),
-            ))
-    }
-
     pub fn parse_functionliteral(
         &mut self,
         astkey: ast::AstKey,
@@ -91,7 +128,7 @@ impl<'a> Grapher<'a> {
         //  know what symbol this will be bound to, try to figure something out
         let name = create_function_name(&self.state);
 
-        let mut function = asg::Function::new(name);
+        let mut function = asg::Function::new(name, self.state.current_module);
 
         // Populate in-params
         for inparam in &ast_lit.inputparams {

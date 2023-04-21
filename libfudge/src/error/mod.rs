@@ -131,7 +131,7 @@ pub fn error_code(id: ErrorId) -> String {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Error {
     pub id: ErrorId,
     pub message: String,

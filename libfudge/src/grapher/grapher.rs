@@ -42,30 +42,31 @@ impl<'a> Context<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct GrapherResult {
     pub asg: asg::Asg,
     pub errors: Vec<error::Error>,
 }
 
 impl State {
-    fn get_module(&self, key: &asg::ModuleKey) -> &asg::Module {
+    pub fn get_module(&self, key: &asg::ModuleKey) -> &asg::Module {
         self.asg.store.modules.get(key)
     }
 
-    fn get_module_mut(&mut self, key: &asg::ModuleKey) -> &mut asg::Module {
+    pub fn get_module_mut(&mut self, key: &asg::ModuleKey) -> &mut asg::Module {
         self.asg.store.modules.get_mut(key)
     }
 
-    fn get_current_module(&self) -> &asg::Module {
+    pub fn get_current_module(&self) -> &asg::Module {
         return self.get_module(&self.current_module);
     }
 
-    fn get_current_module_mut(&mut self) -> &mut asg::Module {
+    pub fn get_current_module_mut(&mut self) -> &mut asg::Module {
         let key = self.current_module.clone();
         return self.get_module_mut(&key);
     }
 
-    fn get_current_symbolscope(&mut self) -> &mut asg::SymbolScope {
+    pub fn get_current_symbolscope(&mut self) -> &mut asg::SymbolScope {
         let scope = self.get_current_module_mut().symbolscope.clone();
         self.asg.store.symbolscopes.get_mut(&scope)
     }
@@ -112,7 +113,12 @@ impl<'a> Grapher<'a> {
         self.state.current_function = Some(self.state.asg.main);
 
         let ast = self.context.get_ast(astkey);
-        self.parse_statement_body(
+        self.state
+            .asg
+            .store
+            .functions
+            .get_mut(&self.state.asg.main)
+            .body = self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_entrypoint.statementbody),
         );
@@ -163,7 +169,12 @@ impl<'a> Grapher<'a> {
         let old_module = self.state.current_module.clone();
         self.state.current_module = modulekey.clone();
 
-        self.parse_statement_body(
+        self.state
+            .asg
+            .store
+            .modules
+            .get_mut(&self.state.current_module)
+            .initalizer = self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_module.statementbody),
         );
@@ -175,7 +186,11 @@ impl<'a> Grapher<'a> {
         &mut self,
         astkey: ast::AstKey,
         ast_body: &ast::nodes::StatementBody,
-    ) -> StatementBody {
+    ) -> Option<asg::StatementBodyKey> {
+        if ast_body.statements.is_empty() {
+            return None;
+        }
+
         let mut body = StatementBody::new();
 
         for s in &ast_body.statements {
@@ -184,7 +199,7 @@ impl<'a> Grapher<'a> {
             };
         }
 
-        body
+        Some(self.state.asg.store.statementbodies.add(body))
     }
 }
 

@@ -9,9 +9,9 @@ impl<'a> Grapher<'a> {
         node: &ast::NodeRef,
     ) -> Option<Statement> {
         match self.context.get_ast(astkey).get_node(node) {
-            ast::Node::ModuleSelfDeclaration(_) => {
-                /* TODO: This should be pruned before any intepretation step */
-                todo!()
+            ast::Node::ModuleSelfDeclaration(n) => {
+                self.parse_moduleselfdeclaration(astkey, n);
+                None
             }
             ast::Node::Module(n) => {
                 self.parse_module(astkey, n);
@@ -22,10 +22,35 @@ impl<'a> Grapher<'a> {
             ast::Node::IfStatement(n) => Some(self.parse_ifstatement(astkey, n)),
             ast::Node::ReturnStatement(n) => Some(self.parse_returnstatement(astkey, n)),
             ast::Node::AssignStatement(n) => Some(self.parse_assignstatement(astkey, n)),
+            ast::Node::CallOperation(_n) => Some(self.parse_expressionwrapper(astkey, node)),
             n => {
                 panic!("{:?} is not a valid statement", n);
             }
         }
+    }
+
+    pub fn parse_moduleselfdeclaration(
+        &mut self,
+        astkey: ast::AstKey,
+        ast_moduledecl: &ast::nodes::ModuleSelfDeclaration,
+    ) {
+        let ast = self.context.get_ast(astkey);
+        let symbol_name: String = ast.get_symbol(&ast_moduledecl.symbol).unwrap().into();
+
+        let module = self.state.get_current_module_mut();
+        module.name = symbol_name;
+    }
+
+    pub fn parse_expressionwrapper(
+        &mut self,
+        astkey: ast::AstKey,
+        ast_node: &ast::NodeRef,
+    ) -> Statement {
+        let expr = self.parse_expression(astkey, &ast_node);
+
+        let wrapperstmt = asg::statements::ExpressionWrapper { expr };
+
+        asg::Statement::ExpressionWrapper(wrapperstmt)
     }
 
     pub fn parse_symboldeclaration(
@@ -73,7 +98,8 @@ impl<'a> Grapher<'a> {
             .map(|x| {
                 (
                     self.parse_expression(astkey, &x.0),
-                    self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x.1)),
+                    self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x.1))
+                        .unwrap(),
                 )
             })
             .collect();
@@ -81,7 +107,8 @@ impl<'a> Grapher<'a> {
         let elsebranch = ast_if
             .elsebranch
             .as_ref()
-            .map(|x| self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x)));
+            .map(|x| self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x)))
+            .unwrap();
 
         let ifstmt = asg::statements::If {
             branches,
