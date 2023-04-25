@@ -130,6 +130,42 @@ fn write_symbolscope(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Sy
         .unwrap();
 }
 
+fn write_functionparameter(
+    writer: &mut BufWriter<File>,
+    asg: &asg::Asg,
+    function_id: &String,
+    index: usize,
+    param: &asg::FunctionParameter,
+) -> String {
+    let node_id = format!("{}p{}", function_id, index);
+
+    let local_expr_from_id = "t";
+    let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
+    let expr_to_id = get_expression_node_id(&param.typeexpr);
+
+    // Edges
+    writer
+        .write_all(format!("{} -> {}\n", expr_from_id, expr_to_id).as_bytes())
+        .unwrap();
+
+    let label = format!("in param | {} | <{}> type", param.name, local_expr_from_id);
+
+    let shape = format!("record");
+    let style = format!("");
+    writer.write_all(node_id.as_bytes()).unwrap();
+    writer
+        .write_all(
+            format!(
+                " [shape=\"{}\", style=\"{}\", label=\"{}\"]\n",
+                shape, style, label
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+
+    node_id
+}
+
 fn write_function(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::FunctionKey) {
     let function = asg.store.functions.get(&key);
 
@@ -148,6 +184,18 @@ fn write_function(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Funct
             .as_bytes(),
         )
         .unwrap();
+
+    // Params
+    let mut count = 0;
+    for inparam in &function.inparams {
+        let paramid = write_functionparameter(writer, &asg, &node_id, count, &inparam);
+
+        writer
+            .write_all(format!("{} -> {}\n", node_id, paramid).as_bytes())
+            .unwrap();
+
+        count += 1;
+    }
 
     // Edges
     {
