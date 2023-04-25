@@ -76,14 +76,24 @@ impl<'a> Grapher<'a> {
 
         self.state.current_symdecl_name = old_symdecl_name;
 
-        let symbol_decl = asg::SymbolDeclaration::new(symbol_name, type_expr, init_expr);
+        let symbol_decl = asg::SymbolDeclaration::new(symbol_name.clone(), type_expr, init_expr);
 
         self.state
             .get_current_symbolscope()
             .declarations
             .add(symbol_decl);
 
-        None
+        // Generate initialization statement
+        if let Some(initexpr) = init_expr {
+            let initstmt = asg::statements::Initialize {
+                symbol: symbol_name,
+                expr: initexpr,
+            };
+
+            Some(asg::Statement::Initialize(initstmt))
+        } else {
+            None
+        }
     }
 
     pub fn parse_ifstatement(

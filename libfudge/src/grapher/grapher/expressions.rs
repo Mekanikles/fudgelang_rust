@@ -147,7 +147,8 @@ impl<'a> Grapher<'a> {
         // Parse body
         let old_func = self.state.current_function;
         self.state.current_function = Some(functionkey);
-        self.parse_statement_body(astkey, as_node!(ast, StatementBody, &ast_lit.body));
+        self.state.asg.store.functions.get_mut(&functionkey).body =
+            self.parse_statement_body(astkey, as_node!(ast, StatementBody, &ast_lit.body));
         self.state.current_function = old_func;
 
         // Create literal expression

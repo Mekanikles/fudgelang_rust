@@ -21,6 +21,7 @@ pub type StatementBodyKey = usize;
 pub struct SymbolDeclaration {
     pub symbol: String,
     pub typeexpr: Option<ExpressionKey>,
+    // TODO: Should probably only be used for defs
     pub initexpr: Option<ExpressionKey>,
 }
 
@@ -204,6 +205,12 @@ pub mod statements {
     }
 
     #[derive(Debug)]
+    pub struct Initialize {
+        pub symbol: String,
+        pub expr: ExpressionKey,
+    }
+
+    #[derive(Debug)]
     pub struct ExpressionWrapper {
         pub expr: ExpressionKey,
     }
@@ -213,6 +220,7 @@ pub mod statements {
 pub enum Statement {
     If(statements::If),
     Return(statements::Return),
+    Initialize(statements::Initialize),
     Assign(statements::Assign),
     ExpressionWrapper(statements::ExpressionWrapper),
 }

@@ -169,6 +169,7 @@ impl<'a> Grapher<'a> {
         let old_module = self.state.current_module.clone();
         self.state.current_module = modulekey.clone();
 
+        // Statementbody
         self.state
             .asg
             .store
@@ -187,16 +188,16 @@ impl<'a> Grapher<'a> {
         astkey: ast::AstKey,
         ast_body: &ast::nodes::StatementBody,
     ) -> Option<asg::StatementBodyKey> {
-        if ast_body.statements.is_empty() {
-            return None;
-        }
-
         let mut body = StatementBody::new();
 
         for s in &ast_body.statements {
             if let Some(s) = self.parse_statement(astkey, s) {
                 body.statements.push(s);
             };
+        }
+
+        if body.statements.is_empty() {
+            return None;
         }
 
         Some(self.state.asg.store.statementbodies.add(body))
