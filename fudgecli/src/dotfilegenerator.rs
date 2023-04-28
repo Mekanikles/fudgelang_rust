@@ -94,23 +94,30 @@ fn write_symbolscope(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Sy
             symbol_labels.push_str("|");
         }
 
-        if let Some(initexpr) = &symbol_decl.initexpr {
-            let decl_from_id = format!("{}:{}", node_id, local_decl_from_id);
-            let initexpr_to_id = get_expression_node_id(&initexpr);
-
-            // Init expr edge
-            writer
-                .write_all(format!("{} -> {}\n", decl_from_id, initexpr_to_id).as_bytes())
-                .unwrap();
-        }
+        let decl_from_id = format!("{}:{}", node_id, local_decl_from_id);
 
         if let Some(typeexpr) = &symbol_decl.typeexpr {
-            let decl_from_id = format!("{}:{}", node_id, local_decl_from_id);
             let typeexpr_to_id = get_expression_node_id(&typeexpr);
 
             // Type expr edge
             writer
-                .write_all(format!("{} -> {}\n", decl_from_id, typeexpr_to_id).as_bytes())
+                .write_all(
+                    format!("{} -> {} [label=\"type\"]\n", decl_from_id, typeexpr_to_id).as_bytes(),
+                )
+                .unwrap();
+        }
+
+        // Definition Edge
+        if let Some(defexpr) = symbolscope.definitions.get(&symbol_decl_key) {
+            writer
+                .write_all(
+                    format!(
+                        "{} -> {} [label=\"definition\"]\n",
+                        decl_from_id,
+                        get_expression_node_id(&defexpr)
+                    )
+                    .as_bytes(),
+                )
                 .unwrap();
         }
     }
@@ -400,6 +407,43 @@ fn escape_string(string: &String) -> String {
         .replace("}", "\\}")
 }
 
+fn write_structfield(
+    writer: &mut BufWriter<File>,
+    asg: &asg::Asg,
+    expr_id: &String,
+    field: &asg::misc::StructField,
+    index: usize,
+) -> String {
+    let node_id = format!("{}f{}", expr_id, index);
+
+    let local_expr_from_id = format!("t");
+    let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
+    let expr_to_id = get_expression_node_id(&field.typeexpr);
+
+    // Edges
+    writer
+        .write_all(format!("{} -> {} [label=\"type\"]\n", expr_from_id, expr_to_id).as_bytes())
+        .unwrap();
+
+    let label = format!("Field: {} | <{}> type", field.name, local_expr_from_id);
+
+    // Node
+    let shape = format!("record");
+    let style = format!("");
+    writer.write_all(node_id.as_bytes()).unwrap();
+    writer
+        .write_all(
+            format!(
+                " [shape=\"{}\", style=\"{}\", label=\"{}\"]\n",
+                shape, style, label
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+
+    node_id
+}
+
 fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::ExpressionKey) {
     let expr = asg.store.expressions.get(key);
 
@@ -412,7 +456,24 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
             }
             asg::expressions::Literal::BoolLiteral(n) => format!("Bool Literal({})", n.value),
             asg::expressions::Literal::IntegerLiteral(n) => format!("Integer Literal({})", n.data), // TODO: Cast data to correct integer
-            asg::expressions::Literal::StructLiteral(n) => format!("Struct Literal"), // TODO
+            asg::expressions::Literal::StructLiteral(n) => {
+                let mut count = 0;
+                for field in &n.fields {
+                    let field_id = write_structfield(writer, asg, &node_id, field, count);
+
+                    // Edges
+                    writer
+                        .write_all(
+                            format!("{} -> {} [label=\"field {}\"]\n", node_id, field_id, count)
+                                .as_bytes(),
+                        )
+                        .unwrap();
+
+                    count += 1;
+                }
+
+                format!("Struct Literal")
+            }
             asg::expressions::Literal::FunctionLiteral(n) => {
                 let function = asg.store.modules.get(&n.functionkey);
                 let name = format!("Function: {}", function.name);
@@ -443,7 +504,31 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
         },
         asg::Expression::BuiltInFunction(n) => format!("Builtin({:?})", n.function),
         asg::Expression::PrimitiveType(n) => format!("Primitive({:?})", n.ptype),
-        asg::Expression::SymbolReference(n) => format!("Symbol Reference(TODO)"),
+        asg::Expression::SymbolReference(n) => {
+            let scope = asg.store.symbolscopes.get(&n.symbolref.scope);
+
+            let symref = scope.references.get(&n.symbolref.refkey);
+
+            let label = match symref {
+                asg::SymbolReference::ResolvedReference(n) => {
+                    let scope = asg.store.symbolscopes.get(&n.scope);
+                    let symdecl = scope.declarations.get(&n.symbol);
+
+                    // Edge
+                    let symbolscope_id = get_symbolscope_node_id(&n.scope);
+                    writer
+                        .write_all(format!("{} -> {}\n", node_id, symbolscope_id).as_bytes())
+                        .unwrap();
+
+                    format!("Resolved SymRef: {}", symdecl.symbol)
+                }
+                asg::SymbolReference::UnresolvedReference(n) => {
+                    format!("Unresolved SymRef: {}", n.symbol)
+                }
+            };
+
+            label
+        }
         asg::Expression::If(n) => {
             let mut branches = String::new();
             let mut count = 0;
@@ -585,12 +670,13 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
     // Node
     let shape = format!("Mrecord");
     let style = format!("");
+    let xlabel = format!("Expr: {}", key);
     writer.write_all(node_id.as_bytes()).unwrap();
     writer
         .write_all(
             format!(
-                " [shape=\"{}\", style=\"{}\", label=\"{}\"]\n",
-                shape, style, label
+                " [shape=\"{}\", style=\"{}\", label=\"{}\", xlabel=\"{}\"]\n",
+                shape, style, label, xlabel
             )
             .as_bytes(),
         )

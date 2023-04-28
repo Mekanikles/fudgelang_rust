@@ -144,7 +144,7 @@ impl<'a> Grapher<'a> {
         );
         let modulekey = self.state.asg.store.modules.add(module);
 
-        // Initializing expression
+        // Module literal expression
         let init_exprkey = self
             .state
             .asg
@@ -156,15 +156,16 @@ impl<'a> Grapher<'a> {
                 ),
             ));
 
+        let symbolscope = self.state.get_current_symbolscope();
+
         // Local symbol declaration
-        self.state
-            .get_current_symbolscope()
-            .declarations
-            .add(asg::SymbolDeclaration::new(
-                ast.get_symbol(&ast_module.symbol).unwrap().into(),
-                None,
-                Some(init_exprkey),
-            ));
+        let symbolkey = symbolscope.declarations.add(asg::SymbolDeclaration::new(
+            ast.get_symbol(&ast_module.symbol).unwrap().into(),
+            None,
+        ));
+
+        // Add to scope definitions
+        symbolscope.definitions.insert(symbolkey, init_exprkey);
 
         let old_module = self.state.current_module.clone();
         self.state.current_module = modulekey.clone();

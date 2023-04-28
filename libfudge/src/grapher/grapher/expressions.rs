@@ -185,14 +185,19 @@ impl<'a> Grapher<'a> {
     ) -> asg::ExpressionKey {
         let ast = self.context.get_ast(astkey);
         let symbol = ast.get_symbol(&ast_symref.symbol).unwrap().clone();
-        let scope = self.state.get_current_symbolscope();
+        let scopekey = self.state.get_current_module().symbolscope.clone();
+        let scope = self.state.asg.store.symbolscopes.get_mut(&scopekey);
         let symbolref = scope
             .references
             .add(asg::SymbolReference::UnresolvedReference(
                 asg::UnresolvedSymbolReference { symbol },
             ));
-        let expr =
-            asg::Expression::SymbolReference(asg::expressions::SymbolReference { symbolref });
+        let expr = asg::Expression::SymbolReference(asg::expressions::SymbolReference {
+            symbolref: asg::SymbolReferenceRef {
+                scope: scopekey,
+                refkey: symbolref,
+            },
+        });
         self.state.asg.store.expressions.add(expr)
     }
 

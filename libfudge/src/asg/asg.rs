@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::typesystem::*;
 use crate::utils::objectstore::*;
 pub use crate::utils::*;
@@ -21,21 +23,11 @@ pub type StatementBodyKey = usize;
 pub struct SymbolDeclaration {
     pub symbol: String,
     pub typeexpr: Option<ExpressionKey>,
-    // TODO: Should probably only be used for defs
-    pub initexpr: Option<ExpressionKey>,
 }
 
 impl SymbolDeclaration {
-    pub fn new(
-        symbol: String,
-        typeexpr: Option<ExpressionKey>,
-        initexpr: Option<ExpressionKey>,
-    ) -> Self {
-        Self {
-            symbol,
-            typeexpr,
-            initexpr,
-        }
+    pub fn new(symbol: String, typeexpr: Option<ExpressionKey>) -> Self {
+        Self { symbol, typeexpr }
     }
 }
 
@@ -68,10 +60,18 @@ pub enum SymbolReference {
 pub type SymbolReferenceStore = IndexedObjectStore<SymbolReference>;
 pub type SymbolReferenceKey = usize;
 
+// TODO: This is awkward, expressions should know their local context
+#[derive(Debug)]
+pub struct SymbolReferenceRef {
+    pub scope: SymbolScopeKey,
+    pub refkey: SymbolReferenceKey,
+}
+
 #[derive(Debug)]
 pub struct SymbolScope {
     pub declarations: SymbolDeclarationStore,
     pub references: SymbolReferenceStore,
+    pub definitions: HashMap<SymbolKey, ExpressionKey>,
 }
 
 impl SymbolScope {
@@ -79,6 +79,7 @@ impl SymbolScope {
         Self {
             declarations: SymbolDeclarationStore::new(),
             references: SymbolReferenceStore::new(),
+            definitions: HashMap::new(),
         }
     }
 }
@@ -290,7 +291,7 @@ pub mod expressions {
 
     #[derive(Debug)]
     pub struct SymbolReference {
-        pub symbolref: SymbolReferenceKey,
+        pub symbolref: SymbolReferenceRef,
     }
 
     #[derive(Debug)]

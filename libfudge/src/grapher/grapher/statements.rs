@@ -76,24 +76,29 @@ impl<'a> Grapher<'a> {
 
         self.state.current_symdecl_name = old_symdecl_name;
 
-        let symbol_decl = asg::SymbolDeclaration::new(symbol_name.clone(), type_expr, init_expr);
+        let symbol_decl = asg::SymbolDeclaration::new(symbol_name.clone(), type_expr);
 
-        self.state
-            .get_current_symbolscope()
-            .declarations
-            .add(symbol_decl);
+        let symbolscope = self.state.get_current_symbolscope();
 
-        // Generate initialization statement
+        let symbolkey = symbolscope.declarations.add(symbol_decl);
+
+        // Handle initialization
         if let Some(initexpr) = init_expr {
-            let initstmt = asg::statements::Initialize {
-                symbol: symbol_name,
-                expr: initexpr,
-            };
+            // Defs are registered on scope directly
+            if ast_symdecl.decltype == ast::SymbolDeclarationType::Def {
+                symbolscope.definitions.insert(symbolkey, initexpr);
 
-            Some(asg::Statement::Initialize(initstmt))
-        } else {
-            None
-        }
+                return None;
+            } else {
+                let initstmt = asg::statements::Initialize {
+                    symbol: symbol_name,
+                    expr: initexpr,
+                };
+                return Some(asg::Statement::Initialize(initstmt));
+            }
+        };
+
+        None
     }
 
     pub fn parse_ifstatement(
