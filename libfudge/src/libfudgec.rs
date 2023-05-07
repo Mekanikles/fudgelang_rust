@@ -3,6 +3,7 @@ pub mod ast;
 pub mod grapher;
 pub mod interpreter;
 pub mod parser;
+pub mod passes;
 pub mod scanner;
 pub mod shared;
 pub mod source;

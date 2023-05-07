@@ -69,14 +69,16 @@ pub struct SymbolReferenceRef {
 
 #[derive(Debug)]
 pub struct SymbolScope {
+    pub parent: Option<SymbolScopeKey>,
     pub declarations: SymbolDeclarationStore,
     pub references: SymbolReferenceStore,
     pub definitions: HashMap<SymbolKey, ExpressionKey>,
 }
 
 impl SymbolScope {
-    pub fn new() -> Self {
+    pub fn new(parent: Option<SymbolScopeKey>) -> Self {
         Self {
+            parent: parent,
             declarations: SymbolDeclarationStore::new(),
             references: SymbolReferenceStore::new(),
             definitions: HashMap::new(),
@@ -151,10 +153,12 @@ pub struct Module {
 
 impl Module {
     pub fn new(store: &mut Store, name: String, parent: Option<ModuleKey>) -> Self {
+        let parentscope = parent.map(|x| store.modules.get(&x).symbolscope);
+
         Self {
             name: name,
             parent: parent,
-            symbolscope: store.symbolscopes.add(SymbolScope::new()),
+            symbolscope: store.symbolscopes.add(SymbolScope::new(parentscope)),
             initalizer: None,
         }
     }

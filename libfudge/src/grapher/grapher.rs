@@ -8,6 +8,7 @@ use crate::asg;
 use crate::asg::StatementBody;
 use crate::ast;
 use crate::error;
+use crate::passes;
 
 // To be able to call methods on "Stores"... :(
 use crate::utils::objectstore::ObjectStore;
@@ -216,6 +217,9 @@ pub fn create_graph<'a>(main_ast: &'a ast::Ast, module_asts: &'a Vec<ast::Ast>) 
     let grapher = Grapher::new(&context);
 
     let (asg, errors) = grapher.create_asg();
+
+    let asg = passes::resolve_symbols(asg);
+
     return GrapherResult {
         asg: asg,
         errors: errors,

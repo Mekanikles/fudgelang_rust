@@ -1,4 +1,4 @@
-use libfudgec::asg::{FunctionKey, StatementBodyKey};
+use libfudgec::asg::StatementBodyKey;
 use libfudgec::utils::objectstore::ObjectStore;
 use libfudgec::*;
 
@@ -139,7 +139,7 @@ fn write_symbolscope(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Sy
 
 fn write_functionparameter(
     writer: &mut BufWriter<File>,
-    asg: &asg::Asg,
+    _asg: &asg::Asg,
     function_id: &String,
     index: usize,
     param: &asg::FunctionParameter,
@@ -226,7 +226,7 @@ fn write_function(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Funct
 
 fn write_statement(
     writer: &mut BufWriter<File>,
-    asg: &asg::Asg,
+    _asg: &asg::Asg,
     body_id: &String,
     index: usize,
     stmnt: &asg::Statement,
@@ -409,7 +409,7 @@ fn escape_string(string: &String) -> String {
 
 fn write_structfield(
     writer: &mut BufWriter<File>,
-    asg: &asg::Asg,
+    _asg: &asg::Asg,
     expr_id: &String,
     field: &asg::misc::StructField,
     index: usize,
@@ -444,18 +444,77 @@ fn write_structfield(
     node_id
 }
 
+struct NodeConfig {
+    shape: String,
+    color: String,
+    xlabel: String,
+    style: String,
+}
+
+fn write_node_with_config(
+    writer: &mut BufWriter<File>,
+    config: &NodeConfig,
+    node_id: &String,
+    label: &String,
+) {
+    writer.write_all(node_id.as_bytes()).unwrap();
+    writer
+        .write_all(
+            format!(
+                " [shape=\"{}\", style=\"{}\", label=\"{}\", xlabel=\"{}\", fillcolor=\"{}\"]\n",
+                config.shape, config.style, label, config.xlabel, config.color
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+}
+
+fn write_colored_expression_node(
+    writer: &mut BufWriter<File>,
+    node_id: &String,
+    label: &String,
+    color: &String,
+) {
+    let config = NodeConfig {
+        shape: format!("Mrecord"),
+        color: color.clone(),
+        style: if color.is_empty() {
+            "".to_string()
+        } else {
+            "filled".to_string()
+        },
+        xlabel: format!("Expr: {}", node_id),
+    };
+
+    write_node_with_config(writer, &config, node_id, label);
+}
+
+fn write_expression_node(writer: &mut BufWriter<File>, node_id: &String, label: &String) {
+    write_colored_expression_node(writer, node_id, label, &"".to_string());
+}
+
 fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::ExpressionKey) {
     let expr = asg.store.expressions.get(key);
 
     let node_id = get_expression_node_id(&key);
 
-    let label = match expr {
+    macro_rules! quick_node {
+        ($label:expr) => {
+            write_expression_node(writer, &node_id, &$label)
+        };
+    }
+
+    match expr {
         asg::Expression::Literal(n) => match n {
             asg::expressions::Literal::StringLiteral(n) => {
-                format!("String Literal({})", escape_string(&n.string))
+                quick_node!(format!("String Literal({})", escape_string(&n.string)))
             }
-            asg::expressions::Literal::BoolLiteral(n) => format!("Bool Literal({})", n.value),
-            asg::expressions::Literal::IntegerLiteral(n) => format!("Integer Literal({})", n.data), // TODO: Cast data to correct integer
+            asg::expressions::Literal::BoolLiteral(n) => {
+                quick_node!(format!("Bool Literal({})", n.value))
+            }
+            asg::expressions::Literal::IntegerLiteral(n) => {
+                quick_node!(format!("Integer Literal({})", n.data))
+            } // TODO: Cast data to correct integer
             asg::expressions::Literal::StructLiteral(n) => {
                 let mut count = 0;
                 for field in &n.fields {
@@ -472,7 +531,7 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                     count += 1;
                 }
 
-                format!("Struct Literal")
+                quick_node!(format!("Struct Literal"))
             }
             asg::expressions::Literal::FunctionLiteral(n) => {
                 let function = asg.store.modules.get(&n.functionkey);
@@ -486,7 +545,7 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                     )
                     .unwrap();
 
-                name
+                quick_node!(name)
             }
             asg::expressions::Literal::ModuleLiteral(n) => {
                 let module = asg.store.modules.get(&n.modulekey);
@@ -499,17 +558,17 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                     )
                     .unwrap();
 
-                name
+                quick_node!(name)
             }
         },
-        asg::Expression::BuiltInFunction(n) => format!("Builtin({:?})", n.function),
-        asg::Expression::PrimitiveType(n) => format!("Primitive({:?})", n.ptype),
+        asg::Expression::BuiltInFunction(n) => quick_node!(format!("Builtin({:?})", n.function)),
+        asg::Expression::PrimitiveType(n) => quick_node!(format!("Primitive({:?})", n.ptype)),
         asg::Expression::SymbolReference(n) => {
             let scope = asg.store.symbolscopes.get(&n.symbolref.scope);
 
             let symref = scope.references.get(&n.symbolref.refkey);
 
-            let label = match symref {
+            match symref {
                 asg::SymbolReference::ResolvedReference(n) => {
                     let scope = asg.store.symbolscopes.get(&n.scope);
                     let symdecl = scope.declarations.get(&n.symbol);
@@ -517,17 +576,30 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                     // Edge
                     let symbolscope_id = get_symbolscope_node_id(&n.scope);
                     writer
-                        .write_all(format!("{} -> {}\n", node_id, symbolscope_id).as_bytes())
+                        .write_all(
+                            format!(
+                                "{} -> {} [style=dashed constraint=false]\n",
+                                node_id, symbolscope_id
+                            )
+                            .as_bytes(),
+                        )
                         .unwrap();
 
-                    format!("Resolved SymRef: {}", symdecl.symbol)
+                    write_expression_node(
+                        writer,
+                        &node_id,
+                        &format!("Resolved SymRef: {}", symdecl.symbol),
+                    );
                 }
                 asg::SymbolReference::UnresolvedReference(n) => {
-                    format!("Unresolved SymRef: {}", n.symbol)
+                    write_colored_expression_node(
+                        writer,
+                        &node_id,
+                        &format!("Unresolved SymRef: {}", n.symbol),
+                        &"red".to_string(),
+                    );
                 }
             };
-
-            label
         }
         asg::Expression::If(n) => {
             let mut branches = String::new();
@@ -582,7 +654,7 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                     .unwrap();
             }
 
-            format!("if | {{ {} }}", branches)
+            quick_node!(format!("if | {{ {} }}", branches))
         }
         asg::Expression::Call(n) => {
             let mut label = String::new();
@@ -626,7 +698,7 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                 count += 1;
             }
 
-            label
+            quick_node!(label)
         }
         asg::Expression::BinOp(n) => {
             let local_lhs_from_id = "e0";
@@ -644,10 +716,10 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                 .write_all(format!("{} -> {}\n", rhs_from_id, rhs_to_id).as_bytes())
                 .unwrap();
 
-            format!(
+            quick_node!(format!(
                 "Binop |<{}> lhs | {:?} |<{}> rhs",
                 local_lhs_from_id, n.op, local_rhs_from_id
-            )
+            ))
         }
         asg::Expression::Subscript(n) => {
             let local_expr_from_id = format!("e0");
@@ -660,27 +732,12 @@ fn write_expression(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Exp
                 )
                 .unwrap();
 
-            format!(
+            quick_node!(format!(
                 "Subscript |<{}> expr | symbol: {}",
                 local_expr_from_id, n.symbol
-            )
+            ))
         }
     };
-
-    // Node
-    let shape = format!("Mrecord");
-    let style = format!("");
-    let xlabel = format!("Expr: {}", key);
-    writer.write_all(node_id.as_bytes()).unwrap();
-    writer
-        .write_all(
-            format!(
-                " [shape=\"{}\", style=\"{}\", label=\"{}\", xlabel=\"{}\"]\n",
-                shape, style, label, xlabel
-            )
-            .as_bytes(),
-        )
-        .unwrap();
 }
 
 pub fn generate_dotfile(asg: &asg::Asg, filename: &str) {
@@ -692,6 +749,10 @@ pub fn generate_dotfile(asg: &asg::Asg, filename: &str) {
         .write_all(format!("digraph {}{{ \n", filename).as_bytes())
         .unwrap();
 
+    // Disable splines
+    writer
+        .write_all(format!("splines=false\n").as_bytes())
+        .unwrap();
     // Graph label
     writer
         .write_all(format!("label=\"Abstract Semantic Graph for {}\"\n", filename).as_bytes())

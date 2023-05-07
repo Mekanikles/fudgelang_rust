@@ -27,6 +27,14 @@ impl<ObjectT> IndexedObjectStore<ObjectT> {
     pub fn keys(&self) -> std::ops::Range<usize> {
         0..self.objects.len()
     }
+
+    pub fn values(&self) -> &Vec<ObjectT> {
+        &self.objects
+    }
+
+    pub fn values_mut(&mut self) -> &mut Vec<ObjectT> {
+        &mut self.objects
+    }
 }
 
 impl<ObjectT> ObjectStore<usize, ObjectT> for IndexedObjectStore<ObjectT> {
