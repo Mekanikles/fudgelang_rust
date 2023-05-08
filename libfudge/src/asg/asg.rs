@@ -40,18 +40,18 @@ impl objectstore::HashedStoreKey<SymbolDeclaration> for StringKey {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnresolvedSymbolReference {
     pub symbol: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResolvedSymbolReference {
     pub scope: SymbolScopeKey,
     pub symbol: SymbolKey,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SymbolReference {
     ResolvedReference(ResolvedSymbolReference),
     UnresolvedReference(UnresolvedSymbolReference),
@@ -119,9 +119,10 @@ impl Asg {
         let mut store = Store::new();
 
         let module = Module::new(&mut store, "global".into(), None);
+        let symbolscope = module.symbolscope;
         let global_module = store.modules.add(module);
         // Note: main should not be available for symbol lookup, so don't add it to any module
-        let main_func = Function::new("main".into(), global_module);
+        let main_func = Function::new("main".into(), global_module, symbolscope);
         let main = store.functions.add(main_func);
 
         Asg {
@@ -166,8 +167,7 @@ impl Module {
 
 #[derive(Debug)]
 pub struct FunctionParameter {
-    pub name: String,
-    pub typeexpr: ExpressionKey,
+    pub symref: ResolvedSymbolReference,
 }
 
 #[derive(Debug)]
@@ -175,15 +175,17 @@ pub struct Function {
     pub name: String,
     pub module: ModuleKey,
     pub inparams: Vec<FunctionParameter>,
+    pub symbolscope: SymbolScopeKey,
     pub body: Option<StatementBodyKey>,
 }
 
 impl Function {
-    pub fn new(name: String, module: ModuleKey) -> Self {
+    pub fn new(name: String, module: ModuleKey, symbolscope: SymbolScopeKey) -> Self {
         Self {
             name,
             module,
             inparams: Vec::new(),
+            symbolscope: symbolscope,
             body: None,
         }
     }
@@ -338,12 +340,14 @@ pub enum Expression {
 
 #[derive(Debug)]
 pub struct StatementBody {
+    pub symbolscope: SymbolScopeKey,
     pub statements: Vec<Statement>,
 }
 
 impl StatementBody {
-    pub fn new() -> Self {
+    pub fn new(symbolscope: SymbolScopeKey) -> Self {
         Self {
+            symbolscope: symbolscope,
             statements: Vec::new(),
         }
     }

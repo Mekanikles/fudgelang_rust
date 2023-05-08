@@ -128,7 +128,16 @@ impl<'a> Grapher<'a> {
         //  know what symbol this will be bound to, try to figure something out
         let name = create_function_name(&self.state);
 
-        let mut function = asg::Function::new(name, self.state.current_module);
+        let symbolscope = self
+            .state
+            .asg
+            .store
+            .symbolscopes
+            .add(asg::SymbolScope::new(Some(
+                self.state.current_symbolscope.clone(),
+            )));
+
+        let mut function = asg::Function::new(name, self.state.current_module, symbolscope);
 
         // Populate in-params
         for inparam in &ast_lit.inputparams {
@@ -136,10 +145,24 @@ impl<'a> Grapher<'a> {
 
             let typeexpr = self.parse_expression(astkey, &inparam.typeexpr);
 
-            function.inparams.push(asg::FunctionParameter {
-                name: ast.get_symbol(&inparam.symbol).unwrap().clone(),
-                typeexpr: typeexpr,
-            });
+            let symdecl = self
+                .state
+                .asg
+                .store
+                .symbolscopes
+                .get_mut(&symbolscope)
+                .declarations
+                .add(asg::SymbolDeclaration {
+                    symbol: ast.get_symbol(&inparam.symbol).unwrap().clone(),
+                    typeexpr: Some(typeexpr),
+                });
+
+            let symref = asg::ResolvedSymbolReference {
+                scope: symbolscope,
+                symbol: symdecl,
+            };
+
+            function.inparams.push(asg::FunctionParameter { symref });
         }
 
         let functionkey = self.state.asg.store.functions.add(function);
@@ -147,8 +170,11 @@ impl<'a> Grapher<'a> {
         // Parse body
         let old_func = self.state.current_function;
         self.state.current_function = Some(functionkey);
-        self.state.asg.store.functions.get_mut(&functionkey).body =
-            self.parse_statement_body(astkey, as_node!(ast, StatementBody, &ast_lit.body));
+        self.state.asg.store.functions.get_mut(&functionkey).body = self.parse_statement_body(
+            astkey,
+            as_node!(ast, StatementBody, &ast_lit.body),
+            symbolscope,
+        );
         self.state.current_function = old_func;
 
         // Create literal expression
@@ -185,7 +211,8 @@ impl<'a> Grapher<'a> {
     ) -> asg::ExpressionKey {
         let ast = self.context.get_ast(astkey);
         let symbol = ast.get_symbol(&ast_symref.symbol).unwrap().clone();
-        let scopekey = self.state.get_current_module().symbolscope.clone();
+        let scopekey = self.state.current_symbolscope;
+
         let scope = self.state.asg.store.symbolscopes.get_mut(&scopekey);
         let symbolref = scope
             .references

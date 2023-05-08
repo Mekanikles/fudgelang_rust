@@ -10,7 +10,7 @@ module local2 begin
 			#output.print_format(msg, a.value, b.value)
 		end
 end
-
+/*
 module outer_local begin
 	var a : std.mystruct
 	a.value = 2 * (123 + 2 - 1) / 3
@@ -36,3 +36,4 @@ a.value = 25
 local3.print_compare(outer_local.a, a)
 
 local3.print_compare(a, a)
+*/

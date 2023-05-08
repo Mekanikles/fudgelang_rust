@@ -106,15 +106,33 @@ impl<'a> Grapher<'a> {
         astkey: ast::AstKey,
         ast_if: &ast::nodes::IfStatement,
     ) -> Statement {
+        macro_rules! quick_scope {
+            () => {
+                self.state
+                    .asg
+                    .store
+                    .symbolscopes
+                    .add(asg::SymbolScope::new(Some(
+                        self.state.current_symbolscope.clone(),
+                    )))
+            };
+        }
+
         let ast = self.context.get_ast(astkey);
         let branches = ast_if
             .branches
             .iter()
             .map(|x| {
+                let scope = quick_scope!();
+
                 (
                     self.parse_expression(astkey, &x.0),
-                    self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x.1))
-                        .unwrap(),
+                    self.parse_statement_body(
+                        astkey,
+                        ast::as_node!(ast, StatementBody, &x.1),
+                        scope,
+                    )
+                    .unwrap(),
                 )
             })
             .collect();
@@ -122,7 +140,10 @@ impl<'a> Grapher<'a> {
         let elsebranch = ast_if
             .elsebranch
             .as_ref()
-            .map(|x| self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x)))
+            .map(|x| {
+                let scope = quick_scope!();
+                self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x), scope)
+            })
             .unwrap();
 
         let ifstmt = asg::statements::If {

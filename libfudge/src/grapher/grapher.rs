@@ -27,6 +27,7 @@ struct State {
     asg: asg::Asg,
     current_module: asg::ModuleKey,
     current_function: Option<asg::FunctionKey>,
+    current_symbolscope: asg::SymbolScopeKey,
     // TODO: This sucks, the goal is to give literals decent names
     current_symdecl_name: String,
 }
@@ -68,7 +69,7 @@ impl State {
     }
 
     pub fn get_current_symbolscope(&mut self) -> &mut asg::SymbolScope {
-        let scope = self.get_current_module_mut().symbolscope.clone();
+        let scope = self.current_symbolscope;
         self.asg.store.symbolscopes.get_mut(&scope)
     }
 }
@@ -78,12 +79,15 @@ impl<'a> Grapher<'a> {
         let asg = asg::Asg::new();
         let current_module = asg.global_module;
         let current_function = None;
+        let current_symbolscope = asg.store.modules.get(&current_module).symbolscope;
+
         Self {
             context: context,
             state: State {
                 asg,
                 current_module,
                 current_function,
+                current_symbolscope,
                 current_symdecl_name: "".into(),
             },
             errors: error::ErrorManager::new(),
@@ -122,6 +126,7 @@ impl<'a> Grapher<'a> {
             .body = self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_entrypoint.statementbody),
+            self.state.current_symbolscope,
         );
 
         self.state.current_function = None;
@@ -171,6 +176,14 @@ impl<'a> Grapher<'a> {
         let old_module = self.state.current_module.clone();
         self.state.current_module = modulekey.clone();
 
+        let symbolscope = self
+            .state
+            .asg
+            .store
+            .modules
+            .get(&self.state.current_module)
+            .symbolscope;
+
         // Statementbody
         self.state
             .asg
@@ -180,6 +193,7 @@ impl<'a> Grapher<'a> {
             .initalizer = self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_module.statementbody),
+            symbolscope,
         );
 
         self.state.current_module = old_module;
@@ -189,14 +203,20 @@ impl<'a> Grapher<'a> {
         &mut self,
         astkey: ast::AstKey,
         ast_body: &ast::nodes::StatementBody,
+        symbolscope: asg::SymbolScopeKey,
     ) -> Option<asg::StatementBodyKey> {
-        let mut body = StatementBody::new();
+        let old_scope = self.state.current_symbolscope;
+        self.state.current_symbolscope = symbolscope;
+
+        let mut body = StatementBody::new(symbolscope);
 
         for s in &ast_body.statements {
             if let Some(s) = self.parse_statement(astkey, s) {
                 body.statements.push(s);
             };
         }
+
+        self.state.current_symbolscope = old_scope;
 
         if body.statements.is_empty() {
             return None;

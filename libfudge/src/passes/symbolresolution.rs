@@ -35,10 +35,6 @@ fn lookup_symbol_recursively(
 ) -> Option<ResolvedSymbolReference> {
     let key = SymbolKey::from_str(symbol);
 
-    if let Some(resref) = lookup_symbol(&asg, &from_scope, &key, &symbol) {
-        return Some(resref);
-    }
-
     let mut iter = Some(*from_scope);
     while let Some(scope) = iter {
         if let Some(resref) = lookup_symbol(&asg, &scope, &key, &symbol) {
@@ -61,6 +57,7 @@ pub fn resolve_symbols(mut asg: asg::Asg) -> asg::Asg {
         for reference in asg.store.symbolscopes.get(&symbolscope).references.values() {
             match reference {
                 asg::SymbolReference::UnresolvedReference(n) => {
+                    // TODO: This lookup is duplicated for repeated references
                     if let Some(resref) = lookup_symbol_recursively(&asg, &symbolscope, &n.symbol) {
                         lookup_map.insert(
                             n.symbol.clone(),
@@ -82,8 +79,8 @@ pub fn resolve_symbols(mut asg: asg::Asg) -> asg::Asg {
         {
             match reference {
                 asg::SymbolReference::UnresolvedReference(n) => {
-                    if let Some(resref) = lookup_map.remove(&n.symbol) {
-                        *reference = resref;
+                    if let Some(resref) = lookup_map.get(&n.symbol) {
+                        *reference = resref.clone();
                     }
                 }
                 _ => {}

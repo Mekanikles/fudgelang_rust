@@ -122,6 +122,20 @@ fn write_symbolscope(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Sy
         }
     }
 
+    // Parent Edge
+    if let Some(parent) = &symbolscope.parent {
+        writer
+            .write_all(
+                format!(
+                    "{} -> {} [style=dotted constraint=false]\n",
+                    node_id,
+                    get_symbolscope_node_id(parent)
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+    }
+
     let label = format!("{{ Symbols |{{ |{{ {} }}| }} }}", symbol_labels);
     let shape = format!("record");
     let style = format!("");
@@ -129,8 +143,8 @@ fn write_symbolscope(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Sy
     writer
         .write_all(
             format!(
-                " [shape=\"{}\", style=\"{}\", label=\"{}\"]\n",
-                shape, style, label
+                " [shape=\"{}\", style=\"{}\", label=\"{}\", xlabel=\"{}\"]\n",
+                shape, style, label, node_id
             )
             .as_bytes(),
         )
@@ -139,23 +153,33 @@ fn write_symbolscope(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Sy
 
 fn write_functionparameter(
     writer: &mut BufWriter<File>,
-    _asg: &asg::Asg,
+    asg: &asg::Asg,
     function_id: &String,
     index: usize,
     param: &asg::FunctionParameter,
 ) -> String {
     let node_id = format!("{}p{}", function_id, index);
 
+    let symdecl = asg
+        .store
+        .symbolscopes
+        .get(&param.symref.scope)
+        .declarations
+        .get(&param.symref.symbol);
+
     let local_expr_from_id = "t";
     let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-    let expr_to_id = get_expression_node_id(&param.typeexpr);
+    let expr_to_id = get_expression_node_id(&symdecl.typeexpr.unwrap());
 
     // Edges
     writer
         .write_all(format!("{} -> {}\n", expr_from_id, expr_to_id).as_bytes())
         .unwrap();
 
-    let label = format!("in param | {} | <{}> type", param.name, local_expr_from_id);
+    let label = format!(
+        "in param | {} | <{}> type",
+        &symdecl.symbol, local_expr_from_id
+    );
 
     let shape = format!("record");
     let style = format!("");
@@ -221,6 +245,18 @@ fn write_function(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::Funct
                 )
                 .unwrap();
         }
+
+        // Scope
+        writer
+            .write_all(
+                format!(
+                    "{} -> {}\n",
+                    node_id,
+                    get_symbolscope_node_id(&function.symbolscope)
+                )
+                .as_bytes(),
+            )
+            .unwrap();
     }
 }
 
@@ -368,6 +404,18 @@ fn write_statementbody(writer: &mut BufWriter<File>, asg: &asg::Asg, key: &asg::
     let body = asg.store.statementbodies.get(&key);
 
     let node_id = get_statementbody_node_id(&key);
+
+    // Scope Edge
+    writer
+        .write_all(
+            format!(
+                "{} -> {}\n",
+                node_id,
+                get_symbolscope_node_id(&body.symbolscope)
+            )
+            .as_bytes(),
+        )
+        .unwrap();
 
     // Statements
     let mut it = body.statements.iter().peekable();
