@@ -4,7 +4,7 @@ use crate::utils::*;
 
 use StringKey as SymbolKey;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
     StaticStringUtf8,
     Bool,
@@ -36,12 +36,12 @@ pub static PRIMITIVES: phf::Map<&'static str, PrimitiveType> = phf_map! {
     "f64" => PrimitiveType::F64,
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructDefinition {
     pub fields: Vec<(SymbolKey, TypeId)>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FunctionSignature {
     pub inputparams: Vec<(SymbolKey, TypeId)>,
     pub outputparams: Vec<TypeId>,
@@ -58,12 +58,12 @@ impl FunctionSignature {
 
 // Cheat a bit and treat all built-ins as their own unique types
 // TODO: We want to express the type of built-ins through the regular type system, including signatures with dependent types
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BuiltInFunction {
     PrintFormat,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeId {
     Null,
     Type,

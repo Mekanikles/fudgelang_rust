@@ -76,17 +76,17 @@ impl<'a> Grapher<'a> {
 
         self.state.current_symdecl_name = old_symdecl_name;
 
-        let symbol_decl = asg::SymbolDeclaration::new(symbol_name.clone(), type_expr);
+        let symbol_decl = asg::symboltable::SymbolDeclaration::new(symbol_name.clone(), type_expr);
 
-        let symbolscope = self.state.get_current_symbolscope();
+        let scope = self.state.get_current_scope();
 
-        let symbolkey = symbolscope.declarations.add(symbol_decl);
+        let symbolkey = scope.symboltable.declarations.add(symbol_decl);
 
         // Handle initialization
         if let Some(initexpr) = init_expr {
             // Defs are registered on scope directly
             if ast_symdecl.decltype == ast::SymbolDeclarationType::Def {
-                symbolscope.definitions.insert(symbolkey, initexpr);
+                scope.symboltable.definitions.insert(symbolkey, initexpr);
 
                 return None;
             } else {
@@ -108,13 +108,7 @@ impl<'a> Grapher<'a> {
     ) -> Statement {
         macro_rules! quick_scope {
             () => {
-                self.state
-                    .asg
-                    .store
-                    .symbolscopes
-                    .add(asg::SymbolScope::new(Some(
-                        self.state.current_symbolscope.clone(),
-                    )))
+                self.state.create_scope()
             };
         }
 

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-
+/*
 use crate::{asg::ResolvedSymbolReference, utils::objectstore::ObjectStore};
 
 use crate::asg::{self, SymbolKey};
@@ -90,3 +90,5 @@ pub fn resolve_symbols(mut asg: asg::Asg) -> asg::Asg {
 
     asg
 }
+
+*/

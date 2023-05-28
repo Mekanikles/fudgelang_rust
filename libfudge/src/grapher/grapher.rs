@@ -26,8 +26,7 @@ struct Context<'a> {
 struct State {
     asg: asg::Asg,
     current_module: asg::ModuleKey,
-    current_function: Option<asg::FunctionKey>,
-    current_symbolscope: asg::SymbolScopeKey,
+    current_scope: asg::ScopeKey,
     // TODO: This sucks, the goal is to give literals decent names
     current_symdecl_name: String,
 }
@@ -52,11 +51,11 @@ pub struct GrapherResult {
 
 impl State {
     pub fn get_module(&self, key: &asg::ModuleKey) -> &asg::Module {
-        self.asg.store.modules.get(key)
+        self.asg.modulestore.get(key)
     }
 
-    pub fn get_module_mut(&mut self, key: &asg::ModuleKey) -> &mut asg::Module {
-        self.asg.store.modules.get_mut(key)
+    pub fn get_module_mut(&mut self, key: asg::ModuleKey) -> &mut asg::Module {
+        self.asg.modulestore.get_mut(&key)
     }
 
     pub fn get_current_module(&self) -> &asg::Module {
@@ -65,12 +64,24 @@ impl State {
 
     pub fn get_current_module_mut(&mut self) -> &mut asg::Module {
         let key = self.current_module.clone();
-        return self.get_module_mut(&key);
+        return self.get_module_mut(key);
     }
 
-    pub fn get_current_symbolscope(&mut self) -> &mut asg::SymbolScope {
-        let scope = self.current_symbolscope;
-        self.asg.store.symbolscopes.get_mut(&scope)
+    pub fn get_current_scope(&mut self) -> &mut asg::scope::Scope {
+        let scope = self.current_scope;
+        self.get_current_module_mut().scopestore.get_mut(&scope)
+    }
+
+    pub fn create_scope(&mut self) -> asg::ScopeKey {
+        let scope = asg::scope::Scope::new(Some(asg::ScopeRef::new(
+            self.current_module.clone(),
+            self.current_scope.clone(),
+        )));
+        self.get_current_module_mut().scopestore.add(scope)
+    }
+
+    pub fn edit_scope(&mut self, scope: &asg::ScopeKey) -> &mut asg::scope::Scope {
+        self.get_current_module_mut().scopestore.get_mut(scope)
     }
 }
 
@@ -78,16 +89,14 @@ impl<'a> Grapher<'a> {
     pub fn new(context: &'a Context) -> Self {
         let asg = asg::Asg::new();
         let current_module = asg.global_module;
-        let current_function = None;
-        let current_symbolscope = asg.store.modules.get(&current_module).symbolscope;
+        let current_scope = asg.modulestore.get(&current_module).scope;
 
         Self {
             context: context,
             state: State {
                 asg,
                 current_module,
-                current_function,
-                current_symbolscope,
+                current_scope,
                 current_symdecl_name: "".into(),
             },
             errors: error::ErrorManager::new(),
@@ -115,21 +124,26 @@ impl<'a> Grapher<'a> {
     }
 
     fn parse_entrypoint(&mut self, astkey: ast::AstKey, ast_entrypoint: &ast::nodes::EntryPoint) {
-        self.state.current_function = Some(self.state.asg.main);
-
         let ast = self.context.get_ast(astkey);
-        self.state
-            .asg
-            .store
-            .functions
-            .get_mut(&self.state.asg.main)
-            .body = self.parse_statement_body(
+
+        let mainscope = self
+            .state
+            .get_module(&self.state.asg.global_module)
+            .functionstore
+            .get(&self.state.asg.main)
+            .scope;
+
+        let body = self.parse_statement_body(
             astkey,
             ast::as_node!(ast, StatementBody, &ast_entrypoint.statementbody),
-            self.state.current_symbolscope,
+            mainscope,
         );
 
-        self.state.current_function = None;
+        self.state
+            .get_module_mut(self.state.asg.global_module)
+            .scopestore
+            .get_mut(&mainscope)
+            .statementbody = body;
     }
 
     fn parse_module(&mut self, astkey: ast::AstKey, ast_module: &ast::nodes::Module) {
@@ -144,71 +158,74 @@ impl<'a> Grapher<'a> {
 
         // Create module
         let module = asg::Module::new(
-            &mut self.state.asg.store,
             name,
-            Some(self.state.current_module.clone()),
+            Some(asg::ScopeRef::new(
+                self.state.current_module.clone(),
+                self.state.current_scope.clone(),
+            )),
         );
-        let modulekey = self.state.asg.store.modules.add(module);
+        let modulekey = self.state.asg.modulestore.add(module);
+
+        {
+            let old_module = self.state.current_module.clone();
+            self.state.current_module = modulekey.clone();
+
+            let scope = self.state.get_current_module().scope;
+
+            // Statementbody
+            let body = self.parse_statement_body(
+                astkey,
+                ast::as_node!(ast, StatementBody, &ast_module.statementbody),
+                scope,
+            );
+
+            // Add to new module scope
+            self.state
+                .get_current_module_mut()
+                .scopestore
+                .get_mut(&scope)
+                .statementbody = body;
+
+            self.state.current_module = old_module;
+        }
+
+        let parentscope = self.state.get_current_scope();
 
         // Module literal expression
-        let init_exprkey = self
-            .state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::ModuleLiteral(
-                    asg::expressions::literals::ModuleLiteral { modulekey },
-                ),
-            ));
-
-        let symbolscope = self.state.get_current_symbolscope();
-
-        // Local symbol declaration
-        let symbolkey = symbolscope.declarations.add(asg::SymbolDeclaration::new(
-            ast.get_symbol(&ast_module.symbol).unwrap().into(),
-            None,
+        let init_exprkey = parentscope.expressions.add(asg::Expression::new(
+            asg::ExpressionObject::Literal(asg::expressions::Literal::ModuleLiteral(
+                asg::expressions::literals::ModuleLiteral { modulekey },
+            )),
+            123,
         ));
 
-        // Add to scope definitions
-        symbolscope.definitions.insert(symbolkey, init_exprkey);
+        // Local symbol declaration
+        let symbolkey =
+            parentscope
+                .symboltable
+                .declarations
+                .add(asg::symboltable::SymbolDeclaration::new(
+                    ast.get_symbol(&ast_module.symbol).unwrap().into(),
+                    None,
+                ));
 
-        let old_module = self.state.current_module.clone();
-        self.state.current_module = modulekey.clone();
-
-        let symbolscope = self
-            .state
-            .asg
-            .store
-            .modules
-            .get(&self.state.current_module)
-            .symbolscope;
-
-        // Statementbody
-        self.state
-            .asg
-            .store
-            .modules
-            .get_mut(&self.state.current_module)
-            .initalizer = self.parse_statement_body(
-            astkey,
-            ast::as_node!(ast, StatementBody, &ast_module.statementbody),
-            symbolscope,
-        );
-
-        self.state.current_module = old_module;
+        // Add to parent scope definitions
+        parentscope
+            .symboltable
+            .definitions
+            .insert(symbolkey, init_exprkey);
     }
 
     fn parse_statement_body(
         &mut self,
         astkey: ast::AstKey,
         ast_body: &ast::nodes::StatementBody,
-        symbolscope: asg::SymbolScopeKey,
-    ) -> Option<asg::StatementBodyKey> {
-        let old_scope = self.state.current_symbolscope;
-        self.state.current_symbolscope = symbolscope;
+        scope: asg::ScopeKey,
+    ) -> Option<asg::StatementBody> {
+        let old_scope = self.state.current_scope;
+        self.state.current_scope = scope;
 
-        let mut body = StatementBody::new(symbolscope);
+        let mut body = StatementBody::new();
 
         for s in &ast_body.statements {
             if let Some(s) = self.parse_statement(astkey, s) {
@@ -216,13 +233,13 @@ impl<'a> Grapher<'a> {
             };
         }
 
-        self.state.current_symbolscope = old_scope;
+        self.state.current_scope = old_scope;
 
         if body.statements.is_empty() {
             return None;
         }
 
-        Some(self.state.asg.store.statementbodies.add(body))
+        Some(body)
     }
 }
 
@@ -238,7 +255,7 @@ pub fn create_graph<'a>(main_ast: &'a ast::Ast, module_asts: &'a Vec<ast::Ast>) 
 
     let (asg, errors) = grapher.create_asg();
 
-    let asg = passes::resolve_symbols(asg);
+    let asg = passes::process_asg(asg);
 
     return GrapherResult {
         asg: asg,

@@ -1,13 +1,18 @@
+use crate::asg::Expression;
 use crate::ast::as_node;
 
 use super::*;
 
+use super::asg::scope::ExpressionKey;
+
 impl<'a> Grapher<'a> {
-    pub fn parse_expression(
-        &mut self,
-        astkey: ast::AstKey,
-        node: &ast::NodeRef,
-    ) -> asg::ExpressionKey {
+    fn add_expression(&mut self, object: asg::ExpressionObject) -> ExpressionKey {
+        let scope = self.state.get_current_scope();
+
+        scope.expressions.add(Expression::new(object, 666))
+    }
+
+    pub fn parse_expression(&mut self, astkey: ast::AstKey, node: &ast::NodeRef) -> ExpressionKey {
         match self.context.get_ast(astkey).get_node(node) {
             ast::Node::StringLiteral(n) => self.parse_stringliteral(astkey, n),
             ast::Node::BooleanLiteral(n) => self.parse_booleanliteral(astkey, n),
@@ -30,59 +35,47 @@ impl<'a> Grapher<'a> {
         &mut self,
         _astkey: ast::AstKey,
         ast_lit: &ast::nodes::StringLiteral,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let literal = asg::expressions::literals::StringLiteral {
             string: ast_lit.text.clone(),
         };
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::StringLiteral(literal),
-            ))
+        self.add_expression(asg::ExpressionObject::Literal(
+            asg::expressions::Literal::StringLiteral(literal),
+        ))
     }
 
     pub fn parse_booleanliteral(
         &mut self,
         _astkey: ast::AstKey,
         ast_lit: &ast::nodes::BooleanLiteral,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let literal = asg::expressions::literals::BoolLiteral {
             value: ast_lit.value,
         };
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::BoolLiteral(literal),
-            ))
+        self.add_expression(asg::ExpressionObject::Literal(
+            asg::expressions::Literal::BoolLiteral(literal),
+        ))
     }
 
     pub fn parse_integerliteral(
         &mut self,
         _astkey: ast::AstKey,
         ast_lit: &ast::nodes::IntegerLiteral,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let literal = asg::expressions::literals::IntegerLiteral {
             data: ast_lit.value,
             signed: ast_lit.signed,
         };
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::IntegerLiteral(literal),
-            ))
+        self.add_expression(asg::ExpressionObject::Literal(
+            asg::expressions::Literal::IntegerLiteral(literal),
+        ))
     }
 
     pub fn parse_structliteral(
         &mut self,
         astkey: ast::AstKey,
         ast_lit: &ast::nodes::StructLiteral,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let mut fields = Vec::new();
 
         let ast = self.context.get_ast(astkey);
@@ -96,20 +89,16 @@ impl<'a> Grapher<'a> {
 
         let literal = asg::expressions::literals::StructLiteral { fields };
 
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::StructLiteral(literal),
-            ))
+        self.add_expression(asg::ExpressionObject::Literal(
+            asg::expressions::Literal::StructLiteral(literal),
+        ))
     }
 
     pub fn parse_functionliteral(
         &mut self,
         astkey: ast::AstKey,
         ast_lit: &ast::nodes::FunctionLiteral,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         fn create_function_name(state: &State) -> String {
             if state.current_symdecl_name.is_empty() {
                 format!("{}", state.get_current_module().name)
@@ -128,16 +117,9 @@ impl<'a> Grapher<'a> {
         //  know what symbol this will be bound to, try to figure something out
         let name = create_function_name(&self.state);
 
-        let symbolscope = self
-            .state
-            .asg
-            .store
-            .symbolscopes
-            .add(asg::SymbolScope::new(Some(
-                self.state.current_symbolscope.clone(),
-            )));
-
-        let mut function = asg::Function::new(name, self.state.current_module, symbolscope);
+        let parentscope = asg::ScopeRef::new(self.state.current_module, self.state.current_scope);
+        let mut function =
+            asg::Function::new(name, &mut self.state.get_current_module_mut(), parentscope);
 
         // Populate in-params
         for inparam in &ast_lit.inputparams {
@@ -147,92 +129,90 @@ impl<'a> Grapher<'a> {
 
             let symdecl = self
                 .state
-                .asg
-                .store
-                .symbolscopes
-                .get_mut(&symbolscope)
+                .edit_scope(&function.scope)
+                .symboltable
                 .declarations
-                .add(asg::SymbolDeclaration {
+                .add(asg::symboltable::SymbolDeclaration {
                     symbol: ast.get_symbol(&inparam.symbol).unwrap().clone(),
                     typeexpr: Some(typeexpr),
                 });
 
             let symref = asg::ResolvedSymbolReference {
-                scope: symbolscope,
+                scope: asg::ScopeRef {
+                    module: self.state.current_module,
+                    scope: function.scope,
+                },
                 symbol: symdecl,
             };
 
             function.inparams.push(asg::FunctionParameter { symref });
         }
 
-        let functionkey = self.state.asg.store.functions.add(function);
-
         // Parse body
-        let old_func = self.state.current_function;
-        self.state.current_function = Some(functionkey);
-        self.state.asg.store.functions.get_mut(&functionkey).body = self.parse_statement_body(
+        let statmentbody = self.parse_statement_body(
             astkey,
             as_node!(ast, StatementBody, &ast_lit.body),
-            symbolscope,
+            function.scope,
         );
-        self.state.current_function = old_func;
+
+        self.state.edit_scope(&function.scope).statementbody = statmentbody;
+
+        let functionkey = self
+            .state
+            .get_current_module_mut()
+            .functionstore
+            .add(function);
 
         // Create literal expression
         let literal = asg::expressions::literals::FunctionLiteral { functionkey };
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Literal(
-                asg::expressions::Literal::FunctionLiteral(literal),
-            ))
+        self.add_expression(asg::ExpressionObject::Literal(
+            asg::expressions::Literal::FunctionLiteral(literal),
+        ))
     }
 
     pub fn parse_builtinobjectreference(
         &mut self,
         _astkey: ast::AstKey,
         ast_obj: &ast::nodes::BuiltInObjectReference,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let expr = match &ast_obj.object {
             ast::BuiltInObject::Function(n) => {
-                asg::Expression::BuiltInFunction(asg::expressions::BuiltInFunction { function: *n })
+                asg::ExpressionObject::BuiltInFunction(asg::expressions::BuiltInFunction {
+                    function: *n,
+                })
             }
             ast::BuiltInObject::PrimitiveType(n) => {
-                asg::Expression::PrimitiveType(asg::expressions::PrimitiveType { ptype: *n })
+                asg::ExpressionObject::PrimitiveType(asg::expressions::PrimitiveType { ptype: *n })
             }
         };
-        self.state.asg.store.expressions.add(expr)
+        self.add_expression(expr)
     }
 
     pub fn parse_symbolreference(
         &mut self,
         astkey: ast::AstKey,
         ast_symref: &ast::nodes::SymbolReference,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let ast = self.context.get_ast(astkey);
         let symbol = ast.get_symbol(&ast_symref.symbol).unwrap().clone();
-        let scopekey = self.state.current_symbolscope;
+        let scopekey = self.state.current_scope;
 
-        let scope = self.state.asg.store.symbolscopes.get_mut(&scopekey);
-        let symbolref = scope
-            .references
-            .add(asg::SymbolReference::UnresolvedReference(
+        let scope = self.state.edit_scope(&scopekey);
+        let symbolref = scope.symboltable.references.add(
+            asg::symboltable::SymbolReference::UnresolvedReference(
                 asg::UnresolvedSymbolReference { symbol },
-            ));
-        let expr = asg::Expression::SymbolReference(asg::expressions::SymbolReference {
-            symbolref: asg::SymbolReferenceRef {
-                scope: scopekey,
-                refkey: symbolref,
-            },
-        });
-        self.state.asg.store.expressions.add(expr)
+            ),
+        );
+        let expr =
+            asg::ExpressionObject::SymbolReference(asg::expressions::SymbolReference { symbolref });
+        self.add_expression(expr)
     }
 
     pub fn parse_ifexpression(
         &mut self,
         astkey: ast::AstKey,
         ast_ifexpr: &ast::nodes::IfExpression,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let elsebranch = if let Some(eb) = ast_ifexpr.elsebranch {
             Some(self.parse_expression(astkey, &eb))
         } else {
@@ -252,18 +232,14 @@ impl<'a> Grapher<'a> {
             elsebranch,
         };
 
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::If(ifexpr))
+        self.add_expression(asg::ExpressionObject::If(ifexpr))
     }
 
     pub fn parse_calloperation(
         &mut self,
         astkey: ast::AstKey,
         ast_callop: &ast::nodes::CallOperation,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let callable = self.parse_expression(astkey, &ast_callop.expr);
 
         let mut args = Vec::new();
@@ -278,18 +254,14 @@ impl<'a> Grapher<'a> {
 
         let callexpr = asg::expressions::Call { callable, args };
 
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Call(callexpr))
+        self.add_expression(asg::ExpressionObject::Call(callexpr))
     }
 
     pub fn parse_binaryoperation(
         &mut self,
         astkey: ast::AstKey,
         ast_binop: &ast::nodes::BinaryOperation,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let lhs = self.parse_expression(astkey, &ast_binop.lhs);
         let rhs = self.parse_expression(astkey, &ast_binop.rhs);
 
@@ -297,18 +269,14 @@ impl<'a> Grapher<'a> {
 
         let binopexpr = asg::expressions::BinOp { op, lhs, rhs };
 
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::BinOp(binopexpr))
+        self.add_expression(asg::ExpressionObject::BinOp(binopexpr))
     }
 
     pub fn parse_subscript(
         &mut self,
         astkey: ast::AstKey,
         ast_subscript: &ast::nodes::SubScript,
-    ) -> asg::ExpressionKey {
+    ) -> ExpressionKey {
         let expr = self.parse_expression(astkey, &ast_subscript.expr);
 
         let ast = self.context.get_ast(astkey);
@@ -316,10 +284,6 @@ impl<'a> Grapher<'a> {
 
         let subscriptexpr = asg::expressions::Subscript { expr, symbol };
 
-        self.state
-            .asg
-            .store
-            .expressions
-            .add(asg::Expression::Subscript(subscriptexpr))
+        self.add_expression(asg::ExpressionObject::Subscript(subscriptexpr))
     }
 }
