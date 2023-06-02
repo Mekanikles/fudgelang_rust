@@ -137,7 +137,7 @@ impl<'a> Grapher<'a> {
                     typeexpr: Some(typeexpr),
                 });
 
-            let symref = asg::ResolvedSymbolReference {
+            let symref = asg::symboltable::ResolvedSymbolReference {
                 scope: asg::ScopeRef {
                     module: self.state.current_module,
                     scope: function.scope,
@@ -200,7 +200,7 @@ impl<'a> Grapher<'a> {
         let scope = self.state.edit_scope(&scopekey);
         let symbolref = scope.symboltable.references.add(
             asg::symboltable::SymbolReference::UnresolvedReference(
-                asg::UnresolvedSymbolReference { symbol },
+                asg::symboltable::UnresolvedSymbolReference { symbol },
             ),
         );
         let expr =

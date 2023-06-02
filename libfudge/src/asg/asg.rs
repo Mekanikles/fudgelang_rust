@@ -27,11 +27,6 @@ impl objectstore::HashedStoreKey<typesystem::TypeId> for u64 {
 }
 
 #[derive(Debug, Clone)]
-pub struct UnresolvedSymbolReference {
-    pub symbol: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct ScopeRef {
     pub module: ModuleKey,
     pub scope: ScopeKey,
@@ -41,12 +36,6 @@ impl ScopeRef {
     pub fn new(module: ModuleKey, scope: ScopeKey) -> Self {
         Self { module, scope }
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct ResolvedSymbolReference {
-    pub scope: ScopeRef,
-    pub symbol: symboltable::SymbolKey,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -107,7 +96,7 @@ impl Module {
 pub struct FunctionParameter {
     // This is a bit weird, but since all symbols are added to the
     //  functinon's scope for lookup, we just reference it here
-    pub symref: ResolvedSymbolReference,
+    pub symref: symboltable::ResolvedSymbolReference,
 }
 
 #[derive(Debug)]
