@@ -6,9 +6,15 @@ pub mod statements {
     use super::*;
 
     #[derive(Debug)]
+    pub struct Branch {
+        pub scope: ScopeKey,
+        pub body: Option<StatementBody>,
+    }
+
+    #[derive(Debug)]
     pub struct If {
-        pub branches: Vec<(ExpressionKey, StatementBody)>,
-        pub elsebranch: Option<StatementBody>,
+        pub branches: Vec<(ExpressionKey, Branch)>,
+        pub elsebranch: Option<Branch>,
     }
 
     #[derive(Debug)]

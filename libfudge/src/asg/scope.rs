@@ -7,7 +7,6 @@ pub type ExpressionKey = usize;
 pub struct Scope {
     pub parent: Option<ScopeRef>,
     pub expressions: ExpressionStore,
-    pub statementbody: Option<StatementBody>,
     pub symboltable: symboltable::SymbolTable,
     //pub exprtypemap: HashMap<ExpressionKey, TypeVariable>,
 }
@@ -17,7 +16,6 @@ impl Scope {
         Self {
             parent: parent,
             expressions: ExpressionStore::new(),
-            statementbody: None,
             symboltable: symboltable::SymbolTable::new(),
             //exprtypemap: HashMap::new(),
         }

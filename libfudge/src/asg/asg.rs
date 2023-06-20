@@ -48,26 +48,6 @@ pub struct Asg {
     pub modulestore: ModuleStore,
 }
 
-impl Asg {
-    pub fn new() -> Self {
-        let mut global_module = Module::new("global".into(), None);
-        let scope = global_module.scope;
-
-        // Note: main should not be available for symbol lookup, so don't add it to any scope
-        let main_func = Function::new("main".into(), &mut global_module, ScopeRef::new(0, scope));
-        let main = global_module.functionstore.add(main_func);
-
-        let mut modulestore = ModuleStore::new();
-        let global_module = modulestore.add(global_module);
-
-        Asg {
-            global_module,
-            main,
-            modulestore,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct Module {
     pub name: String,
@@ -75,6 +55,7 @@ pub struct Module {
     pub typestore: TypeStore,
     pub scopestore: ScopeStore,
     pub functionstore: FunctionStore,
+    pub body: Option<StatementBody>,
 }
 
 impl Module {
@@ -88,6 +69,7 @@ impl Module {
             scopestore,
             typestore: TypeStore::new(),
             functionstore: FunctionStore::new(),
+            body: None,
         }
     }
 }
@@ -102,28 +84,37 @@ pub struct FunctionParameter {
 #[derive(Debug)]
 pub struct Function {
     pub name: String,
-    pub inparams: Vec<FunctionParameter>,
     pub scope: ScopeKey,
+    pub inparams: Vec<FunctionParameter>,
+    pub body: Option<StatementBody>,
 }
 
 impl Function {
-    pub fn new(name: String, module: &mut Module, parentscope: ScopeRef) -> Self {
+    pub fn new(
+        name: String,
+        scope: ScopeKey,
+        inparams: Vec<FunctionParameter>,
+        body: Option<StatementBody>,
+    ) -> Self {
         Self {
             name,
-            inparams: Vec::new(),
-            scope: module.scopestore.add(scope::Scope::new(Some(parentscope))),
+            scope,
+            inparams,
+            body,
         }
     }
 }
 
 #[derive(Debug)]
 pub struct StatementBody {
+    pub scope_nonowned: ScopeKey,
     pub statements: Vec<Statement>,
 }
 
 impl StatementBody {
-    pub fn new() -> Self {
+    pub fn new(scope: ScopeKey) -> Self {
         Self {
+            scope_nonowned: scope,
             statements: Vec::new(),
         }
     }

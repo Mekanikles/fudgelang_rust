@@ -74,6 +74,17 @@ impl Writer {
         }
     }
 
+    pub fn begingroup(&mut self, name: &String, label: &String) {
+        self.writeline(format!("subgraph cluster_{} {{", name));
+        self.indent();
+        self.writeline(format!("label=\"{}\"", label));
+    }
+
+    pub fn endgroup(&mut self) {
+        self.unindent();
+        self.writeline(format!("}}"));
+    }
+
     pub fn indent(&mut self) {
         self.indent += 1;
     }
@@ -165,44 +176,41 @@ impl<'a> State {
     }
 }
 
-/*
-fn get_statementbody_node_id(key: &StatementBodyKey) -> String {
-    format!("sb{}", key)
-}
-*/
-fn write_module(instance: &mut Instance, asg: &asg::Asg, key: &asg::ModuleKey) {
+fn write_module(instance: &mut Instance, asg: &asg::Asg, key: &asg::ModuleKey) -> String {
     let node_id = instance.state.get_module_node_id(&key);
-
-    instance
-        .writer
-        .writeline(format!("subgraph cluster_{} {{", node_id));
-    instance.writer.indent();
 
     instance.with_module(key, asg, |instance| {
         let module = instance.state.get_current_module(asg);
 
-        // Label
         instance
             .writer
-            .writeline(format!("label=\"Module: {}\"", module.name));
+            .begingroup(&node_id, &format!("Module: {}", module.name));
 
         // Root node
         // TODO: Should this be merged with symbol scope?
-        write_simple_node(instance, &node_id, &format!("Root: {}", node_id));
+        write_simple_node(instance, &node_id, &format!("Module: {}", node_id));
 
+        write_scope(instance, asg, &module.scope);
         write_simple_edge(
             instance,
             &node_id,
             &instance.state.get_scope_node_id(&module.scope),
         );
 
-        write_scope(instance, asg, &module.scope);
+        // Body
+        if let Some(body) = &module.body {
+            let sbid = format!("{}sb", node_id);
+            write_simple_edge(instance, &node_id, &sbid);
+
+            write_statementbody(instance, asg, &body, sbid);
+        }
+
+        instance.writer.endgroup();
     });
 
-    instance.writer.unindent();
-    instance.writer.writeline(format!("}}"));
-
     // TODO: Initializer body
+
+    node_id
 }
 
 fn write_scope(instance: &mut Instance, asg: &asg::Asg, key: &asg::ScopeKey) {
@@ -230,7 +238,7 @@ fn write_scope(instance: &mut Instance, asg: &asg::Asg, key: &asg::ScopeKey) {
             let decl_from_id = format!("{}:{}", node_id, local_decl_from_id);
 
             if let Some(typeexpr) = &symbol_decl.typeexpr {
-                let typeexpr_to_id = instance.state.get_expression_node_id(&typeexpr);
+                let typeexpr_to_id = write_expression(instance, asg, &typeexpr);
 
                 // Type expr edge
                 instance.writer.queueline(format!(
@@ -239,12 +247,15 @@ fn write_scope(instance: &mut Instance, asg: &asg::Asg, key: &asg::ScopeKey) {
                 ));
             }
 
-            // Definition Edge
+            // Definition
             if let Some(defexpr) = scope.symboltable.definitions.get(&symbol_decl_key) {
+                // Node
+                let expr_id = write_expression(instance, asg, &defexpr);
+
+                // Edge
                 instance.writer.queueline(format!(
                     "{} -> {} [label=\"definition\"]",
-                    decl_from_id,
-                    instance.state.get_expression_node_id(&defexpr)
+                    decl_from_id, expr_id
                 ));
             }
         }
@@ -258,10 +269,16 @@ fn write_scope(instance: &mut Instance, asg: &asg::Asg, key: &asg::ScopeKey) {
             ));
         }
 
-        // Expressions
-        for expr in scope.expressions.keys() {
-            write_expression(instance, asg, &expr);
-        }
+        // TODO: Can we catch expressions without references, somehow?
+
+        // Debug Expressions, prints them even if they don't have a reference
+        /*for expr in scope.expressions.keys() {
+            write_simple_edge(
+                instance,
+                &instance.state.get_expression_node_id(&expr),
+                &instance.state.get_expression_node_id(&expr),
+            );
+        }*/
     });
 
     let label = format!("{{ Symbols |{{ |{{ {} }}| }} }}", symbol_labels);
@@ -273,147 +290,49 @@ fn write_scope(instance: &mut Instance, asg: &asg::Asg, key: &asg::ScopeKey) {
     ));
 }
 
-fn write_functionparameter(
-    instance: &mut Instance,
-    asg: &asg::Asg,
-    function_id: &String,
-    index: usize,
-    param: &asg::FunctionParameter,
-) -> String {
-    let node_id = format!("{}p{}", function_id, index);
-
-    // TODO: Should only be able to reference symbols in function scope
-    let symdecl = instance
-        .state
-        .get_scope_from_ref(&param.symref.scope, asg)
-        .symboltable
-        .declarations
-        .get(&param.symref.symbol);
-
-    let local_expr_from_id = "t";
-    let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-    let expr_to_id = instance
-        .state
-        .get_expression_node_id(&symdecl.typeexpr.unwrap());
-
-    // Edges
-    instance
-        .writer
-        .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
-
-    let label = format!(
-        "in param | {} | <{}> type",
-        &symdecl.symbol, local_expr_from_id
-    );
-
-    let shape = format!("record");
-    let style = format!("");
-    instance.writer.writeline(format!(
-        "{} [shape=\"{}\", style=\"{}\", label=\"{}\"]",
-        node_id, shape, style, label
-    ));
-
-    node_id
-}
-
-fn write_function(instance: &mut Instance, asg: &asg::Asg, key: &asg::FunctionKey) {
+fn write_function(instance: &mut Instance, asg: &asg::Asg, key: &asg::FunctionKey) -> String {
     let node_id = instance.state.get_function_node_id(&key);
-
-    instance
-        .writer
-        .writeline(format!("subgraph cluster_{} {{", node_id));
-    instance.writer.indent();
 
     {
         let function = instance.state.get_function(&key, asg);
 
-        // Label
         instance
             .writer
-            .writeline(format!("label=\"Function: {}\"", function.name));
+            .begingroup(&node_id, &format!("Function: {}", function.name));
 
         // Root node
         // TODO: Should this be merged with symbol scope?
-        write_simple_node(instance, &node_id, &format!("Root: {}", node_id));
+        write_simple_node(instance, &node_id, &format!("Function: {}", node_id));
 
+        write_scope(instance, asg, &function.scope);
         write_simple_edge(
             instance,
             &node_id,
             &instance.state.get_scope_node_id(&function.scope),
         );
 
-        write_scope(instance, asg, &function.scope);
-    }
-
-    instance.writer.unindent();
-    instance.writer.writeline(format!("}}"));
-
-    /*let function = instance.state.get_function(&key, asg);
-
-    let node_id = instance.state.get_function_node_id(&key);
-
-    let label = format!("Function: {}", function.name);
-    let shape = format!("component");
-    let style = format!("");
-    instance.writer.write(node_id);
-    instance.writer.write(format!(
-        " [shape=\"{}\", style=\"{}\", label=\"{}\"]\n",
-        shape, style, label
-    ));
-
-    // Params
-    let mut count = 0;
-    for inparam in &function.inparams {
-        let paramid = write_functionparameter(instance, &asg, &node_id, count, &inparam);
-
-        instance
-            .writer
-            .write(format!("{} -> {}\n", node_id, paramid));
-
-        count += 1;
-    }
-
-    // Edges
-    {
-        // Module
-        instance.writer
-        .write(format!(
-            "{} -> {}\n",
-            get_module_node_id(&function.module),
-            node_id
-        ));
-
-        // Body
         if let Some(body) = &function.body {
-            writer
-                .write_all(format!(
-                    "{} -> {}\n",
-                    node_id,
-                    get_statementbody_node_id(&body)
-                ))
-                .unwrap();
+            let sbid = format!("{}sb", node_id);
+            write_simple_edge(instance, &node_id, &sbid);
+
+            write_statementbody(instance, asg, &body, sbid);
         }
 
-        // Scope
-        writer
-            .write_all(format!(
-                "{} -> {}\n",
-                node_id,
-                get_symbolscope_node_id(&function.symbolscope)
-            ))
-            .unwrap();
-    }*/
+        instance.writer.endgroup();
+    }
+
+    node_id
 }
 
-/*
 fn write_statement(
     instance: &mut Instance,
-    _asg: &asg::Asg,
+    asg: &asg::Asg,
     body_id: &String,
     index: usize,
     stmnt: &asg::Statement,
 ) -> String {
     let node_id = format!("{}s{}", body_id, index);
+
     let label = match stmnt {
         asg::Statement::If(n) => {
             let mut branches = String::new();
@@ -423,11 +342,11 @@ fn write_statement(
             while let Some(branch) = it.next() {
                 let local_expr_from_id = format!("b{}e0", count);
                 let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-                let expr_to_id = get_expression_node_id(&branch.0);
+                let expr_to_id = write_expression(instance, asg, &branch.0);
 
                 let local_stmnt_from_id = format!("b{}s0", count);
                 let stmnt_from_id = format!("{}:{}", node_id, local_stmnt_from_id);
-                let stmnt_to_id = get_statementbody_node_id(&branch.1);
+                let stmnt_to_id = format!("{}sb{}", node_id, count);
 
                 branches.push_str(
                     format!("<{}> expr |<{}> then", expr_from_id, stmnt_from_id).as_str(),
@@ -436,32 +355,43 @@ fn write_statement(
                     branches.push_str(" |");
                 }
 
-                // Edges
-                writer
-                    .write_all(format!("{} -> {}\n", expr_from_id, expr_to_id))
-                    .unwrap();
-                writer
-                    .write_all(format!("{} -> {}\n", stmnt_from_id, stmnt_to_id))
-                    .unwrap();
+                // Expression edge
+                instance
+                    .writer
+                    .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
 
+                // Body
+                if let Some(body) = &branch.1.body {
+                    write_statementbody(instance, asg, &body, stmnt_to_id.clone());
+
+                    // Edge
+                    instance
+                        .writer
+                        .queueline(format!("{} -> {}", stmnt_from_id, stmnt_to_id));
+                }
                 count += 1;
             }
 
             // Else
-            if let Some(elsebranch) = n.elsebranch {
+            if let Some(elsebranch) = &n.elsebranch {
                 let local_stmnt_from_id = format!("b{}s0", count);
                 let stmnt_from_id = format!("{}:{}", node_id, local_stmnt_from_id);
-                let stmnt_to_id = get_statementbody_node_id(&elsebranch);
+                let stmnt_to_id = format!("{}sbe", node_id);
 
                 if !n.branches.is_empty() {
                     branches.push_str(" |");
                 }
                 branches.push_str(format!("else |<{}> stmnt", local_stmnt_from_id).as_str());
 
-                // Edges
-                writer
-                    .write_all(format!("{} -> {}\n", stmnt_from_id, stmnt_to_id))
-                    .unwrap();
+                // Body
+                if let Some(body) = &elsebranch.body {
+                    write_statementbody(instance, asg, &body, stmnt_to_id.clone());
+
+                    // Edges
+                    instance
+                        .writer
+                        .queueline(format!("{} -> {}", stmnt_from_id, stmnt_to_id));
+                }
             }
 
             format!("if | {{ {} }}", branches)
@@ -470,12 +400,12 @@ fn write_statement(
             if let Some(expr) = n.expr {
                 let local_expr_from_id = "e0";
                 let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-                let expr_to_id = get_expression_node_id(&expr);
+                let expr_to_id = write_expression(instance, asg, &expr);
 
                 // Edges
-                writer
-                    .write_all(format!("{} -> {}\n", expr_from_id, expr_to_id))
-                    .unwrap();
+                instance
+                    .writer
+                    .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
 
                 format!("return | <{}> expr", local_expr_from_id)
             } else {
@@ -487,16 +417,17 @@ fn write_statement(
             let lhs_from_id = format!("{}:{}", node_id, local_lhs_from_id);
             let local_rhs_from_id = "e1";
             let rhs_from_id = format!("{}:{}", node_id, local_rhs_from_id);
-            let lhs_to_id = get_expression_node_id(&n.lhs);
-            let rhs_to_id = get_expression_node_id(&n.rhs);
+
+            let lhs_to_id = write_expression(instance, asg, &n.lhs);
+            let rhs_to_id = write_expression(instance, asg, &n.rhs);
 
             // Edges
-            writer
-                .write_all(format!("{} -> {}\n", lhs_from_id, lhs_to_id))
-                .unwrap();
-            writer
-                .write_all(format!("{} -> {}\n", rhs_from_id, rhs_to_id))
-                .unwrap();
+            instance
+                .writer
+                .queueline(format!("{} -> {}", lhs_from_id, lhs_to_id));
+            instance
+                .writer
+                .queueline(format!("{} -> {}", rhs_from_id, rhs_to_id));
 
             format!(
                 "assign |<{}> lhs | = |<{}> rhs",
@@ -506,86 +437,84 @@ fn write_statement(
         asg::Statement::Initialize(n) => {
             let local_expr_from_id = "e0";
             let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-            let expr_to_id = get_expression_node_id(&n.expr);
+            let expr_to_id = write_expression(instance, asg, &n.expr);
 
             // Edges
-            writer
-                .write_all(format!("{} -> {}\n", expr_from_id, expr_to_id))
-                .unwrap();
+            instance
+                .writer
+                .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
 
             format!("initalize | {} | <{}> expr", n.symbol, local_expr_from_id)
         }
         asg::Statement::ExpressionWrapper(n) => {
             let local_expr_from_id = "e0";
             let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-            let expr_to_id = get_expression_node_id(&n.expr);
+            let expr_to_id = write_expression(instance, asg, &n.expr);
 
             // Edges
-            writer
-                .write_all(format!("{} -> {}\n", expr_from_id, expr_to_id))
-                .unwrap();
+            instance
+                .writer
+                .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
 
             format!("expression wrapper | <{}> expr", local_expr_from_id)
         }
     };
 
+    // TODO: Better label
+    instance.writer.begingroup(&node_id, &format!("Statement"));
+
     // Node
     let shape = format!("record");
     let style = format!("");
-    instance.writer.write(node_id).unwrap();
-    writer
-        .write_all(format!(
-            " [shape=\"{}\", style=\"{}\", label=\"{}\", group=\"{}\"]\n",
-            shape, style, label, body_id
-        ))
-        .unwrap();
+    instance.writer.writeline(format!(
+        "{} [shape=\"{}\", style=\"{}\", label=\"{}\", group=\"{}\"]",
+        node_id, shape, style, label, body_id
+    ));
+
+    instance.writer.endgroup();
 
     node_id
 }
 
-fn write_statementbody(instance: &mut Instance, asg: &asg::Asg, key: &asg::FunctionKey) {
-    let body = asg.store.statementbodies.get(&key);
+fn write_statementbody(
+    instance: &mut Instance,
+    asg: &asg::Asg,
+    body: &asg::StatementBody,
+    node_id: String,
+) {
+    // NOTE: We don't print the scope here, since it's owned elsewhere
+    instance.with_scope(&body.scope_nonowned, |instance| {
+        // Statements
+        let mut it = body.statements.iter().peekable();
+        let mut count = 0;
+        while let Some(stmnt) = it.next() {
+            let stmnt_id = write_statement(instance, &asg, &node_id, count, &stmnt);
 
-    let node_id = get_statementbody_node_id(&key);
-
-    // Scope Edge
-    writer
-        .write_all(format!(
-            "{} -> {}\n",
-            node_id,
-            get_symbolscope_node_id(&body.symbolscope)
-        ))
-        .unwrap();
-
-    // Statements
-    let mut it = body.statements.iter().peekable();
-    let mut count = 0;
-    while let Some(stmnt) = it.next() {
-        let stmnt_id = write_statement(writer, &asg, &node_id, count, &stmnt);
-
-        // Edges
-        writer
-            .write_all(format!(
-                "{} -> {} [label=\"[{}]\"]\n",
+            // Edges
+            instance.writer.queueline(format!(
+                "{} -> {} [label=\"[{}]\"]",
                 node_id, stmnt_id, count
-            ))
-            .unwrap();
-        count += 1;
-    }
+            ));
+            count += 1;
+        }
+    });
+
+    instance
+        .writer
+        .begingroup(&node_id, &format!("Statement Body"));
 
     // Node
     let label = format!("Statement Body");
     let shape = format!("box");
     let style = format!("");
-    instance.writer.write(node_id).unwrap();
-    writer
-        .write_all(format!(
-            " [shape=\"{}\", style=\"{}\", label=\"{}\"]\n",
-            shape, style, label
-        ))
-        .unwrap();
+    instance.writer.writeline(format!(
+        "{} [shape=\"{}\", style=\"{}\", label=\"{}\"]",
+        node_id, shape, style, label
+    ));
+
+    instance.writer.endgroup();
 }
-*/
+
 fn escape_string(string: &String) -> String {
     // TODO: This is horribly inefficient
     string
@@ -597,6 +526,7 @@ fn escape_string(string: &String) -> String {
 
 fn write_structfield(
     instance: &mut Instance,
+    asg: &asg::Asg,
     expr_id: &String,
     field: &asg::misc::StructField,
     index: usize,
@@ -605,7 +535,7 @@ fn write_structfield(
 
     let local_expr_from_id = format!("t");
     let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-    let expr_to_id = instance.state.get_expression_node_id(&field.typeexpr);
+    let expr_to_id = write_expression(instance, asg, &field.typeexpr);
 
     // Edges
     instance.writer.queueline(format!(
@@ -686,7 +616,11 @@ fn write_expression_node(instance: &mut Instance, node_id: &String, label: &Stri
     write_colored_expression_node(instance, node_id, label, &"".to_string());
 }
 
-fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::ExpressionKey) {
+fn write_expression(
+    instance: &mut Instance,
+    asg: &asg::Asg,
+    key: &asg::scope::ExpressionKey,
+) -> String {
     let node_id = instance.state.get_expression_node_id(&key);
 
     macro_rules! quick_node {
@@ -709,7 +643,7 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
             asg::expressions::Literal::StructLiteral(n) => {
                 let mut count = 0;
                 for field in &n.fields {
-                    let field_id = write_structfield(instance, &node_id, field, count);
+                    let field_id = write_structfield(instance, asg, &node_id, field, count);
 
                     // Edges
                     instance.writer.queueline(format!(
@@ -726,32 +660,29 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
                 let function = instance.state.get_function(&n.functionkey, asg);
                 let name = format!("Function: {}", function.name);
 
-                // Edges
-                instance.writer.queueline(format!(
-                    "{} -> {}",
-                    node_id,
-                    instance.state.get_function_node_id(&n.functionkey)
-                ));
-
                 quick_node!(name);
 
-                write_function(instance, asg, &n.functionkey);
+                // Function
+                let function_node = write_function(instance, asg, &n.functionkey);
+
+                // Edge
+                instance
+                    .writer
+                    .queueline(format!("{} -> {}", node_id, function_node));
             }
             asg::expressions::Literal::ModuleLiteral(n) => {
                 // TODO: write module directly, or expression literal in between?
                 let module = instance.state.get_module(&n.modulekey, asg);
                 let name = format!("Module Literal: {}", module.name);
 
-                // Edges
-                instance.writer.queueline(format!(
-                    "{} -> {}",
-                    node_id,
-                    instance.state.get_module_node_id(&n.modulekey)
-                ));
-
                 quick_node!(name);
 
-                write_module(instance, asg, &n.modulekey);
+                let module_node = write_module(instance, asg, &n.modulekey);
+
+                // Edges
+                instance
+                    .writer
+                    .queueline(format!("{} -> {}", node_id, module_node));
             }
         },
         asg::ExpressionObject::BuiltInFunction(n) => {
@@ -770,7 +701,7 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
 
                     // Edge
                     let symbolscope_id = instance.state.get_scope_node_id_from_ref(&n.scope);
-                    instance.writer.writeline(format!(
+                    instance.writer.queueline(format!(
                         "{} -> {} [style=dashed constraint=false]",
                         node_id, symbolscope_id
                     ));
@@ -799,11 +730,11 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
             while let Some(branch) = it.next() {
                 let local_cond_from_id = format!("b{}e0", count);
                 let cond_from_id = format!("{}:{}", node_id, local_cond_from_id);
-                let cond_to_id = instance.state.get_expression_node_id(&branch.0);
+                let cond_to_id = write_expression(instance, asg, &branch.0);
 
                 let local_expr_from_id = format!("b{}e1", count);
                 let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-                let expr_to_id = instance.state.get_expression_node_id(&branch.1);
+                let expr_to_id = write_expression(instance, asg, &branch.1);
 
                 branches.push_str(
                     format!(
@@ -819,10 +750,10 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
                 // Edges
                 instance
                     .writer
-                    .writeline(format!("{} -> {}", cond_from_id, cond_to_id));
+                    .queueline(format!("{} -> {}", cond_from_id, cond_to_id));
                 instance
                     .writer
-                    .writeline(format!("{} -> {}", expr_from_id, expr_to_id));
+                    .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
 
                 count += 1;
             }
@@ -831,7 +762,7 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
             if let Some(elsebranch) = n.elsebranch {
                 let local_expr_from_id = format!("b{}s0", count);
                 let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
-                let expr_to_id = instance.state.get_expression_node_id(&elsebranch);
+                let expr_to_id = write_expression(instance, asg, &elsebranch);
 
                 if !n.branches.is_empty() {
                     branches.push_str(" |");
@@ -841,7 +772,7 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
                 // Edges
                 instance
                     .writer
-                    .writeline(format!("{} -> {}", expr_from_id, expr_to_id));
+                    .queueline(format!("{} -> {}", expr_from_id, expr_to_id));
             }
 
             quick_node!(format!("if | {{ {} }}", branches))
@@ -856,12 +787,12 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
 
             label.push_str(format!("<{}> callable", local_expr_from_id).as_str());
 
+            let expr_if = write_expression(instance, asg, &n.callable);
+
             // Edges
-            instance.writer.writeline(format!(
-                "{} -> {}",
-                expr_from_id,
-                instance.state.get_expression_node_id(&n.callable)
-            ));
+            instance
+                .writer
+                .queueline(format!("{} -> {}", expr_from_id, expr_if));
 
             let mut count = 0;
 
@@ -872,12 +803,12 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
 
                 label.push_str(format!("|<{}> arg", local_expr_from_id).as_str());
 
+                let expr_id = write_expression(instance, asg, &arg);
+
                 // Edges
-                instance.writer.writeline(format!(
-                    "{} -> {}",
-                    expr_from_id,
-                    instance.state.get_expression_node_id(&arg)
-                ));
+                instance
+                    .writer
+                    .queueline(format!("{} -> {}", expr_from_id, expr_id));
 
                 count += 1;
             }
@@ -889,16 +820,16 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
             let lhs_from_id = format!("{}:{}", node_id, local_lhs_from_id);
             let local_rhs_from_id = "e1";
             let rhs_from_id = format!("{}:{}", node_id, local_rhs_from_id);
-            let lhs_to_id = instance.state.get_expression_node_id(&n.lhs);
-            let rhs_to_id = instance.state.get_expression_node_id(&n.rhs);
+            let lhs_to_id = write_expression(instance, asg, &n.lhs);
+            let rhs_to_id = write_expression(instance, asg, &n.rhs);
 
             // Edges
             instance
                 .writer
-                .writeline(format!("{} -> {}", lhs_from_id, lhs_to_id));
+                .queueline(format!("{} -> {}", lhs_from_id, lhs_to_id));
             instance
                 .writer
-                .writeline(format!("{} -> {}", rhs_from_id, rhs_to_id));
+                .queueline(format!("{} -> {}", rhs_from_id, rhs_to_id));
 
             quick_node!(format!(
                 "Binop |<{}> lhs | {:?} |<{}> rhs",
@@ -909,12 +840,12 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
             let local_expr_from_id = format!("e0");
             let expr_from_id = format!("{}:{}", node_id, local_expr_from_id);
 
+            let expr_id = write_expression(instance, asg, &n.expr);
+
             // Edges
-            instance.writer.writeline(format!(
-                "{} -> {}",
-                expr_from_id,
-                instance.state.get_expression_node_id(&n.expr)
-            ));
+            instance
+                .writer
+                .queueline(format!("{} -> {}", expr_from_id, expr_id,));
 
             quick_node!(format!(
                 "Subscript |<{}> expr | symbol: {}",
@@ -922,6 +853,8 @@ fn write_expression(instance: &mut Instance, asg: &asg::Asg, key: &asg::scope::E
             ))
         }
     };
+
+    node_id
 }
 
 pub fn generate_dotfile(asg: &asg::Asg, filename: &str) {
@@ -958,35 +891,7 @@ pub fn generate_dotfile(asg: &asg::Asg, filename: &str) {
     instance.writer.writeline(format!("// Edges"));
     instance.writer.flushqueue();
 
-    // Write modules
-    /*for key in asg.store.modules.keys() {
-        write_module(&mut writer, &asg, &key);
-    }
-
-    // Write symbolscopes
-    for key in asg.store.symbolscopes.keys() {
-        write_symbolscope(&mut writer, &asg, &key);
-    }
-
-    // Write functions
-    for key in asg.store.functions.keys() {
-        write_function(&mut writer, &asg, &key);
-    }
-
-    // Write statemens bodies
-    for key in asg.store.statementbodies.keys() {
-        write_statementbody(&mut writer, &asg, &key);
-    }
-
-    // Write expressions
-    for key in asg.store.expressions.keys() {
-        write_expression(&mut writer, &asg, &key);
-    }*/
-
     // Tail
     instance.writer.unindent();
     instance.writer.writeline("}".into());
-
-    // Flush the buffer to ensure all data is written to the file
-    //instance.state.flush();
 }

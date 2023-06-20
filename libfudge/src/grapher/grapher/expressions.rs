@@ -9,7 +9,8 @@ impl<'a> Grapher<'a> {
     fn add_expression(&mut self, object: asg::ExpressionObject) -> ExpressionKey {
         let scope = self.state.get_current_scope();
 
-        scope.expressions.add(Expression::new(object, 666))
+        let key = scope.expressions.add(Expression::new(object, 666));
+        key
     }
 
     pub fn parse_expression(&mut self, astkey: ast::AstKey, node: &ast::NodeRef) -> ExpressionKey {
@@ -117,45 +118,43 @@ impl<'a> Grapher<'a> {
         //  know what symbol this will be bound to, try to figure something out
         let name = create_function_name(&self.state);
 
-        let parentscope = asg::ScopeRef::new(self.state.current_module, self.state.current_scope);
-        let mut function =
-            asg::Function::new(name, &mut self.state.get_current_module_mut(), parentscope);
+        let scope = self.state.create_scope();
+
+        // Make sure the scope includes parsing parameters
+        self.state.push_scope(&scope);
 
         // Populate in-params
+        let mut inparams = Vec::new();
         for inparam in &ast_lit.inputparams {
             let inparam = as_node!(ast, InputParameter, inparam);
 
             let typeexpr = self.parse_expression(astkey, &inparam.typeexpr);
 
-            let symdecl = self
-                .state
-                .edit_scope(&function.scope)
-                .symboltable
-                .declarations
-                .add(asg::symboltable::SymbolDeclaration {
+            let symdecl = self.state.edit_scope(&scope).symboltable.declarations.add(
+                asg::symboltable::SymbolDeclaration {
                     symbol: ast.get_symbol(&inparam.symbol).unwrap().clone(),
                     typeexpr: Some(typeexpr),
-                });
+                },
+            );
 
             let symref = asg::symboltable::ResolvedSymbolReference {
                 scope: asg::ScopeRef {
-                    module: self.state.current_module,
-                    scope: function.scope,
+                    module: self.state.get_current_module_key(),
+                    scope: scope,
                 },
                 symbol: symdecl,
             };
 
-            function.inparams.push(asg::FunctionParameter { symref });
+            inparams.push(asg::FunctionParameter { symref });
         }
 
         // Parse body
-        let statmentbody = self.parse_statement_body(
-            astkey,
-            as_node!(ast, StatementBody, &ast_lit.body),
-            function.scope,
-        );
+        let statementbody =
+            self.parse_statement_body(astkey, as_node!(ast, StatementBody, &ast_lit.body));
 
-        self.state.edit_scope(&function.scope).statementbody = statmentbody;
+        self.state.pop_scope();
+
+        let function = asg::Function::new(name, scope, inparams, statementbody);
 
         let functionkey = self
             .state
@@ -195,9 +194,8 @@ impl<'a> Grapher<'a> {
     ) -> ExpressionKey {
         let ast = self.context.get_ast(astkey);
         let symbol = ast.get_symbol(&ast_symref.symbol).unwrap().clone();
-        let scopekey = self.state.current_scope;
 
-        let scope = self.state.edit_scope(&scopekey);
+        let scope = self.state.get_current_scope();
         let symbolref = scope.symboltable.references.add(
             asg::symboltable::SymbolReference::UnresolvedReference(
                 asg::symboltable::UnresolvedSymbolReference { symbol },

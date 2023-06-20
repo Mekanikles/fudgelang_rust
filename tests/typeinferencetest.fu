@@ -1,0 +1,26 @@
+
+def fo = func(x : #primitives.u32, y : #primitives.u32) -> #primitives.u32 => x + y
+
+module local begin
+	// Unclear if overloading like this should be allowed
+	//  but we want the implementation to allow for it if it makes sense
+	def fo = func(x : #primitives.u32, y : #primitives.bool) -> #primitives.bool => (x > 0) and y
+
+	def p = func(x : #primitives.u32) => #output.#output.print_format("{}", x)
+
+	def main = func begin
+		// Should default initialize these to whatever type they are decided to be
+		var x
+		var y
+
+		// "fo" is overloaded, so types of x, y needs to be known here before
+		//  complete symbol resolution
+		var z = fo(x, y)
+
+		// These will concretize x and y
+		p(x)
+		p(y)
+	end
+end
+
+local.main()

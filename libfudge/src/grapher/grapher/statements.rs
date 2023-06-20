@@ -121,24 +121,35 @@ impl<'a> Grapher<'a> {
 
                 (
                     self.parse_expression(astkey, &x.0),
-                    self.parse_statement_body(
-                        astkey,
-                        ast::as_node!(ast, StatementBody, &x.1),
+                    asg::statements::Branch {
                         scope,
-                    )
-                    .unwrap(),
+                        body: {
+                            self.state.push_scope(&scope);
+                            let body = self.parse_statement_body(
+                                astkey,
+                                ast::as_node!(ast, StatementBody, &x.1),
+                            );
+                            self.state.pop_scope();
+                            body
+                        },
+                    },
                 )
             })
             .collect();
 
-        let elsebranch = ast_if
-            .elsebranch
-            .as_ref()
-            .map(|x| {
-                let scope = quick_scope!();
-                self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x), scope)
-            })
-            .unwrap();
+        let elsebranch = ast_if.elsebranch.as_ref().map(|x| {
+            let scope = quick_scope!();
+            asg::statements::Branch {
+                scope,
+                body: {
+                    self.state.push_scope(&scope);
+                    let body =
+                        self.parse_statement_body(astkey, ast::as_node!(ast, StatementBody, &x));
+                    self.state.pop_scope();
+                    body
+                },
+            }
+        });
 
         let ifstmt = asg::statements::If {
             branches,
