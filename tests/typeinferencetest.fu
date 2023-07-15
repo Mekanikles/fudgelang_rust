@@ -1,26 +1,86 @@
-
-def fo = func(x : #primitives.u32, y : #primitives.u32) -> #primitives.u32 => x + y
+/*
+def foo =
+	func(x : #primitives.u32, y : #primitives.u32) do
+		#output.print_format("Foo Int version called with x: {}, y: {}", x, y)
+	end
 
 module local begin
 	// Unclear if overloading like this should be allowed
 	//  but we want the implementation to allow for it if it makes sense
-	def fo = func(x : #primitives.u32, y : #primitives.bool) -> #primitives.bool => (x > 0) and y
+	def foo =
+		func(x : #primitives.u32, y : #primitives.bool) do
+			#output.print_format("Foo Bool version called with x: {}, y: {}", x, y)
+		end
 
-	def p = func(x : #primitives.u32) => #output.#output.print_format("{}", x)
+	def p =
+		func(x : #primitives.u32) do
+			#output.print_format("Value of x: {}", x)
+		end
 
-	def main = func begin
-		// Should default initialize these to whatever type they are decided to be
-		var x
-		var y
+	def main =
+		func do
+			// Should default initialize these to whatever type they are decided to be
+			var x
+			var y
 
-		// "fo" is overloaded, so types of x, y needs to be known here before
-		//  complete symbol resolution
-		var z = fo(x, y)
+			// "foo" is overloaded, so types of x, y needs to be known here before
+			//  complete symbol resolution
+			// NOTE:
+			//  This will produce two candidates for fo,
+			foo(x, y)
 
-		// These will concretize x and y
-		p(x)
-		p(y)
-	end
+			// These will concretize x and y
+			p(y)
+			p(x)
+		end
 end
 
 local.main()
+
+*/
+
+var x : #primitives.u32 = 5
+#output.print_format("Value of x: {}", x)
+
+/* What should happen
+ - Type discovery
+	1. decl x is discovered, assigned v0
+	2. typeexpr of x, e0, assigned v1
+		v1 constrained to "type", t0
+		v0 constrained to _value_ of typeexpr, e0
+	3. init of x
+		literal, e1, assigned typeset of ints, v2
+		v0 constrained to v2
+	4. call callable, e2, assigned builtinfunction type of "print_format", t1
+		t1.0: "string"
+		t1.1: "any"
+	5. call param1, e3, assigned "string", t2
+	6. call param2, e4, assigned v3, constrained to type of symref x
+	7. call params, t2, v3, constrained to t1 args 0,1
+	8. whole call expr, e5, assigned type of null, t3, since no return value
+
+ - Constraint resolution
+    symbols: x
+    exprs: e0, e1, e2, e3, e4, e5
+	types: t0(type), t1(print_format), t1.0(string), t1.1(any), t2(string)
+	typevars: v0, v1, v2(typeset ints), v3
+	constraints: [v1 ~ t0], [v0 ~ val(e0)], [v0 ~ v2], [v3 ~ sym(x)], [t2 ~ t1.0], [v3 ~ t1.1]
+
+	1. [v1 ~ t0] -> v1 = t0
+	2. [v0 ~ val(e0)]:
+		check(v1): t0
+		eval(e0): t3(u32)
+		-> [v0 ~ t3] -> v0 = t3
+	3. [v0 ~ v2] -> [t3 ~ v2] -> v2 = t3
+	4. [v3 ~ sym(x)]:
+		lookup(x): v0
+		-> [v3 ~ v0] -> [v3 ~ t3] -> v3 = t3
+	5. [t2 ~ t1.0] -> success (string ~ string)
+	6. [v3 ~ t1.1] -> [t3 ~ t1.1] -> success (u32 ~ any)
+
+	Solution:
+		v0 = u32, v1 = type, v2 = u32, v3 = u32
+		x = u32
+		e0 = type, e1 = u32, e2 = print_format, e3 = string, e4 = u32, e5 = null
+
+*/

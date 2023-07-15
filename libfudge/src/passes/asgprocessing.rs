@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
-use std::mem;
+use crate::asg::symboltable::SymbolKey;
+use crate::asg::*;
+use crate::utils::objectstore::*;
 
-use asg::objectstore::ObjectStore;
-
-use crate::asg;
+use crate::typesystem::*;
 
 fn get_scope<'a>(asg: &'a asg::Asg, scope: &asg::ScopeRef) -> &'a asg::scope::Scope {
     asg.modulestore
@@ -19,6 +20,22 @@ fn get_scope_mut<'a>(asg: &'a mut asg::Asg, scope: &asg::ScopeRef) -> &'a mut as
         .scopestore
         .get_mut(&scope.scope)
 }
+
+/*
+
+use std::collections::HashMap;
+
+use std::mem;
+
+
+use crate::asg::expression::expressions::SymbolReference;
+use crate::asg::scope::ExpressionKey;
+use crate::asg::symboltable::SymbolKey;
+
+
+use crate::typesystem::*;
+use crate::utils::objectstore::*;
+
 
 fn lookup_symbol(
     asg: &asg::Asg,
@@ -50,6 +67,228 @@ fn lookup_symbol(
     return asg::symboltable::SymbolReference::UnresolvedReference(reference.clone());
 }
 
+type TypeCache = HashMap<asg::ScopeRef, TypeCacheScope>;
+
+pub type TypeVariableStore = IndexedObjectStore<TypeVariable>;
+pub type TypeVariableKey = usize;
+
+struct TypeCacheScope {
+    variables: TypeVariableStore,
+    expression_lookup: HashMap<asg::scope::ExpressionKey, TypeVariableKey>,
+}
+
+impl TypeCacheScope {
+    pub fn new() -> Self {
+        Self {
+            variables: TypeVariableStore::new(),
+            expression_lookup: HashMap::new(),
+        }
+    }
+
+    pub fn get_from_expression(
+        &self,
+        expressionkey: &asg::scope::ExpressionKey,
+    ) -> Option<&TypeVariable> {
+        if let Some(varkey) = self.expression_lookup.get(expressionkey) {
+            return Some(self.variables.get(varkey));
+        }
+
+        None
+    }
+
+    pub fn get_from_expression_mut(
+        &mut self,
+        expressionkey: &asg::scope::ExpressionKey,
+    ) -> Option<&TypeVariable> {
+        if let Some(varkey) = self.expression_lookup.get(expressionkey) {
+            return Some(self.variables.get_mut(varkey));
+        }
+
+        None
+    }
+
+    pub fn insert(&mut self, typevar: TypeVariable) -> TypeVariableKey {
+        let varkey = self.variables.add(typevar);
+        varkey
+    }
+
+    pub fn insert_for_expression(
+        &mut self,
+        expressionkey: asg::scope::ExpressionKey,
+        typevar: TypeVariable,
+    ) -> TypeVariableKey {
+        assert!(self.get_from_expression(&expressionkey).is_none());
+        let varkey = self.insert(typevar);
+        self.expression_lookup.insert(expressionkey, varkey);
+        varkey
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct FunctionTypeVariable {
+    inputparams: Vec<(asg::symboltable::SymbolKey, TypeVariableKey)>,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct CallTypeVariable {
+    callexpr: ExpressionKey,
+    args: Vec<TypeVariableKey>,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct SubscriptTypeVariable {
+    expr: ExpressionKey,
+    symbol: SymbolKey,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum TypeVariable {
+    Resovled(TypeId),
+    ExpressionValue(ExpressionKey),
+    ExpressionTypes(Vec<ExpressionKey>),
+    SymbolType(asg::symboltable::SymbolReference),
+    Function(FunctionTypeVariable),
+    Call(CallTypeVariable),
+    Subscript(SubscriptTypeVariable),
+}
+
+impl TypeVariable {
+    pub fn resolve(self) -> TypeId {
+        match self {
+            TypeVariable::Resovled(n) => n,
+            _ => {
+                panic!("TypeVariable not resolved: {:?}", self);
+            }
+        }
+    }
+
+    pub fn new_primitive(ptype: PrimitiveType) -> Self {
+        TypeVariable::Resovled(TypeId::Primitive(ptype))
+    }
+
+    pub fn new_null() -> Self {
+        TypeVariable::Resovled(TypeId::Null)
+    }
+
+    pub fn new_type() -> Self {
+        TypeVariable::Resovled(TypeId::Type)
+    }
+
+    pub fn new_module() -> Self {
+        TypeVariable::Resovled(TypeId::Module)
+    }
+
+    pub fn new_symboltype(symbolref: asg::symboltable::SymbolReference) -> Self {
+        TypeVariable::SymbolType(symbolref)
+    }
+
+    pub fn new_function(inputparams: Vec<(asg::symboltable::SymbolKey, TypeVariableKey)>) -> Self {
+        TypeVariable::Function(FunctionTypeVariable { inputparams })
+    }
+
+    pub fn new_expression_types(values: Vec<ExpressionKey>) -> Self {
+        TypeVariable::ExpressionTypes(values)
+    }
+
+    pub fn new_call(callexpr: ExpressionKey, args: Vec<TypeVariableKey>) -> Self {
+        TypeVariable::Call(CallTypeVariable { callexpr, args })
+    }
+}
+
+fn generate_type_variable(
+    asg: &asg::Asg,
+    scoperef: &asg::ScopeRef,
+    expressionkey: &asg::scope::ExpressionKey,
+    typecache: &mut TypeCache,
+) {
+    if typecache[scoperef]
+        .get_from_expression(expressionkey)
+        .is_some()
+    {
+        return;
+    }
+
+    let scope = get_scope(asg, &scoperef);
+    let expression = scope.expressions.get(expressionkey);
+
+    let typevar: TypeVariable = match &expression.object {
+        expression::ExpressionObject::Literal(n) => {
+            use expression::expressions::Literal::*;
+            match n {
+                StringLiteral(_) => TypeVariable::new_primitive(PrimitiveType::StaticStringUtf8),
+                BoolLiteral(_) => TypeVariable::new_primitive(PrimitiveType::Bool),
+                IntegerLiteral(_) => {
+                    // TODO: All integer literals are u64 for now
+                    TypeVariable::new_primitive(PrimitiveType::U64)
+                }
+                StructLiteral(_) => TypeVariable::new_type(),
+                FunctionLiteral(n) => {
+                    let mut inputparams = Vec::new();
+
+                    let module = asg.modulestore.get(&scoperef.module);
+                    let function = module.functionstore.get(&n.functionkey);
+                    for inputparam in &function.inparams {
+                        let scopecache = typecache.get_mut(scoperef).unwrap();
+                        let typevar = TypeVariable::new_symboltype(
+                            asg::symboltable::SymbolReference::ResolvedReference(
+                                inputparam.symref.clone(),
+                            ),
+                        );
+                        let key = scopecache.insert(typevar);
+                        inputparams.push((inputparam.symref.symbol.clone(), key));
+                    }
+
+                    TypeVariable::new_function(inputparams)
+                }
+                ModuleLiteral(_) => TypeVariable::new_module(),
+            }
+        }
+        expression::ExpressionObject::BuiltInFunction(_) => {
+            // TODO: All built-ins currently return null
+            TypeVariable::new_null()
+        }
+        expression::ExpressionObject::PrimitiveType(n) => TypeVariable::new_primitive(n.ptype),
+        expression::ExpressionObject::SymbolReference(n) => {
+            let symref = scope.symboltable.references.get(&n.symbolref);
+            TypeVariable::new_symboltype(symref.clone())
+        }
+        expression::ExpressionObject::If(n) => {
+            let mut branch_expressions = Vec::new();
+
+            for b in &n.branches {
+                branch_expressions.push(b.1);
+            }
+
+            if let Some(e) = n.elsebranch {
+                branch_expressions.push(e);
+            }
+
+            TypeVariable::new_expression_types(branch_expressions)
+        }
+        expression::ExpressionObject::Call(n) => {
+            let mut args = Vec::new();
+
+            for arg in &n.args {
+                args.push(*arg)
+            }
+
+            TypeVariable::new_call(n.callable, args)
+        }
+        expression::ExpressionObject::BinOp(n) => {
+            // TODO: For now, assume all operators have to be same type
+            let mut ops = Vec::new();
+            ops.push(n.lhs);
+            ops.push(n.rhs);
+
+            TypeVariable::new_expression_types(ops)
+        }
+        expression::ExpressionObject::Subscript(_) => todo!(),
+    };
+
+    let scopecache = typecache.get_mut(scoperef).unwrap();
+    scopecache.insert_for_expression(*expressionkey, typevar);
+}
+
 pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {
     let mut collected_scoperefs = Vec::new();
 
@@ -62,7 +301,7 @@ pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {
     }
 
     // Lookup symbols
-    for scoperef in collected_scoperefs {
+    for scoperef in &collected_scoperefs {
         // Really finagling to not iterate over references while trying to modify them
         let mut references = mem::replace(
             &mut get_scope_mut(&mut asg, &scoperef).symboltable.references,
@@ -80,6 +319,485 @@ pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {
 
         get_scope_mut(&mut asg, &scoperef).symboltable.references = references;
     }
+
+    // Cache of all types
+    let mut typecache: TypeCache = HashMap::new();
+
+    // Go through all scopes and generate type variables
+    for scoperef in &collected_scoperefs {
+        let scope = get_scope_mut(&mut asg, &scoperef);
+        typecache.insert(*scoperef, TypeCacheScope::new());
+        for expression in scope.expressions.keys() {
+            generate_type_variable(&asg, &scoperef, &expression, &mut typecache);
+        }
+    }
+
+    // TODO: Unify types
+
+    // Concretize and assign result to scopes
+    for scoperef in &collected_scoperefs {
+        let scope = get_scope_mut(&mut asg, &scoperef);
+        let mut tsc = typecache.remove(&scoperef).unwrap();
+        let mut typevars = tsc.variables.remove_vec();
+        for kvp in tsc.expression_lookup {
+            let typevar = std::mem::replace(&mut typevars[kvp.1], TypeVariable::new_null());
+            scope.expressiontypes.insert(kvp.0, typevar.resolve());
+        }
+    }
+
+    asg
+}
+
+*/
+
+#[derive(Debug)]
+enum TypeVariable {
+    Free,
+    TypeSet(HashSet<TypeId>),
+}
+
+impl TypeVariable {
+    pub fn new_typeset(types: HashSet<TypeId>) -> Self {
+        Self::TypeSet(types)
+    }
+}
+
+#[derive(Debug)]
+enum TypeEntry {
+    Id(TypeId),
+    Variable(TypeVariable),
+    Substituted(TypeEntryKey),
+}
+
+#[derive(Debug)]
+enum TypeConstraint {
+    EqualsEntry {
+        lhs: TypeEntryKey,
+        rhs: TypeEntryKey,
+    },
+    EqualsTypeId {
+        entry: TypeEntryKey,
+        id: TypeId,
+    },
+    EqualsCallParam {
+        call: TypeEntryKey,
+        param: usize,
+        arg: TypeEntryKey,
+    },
+    ValueOfExpr {
+        entry: TypeEntryKey,
+        expr: ExpressionKey,
+    },
+    TypeOfSymbol {
+        entry: TypeEntryKey,
+        symref: SymbolReferenceKey,
+    },
+}
+
+type TypeEntryStore = IndexedObjectStore<TypeEntry>;
+pub type TypeEntryKey = usize;
+
+// TODO: Make store items removable, use option for now
+type TypeConstraintStore = IndexedObjectStore<Option<TypeConstraint>>;
+pub type TypeConstraintKey = usize;
+
+struct TypeEnvironment {
+    types: TypeEntryStore,
+    constraints: TypeConstraintStore,
+    symbolmap: HashMap<SymbolKey, TypeEntryKey>,
+    exprmap: HashMap<ExpressionKey, TypeEntryKey>,
+}
+
+impl TypeEnvironment {
+    pub fn new() -> Self {
+        Self {
+            types: TypeEntryStore::new(),
+            constraints: TypeConstraintStore::new(),
+            symbolmap: HashMap::new(),
+            exprmap: HashMap::new(),
+        }
+    }
+
+    pub fn get_entry(&self, key: &TypeEntryKey) -> &TypeEntry {
+        self.types.get(key)
+    }
+
+    pub fn get_entry_mut(&mut self, key: &TypeEntryKey) -> &mut TypeEntry {
+        self.types.get_mut(key)
+    }
+
+    pub fn add_for_symbol(&mut self, symbolkey: SymbolKey, typeentry: TypeEntry) -> TypeEntryKey {
+        let key = self.types.add(typeentry);
+        self.symbolmap.insert(symbolkey, key.clone());
+        key
+    }
+
+    pub fn get_for_symbol(&mut self, symbolkey: &SymbolKey) -> TypeEntryKey {
+        self.symbolmap.get(symbolkey).unwrap().clone()
+    }
+
+    pub fn add_for_expression(
+        &mut self,
+        exprkey: ExpressionKey,
+        typeentry: TypeEntry,
+    ) -> TypeEntryKey {
+        let key = self.types.add(typeentry);
+        self.exprmap.insert(exprkey, key.clone());
+        key
+    }
+
+    pub fn add_constraint(&mut self, constraint: TypeConstraint) -> TypeConstraintKey {
+        self.constraints.add(Some(constraint))
+    }
+
+    pub fn remove_constraint(&mut self, key: &TypeConstraintKey) -> Option<TypeConstraint> {
+        std::mem::replace(self.constraints.get_mut(key), None)
+    }
+}
+
+fn process_expression_type(
+    asg: &asg::Asg,
+    scope: &asg::scope::Scope,
+    exprkey: &ExpressionKey,
+    typeenv: &mut TypeEnvironment,
+) -> TypeEntryKey {
+    let expression = scope.expressions.get(exprkey);
+
+    match &expression.object {
+        expression::ExpressionObject::Literal(n) => {
+            use expression::expressions::Literal::*;
+            match n {
+                IntegerLiteral(_) => {
+                    let mut types = HashSet::new();
+                    // TODO: Limit range based on literal and support signed integer types and defaults
+                    types.insert(TypeId::Primitive(PrimitiveType::U64));
+                    types.insert(TypeId::Primitive(PrimitiveType::U32));
+                    types.insert(TypeId::Primitive(PrimitiveType::U16));
+                    types.insert(TypeId::Primitive(PrimitiveType::U8));
+                    typeenv.add_for_expression(
+                        exprkey.clone(),
+                        TypeEntry::Variable(TypeVariable::new_typeset(types)),
+                    )
+                }
+                StringLiteral(_) => typeenv.add_for_expression(
+                    exprkey.clone(),
+                    TypeEntry::Id(TypeId::Primitive(PrimitiveType::StaticStringUtf8)),
+                ),
+                _ => todo!(),
+                /*BoolLiteral(_) => TypeVariable::new_primitive(PrimitiveType::Bool),
+                IntegerLiteral(_) => {
+                    // TODO: All integer literals are u64 for now
+                    TypeVariable::new_primitive(PrimitiveType::U64)
+                }
+                StructLiteral(_) => TypeVariable::new_type(),
+                FunctionLiteral(n) => {
+                    let mut inputparams = Vec::new();
+
+                    let module = asg.modulestore.get(&scoperef.module);
+                    let function = module.functionstore.get(&n.functionkey);
+                    for inputparam in &function.inparams {
+                        let scopecache = typecache.get_mut(scoperef).unwrap();
+                        let typevar = TypeVariable::new_symboltype(
+                            asg::symboltable::SymbolReference::ResolvedReference(
+                                inputparam.symref.clone(),
+                            ),
+                        );
+                        let key = scopecache.insert(typevar);
+                        inputparams.push((inputparam.symref.symbol.clone(), key));
+                    }
+
+                    TypeVariable::new_function(inputparams)
+                }
+                ModuleLiteral(_) => TypeVariable::new_module(),*/
+            }
+        }
+        expression::ExpressionObject::PrimitiveType(n) => {
+            typeenv.add_for_expression(exprkey.clone(), TypeEntry::Id(TypeId::Primitive(n.ptype)))
+        }
+        expression::ExpressionObject::BuiltInFunction(n) => {
+            // TODO: Look up function types of built-ins properly
+            typeenv.add_for_expression(
+                exprkey.clone(),
+                TypeEntry::Id(TypeId::BuiltInFunction(n.function)),
+            )
+        }
+        expression::ExpressionObject::Call(n) => {
+            // Process callable
+            let callabletype = process_expression_type(asg, scope, &n.callable, typeenv);
+
+            // Process and constraint args
+            for (i, argexpr) in n.args.iter().enumerate() {
+                let argtype = process_expression_type(asg, scope, argexpr, typeenv);
+                let constraint = TypeConstraint::EqualsCallParam {
+                    call: callabletype,
+                    param: i,
+                    arg: argtype,
+                };
+                typeenv.add_constraint(constraint);
+            }
+
+            // TODO: All calls return null for now
+            typeenv.add_for_expression(exprkey.clone(), TypeEntry::Id(TypeId::Null))
+        }
+        expression::ExpressionObject::SymbolReference(n) => {
+            // We don't know yet the type of sym refs, we do lookup later
+            let tv = typeenv
+                .add_for_expression(exprkey.clone(), TypeEntry::Variable(TypeVariable::Free));
+            typeenv.add_constraint(TypeConstraint::TypeOfSymbol {
+                entry: tv,
+                symref: n.symbolref,
+            });
+            tv
+        }
+        _ => todo!(),
+        /*
+        expression::ExpressionObject::SymbolReference(n) => {
+            let symref = scope.symboltable.references.get(&n.symbolref);
+            TypeVariable::new_symboltype(symref.clone())
+        }
+        expression::ExpressionObject::If(n) => {
+            let mut branch_expressions = Vec::new();
+
+            for b in &n.branches {
+                branch_expressions.push(b.1);
+            }
+
+            if let Some(e) = n.elsebranch {
+                branch_expressions.push(e);
+            }
+
+            TypeVariable::new_expression_types(branch_expressions)
+        }
+        expression::ExpressionObject::BinOp(n) => {
+            // TODO: For now, assume all operators have to be same type
+            let mut ops = Vec::new();
+            ops.push(n.lhs);
+            ops.push(n.rhs);
+
+            TypeVariable::new_expression_types(ops)
+        }
+        expression::ExpressionObject::Subscript(_) => todo!(),*/
+    }
+}
+
+fn process_function(
+    asg: &mut asg::Asg,
+    modulekey: &asg::ModuleKey,
+    functionkey: &asg::FunctionKey,
+) {
+    let mut typeenv = TypeEnvironment::new();
+    let typeenv = &mut typeenv;
+
+    let module = asg.modulestore.get(&modulekey);
+    let function = module.functionstore.get(&functionkey);
+
+    // Decls
+    {
+        let scope = module.scopestore.get(&function.scope);
+        let decls = &scope.symboltable.declarations;
+        for symkey in decls.keys() {
+            let decl = decls.get(symkey);
+            if let Some(typeexpr) = &decl.typeexpr {
+                // Process type for type expression
+                let exprtype = process_expression_type(asg, &scope, &typeexpr, typeenv);
+
+                // Constrain it to "Type"
+                typeenv.add_constraint(TypeConstraint::EqualsTypeId {
+                    entry: exprtype,
+                    id: TypeId::Type,
+                });
+
+                // Add entry for symbol
+                let entry =
+                    typeenv.add_for_symbol(symkey.clone(), TypeEntry::Variable(TypeVariable::Free));
+
+                // Constrain the type of the symbol to the _value_ of the expression
+                typeenv.add_constraint(TypeConstraint::ValueOfExpr {
+                    entry,
+                    expr: typeexpr.clone(),
+                });
+            } else {
+                todo!();
+            }
+        }
+    }
+
+    // Statements
+    if let Some(body) = &function.body {
+        let scope = module.scopestore.get(&body.scope_nonowned);
+        for stmnt in &body.statements {
+            match stmnt {
+                Statement::If(_) => todo!(),
+                Statement::Return(_) => todo!(),
+                Statement::Initialize(n) => {
+                    let symkey = SymbolKey::from_str(n.symbol.as_str()); // TODO: Don't need complete symbol in n
+
+                    // Add type for initialization expression
+                    let rhs = process_expression_type(asg, &scope, &n.expr, typeenv);
+
+                    // Symbol declaration should have been added earlier
+                    let lhs = typeenv.get_for_symbol(&symkey);
+
+                    // Add constraint for symboltype and expression
+                    typeenv.add_constraint(TypeConstraint::EqualsEntry { lhs, rhs });
+                }
+                Statement::Assign(_) => todo!(),
+                Statement::ExpressionWrapper(n) => {
+                    process_expression_type(asg, &scope, &n.expr, typeenv);
+                }
+            }
+        }
+    }
+
+    // At this point we should be ready to start processing type constraints
+    loop {
+        let last_constraints = typeenv.constraints.keys();
+        for constraintkey in typeenv.constraints.keys() {
+            fn can_unify_var_id(a: &TypeVariable, b: &TypeId) -> bool {
+                match a {
+                    TypeVariable::Free => true,
+                    TypeVariable::TypeSet(n) => {
+                        assert!(
+                            n.contains(&b),
+                            "Failed unify, typeSet did not contain type: {:?}, {:?}",
+                            n,
+                            a
+                        );
+                        true
+                    }
+                }
+            }
+
+            fn resolve_substitutions(
+                key: &TypeEntryKey,
+                typeenv: &TypeEnvironment,
+            ) -> TypeEntryKey {
+                let mut key = key;
+                loop {
+                    let entry = typeenv.get_entry(key);
+                    match entry {
+                        TypeEntry::Substituted(n) => key = n,
+                        _ => return *key,
+                    }
+                    return *key;
+                }
+            }
+
+            // TODO: This is the worst thing ever, use a queue instead
+            let c = typeenv.remove_constraint(&constraintkey);
+
+            // Note: Make sure to resolve substitutinos for keys, to avoid unifying stale variables
+            match c {
+                Some(n) => match n {
+                    TypeConstraint::EqualsEntry {
+                        lhs: lhskey,
+                        rhs: rhskey,
+                    } => {
+                        let lhs = typeenv.get_entry(&resolve_substitutions(&lhskey, &typeenv));
+                        let rhs = typeenv.get_entry(&resolve_substitutions(&rhskey, &typeenv));
+
+                        match (lhs, rhs) {
+                            (TypeEntry::Id(lhs), TypeEntry::Id(rhs)) => {
+                                assert!(lhs == rhs, "Type mismatch: {:?}, {:?}", lhs, rhs);
+                                // No need to substitute, only check
+                            }
+                            (TypeEntry::Variable(lhs), TypeEntry::Id(rhs)) => {
+                                if can_unify_var_id(&lhs, &rhs) {
+                                    // Typecheck passed, assign the variable to typeid
+                                    // TODO: Typeid cloned here :(
+                                    *typeenv.get_entry_mut(&lhskey) =
+                                        TypeEntry::Substituted(rhskey);
+                                }
+                            }
+                            (TypeEntry::Id(lhs), TypeEntry::Variable(rhs)) => {
+                                if can_unify_var_id(&rhs, &lhs) {
+                                    // Typecheck passed, assign the variable to typeid
+                                    // TODO: Typeid cloned here :(
+                                    *typeenv.get_entry_mut(&rhskey) =
+                                        TypeEntry::Substituted(lhskey);
+                                }
+                            }
+                            (TypeEntry::Variable(rhs), TypeEntry::Variable(lhs)) => {
+                                match (rhs, lhs) {
+                                    (TypeVariable::Free, TypeVariable::Free) => {
+                                        // Can always unify free types
+                                        *typeenv.get_entry_mut(&lhskey) =
+                                            TypeEntry::Substituted(rhskey);
+                                    }
+                                    (TypeVariable::TypeSet(_), TypeVariable::Free) => {
+                                        // Can always unify free types
+                                        *typeenv.get_entry_mut(&rhskey) =
+                                            TypeEntry::Substituted(lhskey);
+                                    }
+                                    (TypeVariable::Free, TypeVariable::TypeSet(_)) => {
+                                        // Can always unify free types
+                                        *typeenv.get_entry_mut(&lhskey) =
+                                            TypeEntry::Substituted(rhskey);
+                                    }
+                                    (TypeVariable::TypeSet(lhs), TypeVariable::TypeSet(rhs)) => {
+                                        let intersection: HashSet<_> =
+                                            lhs.intersection(rhs).cloned().collect();
+                                        if !intersection.is_empty() {
+                                            // Set lhs to rhs
+                                            *typeenv.get_entry_mut(&lhskey) =
+                                                TypeEntry::Substituted(rhskey);
+
+                                            // Reduce rhs set to intersection
+                                            *typeenv.get_entry_mut(&rhskey) = TypeEntry::Variable(
+                                                TypeVariable::TypeSet(intersection),
+                                            );
+                                        } else {
+                                            panic!("No intersection between: {:?}, {:?}", lhs, rhs);
+                                        }
+                                    }
+                                }
+                            }
+                            (_, TypeEntry::Substituted(_)) | (TypeEntry::Substituted(_), _) => {
+                                panic!("Substitutions not allowed!")
+                            }
+                        }
+                    }
+                    TypeConstraint::EqualsTypeId { entry, id } => {
+                        let lhs = typeenv.get_entry(&resolve_substitutions(&entry, &typeenv));
+                        match lhs {
+                            TypeEntry::Id(n) => {
+                                assert!(*n == id, "Type mismatch: {:?}, {:?}", n, id);
+                            }
+                            TypeEntry::Variable(n) => {
+                                if can_unify_var_id(&n, &id) {
+                                    // Typecheck passed, assign the variable to typeid
+                                    // TODO: Typeid cloned here :(
+                                    *typeenv.get_entry_mut(&entry) = TypeEntry::Id(id.clone());
+                                }
+                            }
+                            TypeEntry::Substituted(_) => panic!("Substitutions not allowed!"),
+                        };
+                    }
+                    TypeConstraint::EqualsCallParam { call, param, arg } => todo!(),
+                    TypeConstraint::ValueOfExpr { entry, expr } => todo!(),
+                    TypeConstraint::TypeOfSymbol { entry, symref } => {
+                        let lhs = typeenv.get_entry(&resolve_substitutions(&entry, &typeenv));
+                    }
+                },
+                None => {}
+            };
+        }
+
+        // TODO: Bleh, using a queue would make this check cleaner
+        let constraints = typeenv.constraints.keys();
+        if constraints == last_constraints && constraints.len() > 0 {
+            panic!(
+                "Unresolved constraints left: {:?}",
+                typeenv.constraints.values()
+            );
+        }
+    }
+}
+
+pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {
+    let module = asg.global_module.clone();
+    let function = asg.main.clone();
+    process_function(&mut asg, &module, &function);
 
     asg
 }

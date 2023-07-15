@@ -86,20 +86,27 @@ fn main() {
 
     let mut module_asts: Vec<ast::Ast> = Vec::new();
 
+    println!("{}", Color::Green.bold().paint("Parsing files..."));
+
     let main_ast = scan_and_parse_file(&params.main, true, &params);
 
     for path in &params.files {
         module_asts.push(scan_and_parse_file(path, false, &params));
     }
 
-    interpreter::treewalker::run(&main_ast, &module_asts);
-    println!("{}", Color::Green.bold().paint("Done"));
+    println!("{}", Color::Green.bold().paint("Generating asg..."));
 
     let grapher_result = grapher::create_graph(&main_ast, &module_asts);
 
     // Generate dotfile for asg
+    println!("{}", Color::Green.bold().paint("Generating dotfile..."));
     dotfilegenerator::generate_dotfile(
         &grapher_result.asg,
         params.main.file_stem().unwrap().to_str().unwrap(),
     );
+
+    println!("{}", Color::Green.bold().paint("Running..."));
+    interpreter::treewalker::run(&main_ast, &module_asts);
+
+    println!("{}", Color::Green.bold().paint("Done"));
 }

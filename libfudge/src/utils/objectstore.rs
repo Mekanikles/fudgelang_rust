@@ -35,6 +35,15 @@ impl<ObjectT> IndexedObjectStore<ObjectT> {
     pub fn values_mut(&mut self) -> &mut Vec<ObjectT> {
         &mut self.objects
     }
+
+    pub fn remove_vec(&mut self) -> Vec<ObjectT> {
+        std::mem::replace(&mut self.objects, Vec::new())
+    }
+
+    pub fn into_iter(&mut self) -> <Vec<ObjectT> as IntoIterator>::IntoIter {
+        let objects = std::mem::replace(&mut self.objects, Vec::new());
+        objects.into_iter()
+    }
 }
 
 impl<ObjectT> ObjectStore<usize, ObjectT> for IndexedObjectStore<ObjectT> {
@@ -79,6 +88,10 @@ impl<KeyT: HashedStoreKey<ObjectT>, ObjectT: Eq> HashedObjectStore<KeyT, ObjectT
 
     pub fn keys(&self) -> std::collections::hash_map::Keys<'_, KeyT, ObjectT> {
         self.objects.keys()
+    }
+
+    pub fn values(&self) -> std::collections::hash_map::Values<'_, KeyT, ObjectT> {
+        self.objects.values()
     }
 }
 

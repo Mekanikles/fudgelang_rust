@@ -1,4 +1,5 @@
 use super::{objectstore::IndexedObjectStore, *};
+use std::collections::HashMap;
 
 pub type ExpressionStore = IndexedObjectStore<Expression>;
 pub type ExpressionKey = usize;
@@ -8,7 +9,7 @@ pub struct Scope {
     pub parent: Option<ScopeRef>,
     pub expressions: ExpressionStore,
     pub symboltable: symboltable::SymbolTable,
-    //pub exprtypemap: HashMap<ExpressionKey, TypeVariable>,
+    pub expressiontypes: HashMap<ExpressionKey, crate::typesystem::TypeId>,
 }
 
 impl Scope {
@@ -17,7 +18,7 @@ impl Scope {
             parent: parent,
             expressions: ExpressionStore::new(),
             symboltable: symboltable::SymbolTable::new(),
-            //exprtypemap: HashMap::new(),
+            expressiontypes: HashMap::new(),
         }
     }
 }

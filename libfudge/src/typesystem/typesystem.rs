@@ -74,3 +74,9 @@ pub enum TypeId {
     Struct(StructDefinition),
     Module,
 }
+
+impl TypeId {
+    pub fn new_primitive(ptype: PrimitiveType) -> Self {
+        TypeId::Primitive(ptype)
+    }
+}

@@ -43,18 +43,18 @@ impl objectstore::HashedStoreKey<SymbolDeclaration> for StringKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnresolvedSymbolReference {
     pub symbol: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct ResolvedSymbolReference {
     pub scope: ScopeRef,
     pub symbol: symboltable::SymbolKey,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SymbolReference {
     ResolvedReference(ResolvedSymbolReference),
     UnresolvedReference(UnresolvedSymbolReference),

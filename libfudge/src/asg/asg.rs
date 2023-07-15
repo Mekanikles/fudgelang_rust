@@ -5,7 +5,8 @@ use crate::typesystem::*;
 use crate::utils::objectstore::*;
 pub use crate::utils::*;
 
-use super::*;
+use super::scope::ExpressionKey;
+pub use super::*;
 
 pub type ModuleStore = IndexedObjectStore<Module>;
 pub type FunctionStore = IndexedObjectStore<Function>;
@@ -26,7 +27,7 @@ impl objectstore::HashedStoreKey<typesystem::TypeId> for u64 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct ScopeRef {
     pub module: ModuleKey,
     pub scope: ScopeKey,
@@ -37,9 +38,6 @@ impl ScopeRef {
         Self { module, scope }
     }
 }
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum TypeVariable {}
 
 #[derive(Debug)]
 pub struct Asg {
@@ -77,7 +75,7 @@ impl Module {
 #[derive(Debug)]
 pub struct FunctionParameter {
     // This is a bit weird, but since all symbols are added to the
-    //  functinon's scope for lookup, we just reference it here
+    //  function's scope for lookup, we just reference it here
     pub symref: symboltable::ResolvedSymbolReference,
 }
 
