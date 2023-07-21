@@ -6,9 +6,9 @@ use std::collections::HashMap;
 
 use crate::asg;
 use crate::asg::StatementBody;
+use crate::asgprocessing;
 use crate::ast;
 use crate::error;
-use crate::passes;
 
 // To be able to call methods on "Stores"... :(
 use crate::utils::objectstore::ObjectStore;
@@ -283,7 +283,7 @@ pub fn create_graph<'a>(main_ast: &'a ast::Ast, module_asts: &'a Vec<ast::Ast>) 
 
     let (asg, errors) = grapher.create_asg();
 
-    let asg = passes::process_asg(asg);
+    let asg = asgprocessing::process_asg(asg);
 
     return GrapherResult {
         asg: asg,
