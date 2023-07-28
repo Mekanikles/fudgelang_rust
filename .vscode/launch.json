@@ -19,7 +19,8 @@
 					"kind": "bin"
 				}
 			},
-			"args": ["tests/testsource.fu", "-m", "tests/moduletest.fum"],
+			//"args": ["tests/testsource.fu", "-m", "tests/moduletest.fum"],
+			"args": ["tests/typeinferencetest.fu"],
 			"cwd": "${workspaceFolder}"
 		},
 		{

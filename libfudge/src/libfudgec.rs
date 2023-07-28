@@ -9,6 +9,8 @@ pub mod shared;
 pub mod source;
 pub mod typesystem;
 pub mod utils;
+pub mod vm;
+pub mod vmcodegen;
 
 pub mod error;
 

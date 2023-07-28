@@ -105,8 +105,14 @@ fn main() {
         params.main.file_stem().unwrap().to_str().unwrap(),
     );
 
-    println!("{}", Color::Green.bold().paint("Running..."));
+    println!("{}", Color::Green.bold().paint("Running treewalker..."));
     interpreter::treewalker::run(&main_ast, &module_asts);
+
+    println!("{}", Color::Green.bold().paint("Generating program..."));
+    let program = vmcodegen::generate_program(&grapher_result.asg);
+
+    println!("{}", Color::Green.bold().paint("Running vm..."));
+    vm::run(&program);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }
