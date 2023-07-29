@@ -38,7 +38,7 @@ pub fn generate_program(_asg: &asg::Asg) -> vm::Program {
     // Prepare call #print_format(static_string, argcount, typed_value...)
     {
         // Load format string address into register 0
-        builder.load_const_address(0, fmtstr);
+        builder.load_const_address(0, fmtstr.0);
 
         // Load arg count, located at stack address 0, into register 1
         builder.load_u8(1, 1);
