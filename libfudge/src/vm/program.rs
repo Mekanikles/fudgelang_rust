@@ -70,3 +70,107 @@ pub struct Program {
     pub constdata: Vec<u8>,
     pub bytecode: ByteCodeChunk,
 }
+
+pub fn print_program(program: &Program) {
+    const ROWLEN: usize = 20;
+
+    println!("  Data:");
+    {
+        let cdata = &program.constdata;
+
+        let mut index = 0;
+        loop {
+            let rowcap = std::cmp::min(index + ROWLEN, cdata.len());
+            if index == rowcap {
+                break;
+            }
+            print!("    {:#010X}:", index);
+
+            print!("    ");
+            // Row of hex pairs
+            for i in index..rowcap {
+                print!("{:02X} ", cdata[i]);
+            }
+            // Padding
+            for _i in rowcap..index + ROWLEN {
+                print!("   ");
+            }
+            print!("    // ");
+            // As ascii
+            for i in index..rowcap {
+                print!(
+                    "{}",
+                    if (cdata[i] as char).is_ascii_graphic() {
+                        cdata[i] as char
+                    } else if (cdata[i] as char).is_ascii_whitespace() {
+                        ' '
+                    } else {
+                        '·'
+                    }
+                );
+            }
+            print!("\n");
+
+            index = rowcap;
+        }
+    }
+
+    println!("  Instructions:");
+    {
+        let bc = &program.bytecode;
+        let mut index = 0;
+        while index < bc.len() {
+            let index_before_decode = index;
+
+            let op = bc.peek_op(&index);
+            let str = match op {
+                Op::LoadImmediate32 => {
+                    format!(
+                        "{:?}",
+                        instructions::LoadImmediate32::decode(&bc, &mut index)
+                    )
+                }
+                Op::LoadConstAddress => {
+                    format!(
+                        "{:?}",
+                        instructions::LoadConstAddress::decode(&bc, &mut index)
+                    )
+                }
+                Op::LoadStackAddress => {
+                    format!(
+                        "{:?}",
+                        instructions::LoadStackAddress::decode(&bc, &mut index)
+                    )
+                }
+                Op::StoreImmediate64 => {
+                    format!(
+                        "{:?}",
+                        instructions::StoreImmediate64::decode(&bc, &mut index)
+                    )
+                }
+                Op::CallBuiltIn => {
+                    format!("{:?}", instructions::CallBuiltIn::decode(&bc, &mut index))
+                }
+                Op::Halt => {
+                    format!("{:?}", instructions::Halt::decode(&bc, &mut index))
+                }
+            };
+
+            print!("    {:#010X}:", index_before_decode);
+
+            print!("    ");
+            // Row of hex pairs
+            for i in bc.slice(index_before_decode, index) {
+                print!("{:02X} ", i);
+            }
+            // Padding
+            for _i in 0..std::cmp::min(ROWLEN - (index - index_before_decode), ROWLEN) {
+                print!("   ");
+            }
+            print!("    // ");
+            print!("{}", str);
+
+            print!("\n");
+        }
+    }
+}

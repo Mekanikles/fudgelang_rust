@@ -111,6 +111,9 @@ fn main() {
     println!("{}", Color::Green.bold().paint("Generating program..."));
     let program = vmcodegen::generate_program(&grapher_result.asg);
 
+    println!("{}", Color::Green.bold().paint("Program:"));
+    vm::program::print_program(&program);
+
     println!("{}", Color::Green.bold().paint("Running vm..."));
     vm::run(&program);
 

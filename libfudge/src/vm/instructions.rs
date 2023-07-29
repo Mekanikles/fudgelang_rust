@@ -22,6 +22,7 @@ pub trait Instruction {
 pub mod instructions {
     use super::*;
 
+    #[derive(Debug)]
     pub struct LoadImmediate32 {
         pub target: Register,
         pub value: u32,
@@ -43,6 +44,7 @@ pub mod instructions {
         }
     }
 
+    #[derive(Debug)]
     pub struct LoadConstAddress {
         pub target: Register,
         pub address: ConstDataAddr,
@@ -64,6 +66,7 @@ pub mod instructions {
         }
     }
 
+    #[derive(Debug)]
     pub struct LoadStackAddress {
         pub target: Register,
         pub offset: u64,
@@ -85,6 +88,7 @@ pub mod instructions {
         }
     }
 
+    #[derive(Debug)]
     pub struct StoreImmediate64 {
         pub address_source: Register,
         pub value: u64,
@@ -106,10 +110,10 @@ pub mod instructions {
         }
     }
 
+    #[derive(Debug)]
     pub struct CallBuiltIn {
         pub builtin: crate::typesystem::BuiltInFunction,
     }
-
     impl Instruction for CallBuiltIn {
         const OP: Op = Op::CallBuiltIn;
 
@@ -122,6 +126,20 @@ pub mod instructions {
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
             data.write_u8(self.builtin as u8);
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Halt {}
+    impl Instruction for Halt {
+        const OP: Op = Op::Halt;
+
+        fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
+            data.skip_op(pc);
+            Self {}
+        }
+        fn encode(&self, data: &mut ByteCodeChunk) {
+            data.write_op(Self::OP);
         }
     }
 }

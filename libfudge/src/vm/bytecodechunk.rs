@@ -15,6 +15,14 @@ impl ByteCodeChunk {
         Self { data: Vec::new() }
     }
 
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn slice(&self, start: usize, stop: usize) -> &[u8] {
+        &self.data[start..stop]
+    }
+
     pub fn peek_op(&self, pc: &usize) -> Op {
         unsafe { std::mem::transmute::<u8, Op>(self.data[*pc] & OP_BITMASK) }
     }
