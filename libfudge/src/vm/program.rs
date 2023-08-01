@@ -28,6 +28,10 @@ impl ProgramBuilder {
         instr.encode(&mut self.bytecode);
     }
 
+    pub fn get_current_instruction_address(&self) -> InstrAddr {
+        self.bytecode.len() as u64
+    }
+
     pub fn alloc_constdata(&mut self, size: usize) -> ConstDataHandle {
         let old_len = self.constdata.len();
         self.constdata.resize(old_len + size, 0);
@@ -63,6 +67,14 @@ impl ProgramBuilder {
 
     pub fn call_builtin(&mut self, builtin: crate::typesystem::BuiltInFunction) {
         self.write_instruction(instructions::CallBuiltIn { builtin });
+    }
+
+    pub fn call(&mut self, address_target: Register) {
+        self.write_instruction(instructions::Call { address_target });
+    }
+
+    pub fn do_return(&mut self) {
+        self.write_instruction(instructions::Return {});
     }
 }
 
@@ -150,6 +162,12 @@ pub fn print_program(program: &Program) {
                 }
                 Op::CallBuiltIn => {
                     format!("{:?}", instructions::CallBuiltIn::decode(&bc, &mut index))
+                }
+                Op::Call => {
+                    format!("{:?}", instructions::Call::decode(&bc, &mut index))
+                }
+                Op::Return => {
+                    format!("{:?}", instructions::Return::decode(&bc, &mut index))
                 }
                 Op::Halt => {
                     format!("{:?}", instructions::Halt::decode(&bc, &mut index))

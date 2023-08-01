@@ -7,6 +7,8 @@ pub enum Op {
     LoadStackAddress,
     StoreImmediate64,
     CallBuiltIn,
+    Call,
+    Return,
     Halt, // Need to be last enum variant
 }
 
@@ -126,6 +128,39 @@ pub mod instructions {
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
             data.write_u8(self.builtin as u8);
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Call {
+        pub address_target: Register,
+    }
+    impl Instruction for Call {
+        const OP: Op = Op::Call;
+
+        fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
+            data.skip_op(pc);
+            Self {
+                address_target: data.read_u8(pc),
+            }
+        }
+        fn encode(&self, data: &mut ByteCodeChunk) {
+            data.write_op(Self::OP);
+            data.write_u8(self.address_target as u8);
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Return {}
+    impl Instruction for Return {
+        const OP: Op = Op::Return;
+
+        fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
+            data.skip_op(pc);
+            Self {}
+        }
+        fn encode(&self, data: &mut ByteCodeChunk) {
+            data.write_op(Self::OP);
         }
     }
 

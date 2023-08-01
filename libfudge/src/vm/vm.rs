@@ -4,6 +4,7 @@ pub type Register = u8;
 pub type Val16 = u16;
 pub type ConstDataAddr = u64;
 pub type ConstDataHandle = (ConstDataAddr, u64);
+pub type InstrAddr = u64;
 pub type ConstMemPtr = *const u8;
 pub type MutMemPtr = *mut u8;
 

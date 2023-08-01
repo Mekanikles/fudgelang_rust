@@ -142,6 +142,12 @@ impl<'a> Interpreter<'a> {
                     let builtin = instr.builtin;
                     self.call_builtin(&builtin);
                 }
+                Op::Call => {
+                    todo!();
+                }
+                Op::Return => {
+                    todo!();
+                }
                 Op::Halt => {
                     self.skip_op();
                     break;
