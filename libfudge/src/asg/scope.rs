@@ -9,6 +9,7 @@ pub struct Scope {
     pub parent: Option<ScopeRef>,
     pub expressions: ExpressionStore,
     pub symboltable: symboltable::SymbolTable,
+    pub declarationtypes: HashMap<SymbolKey, crate::typesystem::TypeId>,
     pub expressiontypes: HashMap<ExpressionKey, crate::typesystem::TypeId>,
 }
 
@@ -18,6 +19,7 @@ impl Scope {
             parent: parent,
             expressions: ExpressionStore::new(),
             symboltable: symboltable::SymbolTable::new(),
+            declarationtypes: HashMap::new(),
             expressiontypes: HashMap::new(),
         }
     }

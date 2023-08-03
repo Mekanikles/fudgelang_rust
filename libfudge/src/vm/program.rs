@@ -15,12 +15,13 @@ impl ProgramBuilder {
         }
     }
 
-    pub fn finish(mut self) -> Program {
+    pub fn finish(mut self, entrypoint: u64) -> Program {
         self.bytecode.write_u8(Op::Halt as u8);
 
         Program {
             constdata: self.constdata,
             bytecode: self.bytecode,
+            entrypoint,
         }
     }
 
@@ -43,17 +44,38 @@ impl ProgramBuilder {
     }
 
     pub fn load_u8(&mut self, target: Register, value: u8) {
-        self.load_u32(target, value as u32)
+        self.load_u64(target, value as u64)
     }
 
-    pub fn load_u32(&mut self, target: Register, value: u32) {
-        self.write_instruction(instructions::LoadImmediate32 { target, value });
+    pub fn load_u64(&mut self, target: Register, value: u64) {
+        self.write_instruction(instructions::LoadImmediate64 { target, value });
+    }
+
+    pub fn load_reg64(&mut self, target: Register, address_source: Register) {
+        self.write_instruction(instructions::LoadReg64 {
+            target,
+            address_source,
+        });
     }
 
     pub fn store_u64(&mut self, address_source: Register, value: u64) {
         self.write_instruction(instructions::StoreImmediate64 {
             address_source,
             value,
+        });
+    }
+
+    pub fn store_reg64(&mut self, address_source: Register, value_source: Register) {
+        self.write_instruction(instructions::StoreReg64 {
+            address_source,
+            value_source,
+        });
+    }
+
+    pub fn move_reg64(&mut self, target: Register, source: Register) {
+        self.write_instruction(instructions::MoveReg64 {
+            target,
+            source,
         });
     }
 
@@ -69,8 +91,8 @@ impl ProgramBuilder {
         self.write_instruction(instructions::CallBuiltIn { builtin });
     }
 
-    pub fn call(&mut self, address_target: Register) {
-        self.write_instruction(instructions::Call { address_target });
+    pub fn call(&mut self, instruction_address_target: Register) {
+        self.write_instruction(instructions::Call { instruction_address_target });
     }
 
     pub fn do_return(&mut self) {
@@ -81,6 +103,7 @@ impl ProgramBuilder {
 pub struct Program {
     pub constdata: Vec<u8>,
     pub bytecode: ByteCodeChunk,
+    pub entrypoint: u64,
 }
 
 pub fn print_program(program: &Program) {
@@ -136,10 +159,10 @@ pub fn print_program(program: &Program) {
 
             let op = bc.peek_op(&index);
             let str = match op {
-                Op::LoadImmediate32 => {
+                Op::LoadImmediate64 => {
                     format!(
                         "{:?}",
-                        instructions::LoadImmediate32::decode(&bc, &mut index)
+                        instructions::LoadImmediate64::decode(&bc, &mut index)
                     )
                 }
                 Op::LoadConstAddress => {
@@ -171,6 +194,15 @@ pub fn print_program(program: &Program) {
                 }
                 Op::Halt => {
                     format!("{:?}", instructions::Halt::decode(&bc, &mut index))
+                }
+                Op::StoreReg64 => {
+                    format!("{:?}", instructions::StoreReg64::decode(&bc, &mut index))
+                }
+                Op::MoveReg64 => {
+                    format!("{:?}", instructions::MoveReg64::decode(&bc, &mut index))
+                }
+                Op::LoadReg64 => {
+                    format!("{:?}", instructions::LoadReg64::decode(&bc, &mut index))
                 }
             };
 

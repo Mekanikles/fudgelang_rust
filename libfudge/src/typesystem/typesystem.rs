@@ -80,4 +80,25 @@ impl TypeId {
     pub fn new_primitive(ptype: PrimitiveType) -> Self {
         TypeId::Primitive(ptype)
     }
+
+    pub fn type_id(&self) -> u64 {
+        match self {
+            TypeId::Primitive(n) => return *n as u64,
+            _ => panic!("Type id is only supported for primitives currently, not {:?}", self)
+        }
+    }
+
+    pub fn size(&self) -> u64 {
+        match self {
+            TypeId::Primitive(n) => return 8, // TODO: All primitives are stored as u64 for now
+            _ => panic!("Size is only supported for primitives currently, not {:?}", self)
+        }
+    }
+
+    pub fn is_primitive(&self, ptype: &PrimitiveType) -> bool {
+        match &self {
+            TypeId::Primitive(n) => *n == *ptype,
+            _ => false
+        }
+    }
 }

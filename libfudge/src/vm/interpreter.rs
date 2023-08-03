@@ -11,17 +11,13 @@ pub struct Interpreter<'a> {
 impl<'a> Interpreter<'a> {
     pub fn new(program: &'a Program) -> Self {
         Self {
-            vm: Vm::new(),
+            vm: Vm::new(program.entrypoint as usize),
             program: program,
         }
     }
 
     fn peek_op(&self) -> Op {
         self.program.bytecode.peek_op(&self.vm.pc)
-    }
-
-    fn skip_op(&mut self) {
-        self.program.bytecode.skip_op(&mut self.vm.pc)
     }
 
     fn read_instruction<T: Instruction>(&mut self) -> T {
@@ -54,7 +50,7 @@ impl<'a> Interpreter<'a> {
         fn primitive_to_string(ptype: PrimitiveType, val: u64) -> String {
             match ptype {
                 crate::typesystem::PrimitiveType::StaticStringUtf8 => {
-                    panic!("String arguments to print_format not yet supported!")
+                    panic!("String typed-value arguments to print_format not yet supported!")
                 }
                 PrimitiveType::Bool => format!("{}", (val != 0) as bool),
                 PrimitiveType::U8 => format!("{}", val as u8),
@@ -66,7 +62,7 @@ impl<'a> Interpreter<'a> {
                 PrimitiveType::S32 => format!("{}", val as i32),
                 PrimitiveType::S64 => format!("{}", val as i64),
                 PrimitiveType::F32 => {
-                    // TODO: This is not correct, because of endianess, amongt other things
+                    // TODO: This is not correct, because of endianess, among other things
                     format!("{}", unsafe {
                         *((&(val as u32) as *const u32) as *const f32)
                     })
@@ -78,8 +74,13 @@ impl<'a> Interpreter<'a> {
             }
         }
 
+        const FMTSTR_REG : Register = 0;
+        const DYNARG_COUNT_REG : Register = 1;
+        const DYNARG_START_REG : Register = 2;
+
+
         let fmtstr: &str = unsafe {
-            let fmtstrptr = self.reg_to_memptr(0);
+            let fmtstrptr = self.reg_to_memptr(FMTSTR_REG);
             let fmtstrlen = self.read_u64(fmtstrptr);
 
             std::str::from_utf8(std::slice::from_raw_parts(
@@ -89,11 +90,11 @@ impl<'a> Interpreter<'a> {
             .unwrap()
         };
 
-        let argcount = self.vm.registers[1] as u64;
+        let argcount = self.vm.registers[DYNARG_COUNT_REG as usize] as u64;
 
         let mut argstrings = Vec::new();
         for i in 0..argcount as usize {
-            let typedvalueptr = self.reg_to_memptr((2 + i) as u8);
+            let typedvalueptr = self.reg_to_memptr((DYNARG_START_REG + i as u8) as u8);
             let ptype: PrimitiveType =
                 unsafe { std::mem::transmute(self.read_u64(typedvalueptr) as u8) };
             let val = self.read_u64(unsafe { typedvalueptr.offset(8) });
@@ -107,10 +108,19 @@ impl<'a> Interpreter<'a> {
         loop {
             let op = self.peek_op();
             match op {
-                Op::LoadImmediate32 => {
-                    let instr = self.read_instruction::<instructions::LoadImmediate32>();
+                Op::LoadImmediate64 => {
+                    let instr = self.read_instruction::<instructions::LoadImmediate64>();
                     let target = instr.target as usize;
                     self.vm.registers[target] = instr.value as u64;
+                }
+                Op::LoadReg64 => {
+                    let instr = self.read_instruction::<instructions::LoadReg64>();
+                    let target = instr.target as usize;
+                    let source = instr.address_source as usize;
+                    let memptr: MutMemPtr =
+                        unsafe { std::mem::transmute(self.vm.registers[source]) };
+
+                    self.vm.registers[target] = self.read_u64(memptr);
                 }
                 Op::LoadConstAddress => {
                     let const_base: usize =
@@ -137,21 +147,40 @@ impl<'a> Interpreter<'a> {
 
                     self.store_u64(memptr, value);
                 }
+                Op::StoreReg64 => {
+                    let instr = self.read_instruction::<instructions::StoreReg64>();
+                    let addressreg = instr.address_source as usize;
+                    let valuereg = instr.value_source as usize;
+
+                    let memptr: MutMemPtr =
+                        unsafe { std::mem::transmute(self.vm.registers[addressreg]) };
+
+                    self.store_u64(memptr, self.vm.registers[valuereg]);  
+                }
+                Op::MoveReg64 => {
+                    let instr = self.read_instruction::<instructions::MoveReg64>();
+                    self.vm.registers[instr.target as usize] = self.vm.registers[instr.source as usize];
+                }
                 Op::CallBuiltIn => {
                     let instr = self.read_instruction::<instructions::CallBuiltIn>();
                     let builtin = instr.builtin;
                     self.call_builtin(&builtin);
                 }
                 Op::Call => {
-                    todo!();
+                    let instr = self.read_instruction::<instructions::Call>();
+                    self.vm.registers[RETURN_REGISTER as usize] = self.vm.pc as u64;
+                    let new_pc = self.vm.registers[instr.instruction_address_target as usize];
+                    self.vm.pc = new_pc as usize;
                 }
                 Op::Return => {
-                    todo!();
+                    self.read_instruction::<instructions::Return>();
+                    self.vm.pc = self.vm.registers[RETURN_REGISTER as usize] as usize;
                 }
                 Op::Halt => {
-                    self.skip_op();
+                    self.read_instruction::<instructions::Halt>();
                     break;
                 }
+
             }
         }
     }

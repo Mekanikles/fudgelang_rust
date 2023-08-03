@@ -931,13 +931,17 @@ fn process_function(
         iteration += 1;
     }
 
+    let scopekey = {
+        let module = asg.modulestore.get(&modulekey);
+        let function = module.functionstore.get(&functionkey);
+        function.scope
+    };
+
     println!("Type processing done!");
     println!("  Declaration types:");
     {
         let module = asg.modulestore.get(&modulekey);
-        let function = module.functionstore.get(&functionkey);
-
-        let scope = module.scopestore.get(&function.scope);
+        let scope = module.scopestore.get(&scopekey);
         let decls = &scope.symboltable.declarations;
         for d in decls.keys() {
             println!(
@@ -950,9 +954,7 @@ fn process_function(
     println!("  Expression types:");
     {
         let module = asg.modulestore.get(&modulekey);
-        let function = module.functionstore.get(&functionkey);
-
-        let scope = module.scopestore.get(&function.scope);
+        let scope = module.scopestore.get(&scopekey);
         for e in scope.expressions.keys() {
             println!(
                 "    e{}: {:?}",
@@ -964,6 +966,42 @@ fn process_function(
             );
         }
     }
+
+    // Write back result to asg
+    {
+        let mut decltypes = HashMap::new();
+        {
+            let module = asg.modulestore.get(&modulekey);
+            let scope = module.scopestore.get(&scopekey);
+    
+            let decls = &scope.symboltable.declarations;
+            for d in decls.keys() {
+                let e = typeenv.get_entry(&resolve_substitutions(&typeenv.get_for_symbol(d), typeenv));
+                match e {
+                    TypeEntry::Id(n) => decltypes.insert(d.clone(), n.clone()),
+                    _ => panic!("Unresolved type for symbol {:?}", scope.symboltable.declarations.get(&d))
+                };
+            }
+        }
+        asg.modulestore.get_mut(&modulekey).scopestore.get_mut(&scopekey).declarationtypes = decltypes;
+
+        let mut exprtypes = HashMap::new();
+        {
+            let module = asg.modulestore.get(&modulekey);
+            let scope = module.scopestore.get(&scopekey);
+    
+            for expkey in scope.expressions.keys(){
+                let e = typeenv.get_entry(&resolve_substitutions(&typeenv.get_for_expression(&expkey), typeenv));
+                match e {
+                    TypeEntry::Id(n) => exprtypes.insert(expkey, n.clone()),
+                    _ => panic!("Unresolved type for expression {:?}", scope.expressions.get(&expkey))
+                };
+            }
+        }
+
+        asg.modulestore.get_mut(&modulekey).scopestore.get_mut(&scopekey).expressiontypes = exprtypes;
+    }
+
 }
 
 pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {

@@ -1,0 +1,1 @@
+Point vs code extension directory to this folder: /Users/your-username/.vscode/extensions/

@@ -28,6 +28,12 @@ impl objectstore::HashedStoreKey<typesystem::TypeId> for u64 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
+pub struct FunctionRef {
+    pub module: ModuleKey,
+    pub function: FunctionKey,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
 pub struct ScopeRef {
     pub module: ModuleKey,
     pub scope: ScopeKey,

@@ -40,7 +40,7 @@ local.main()
 */
 
 var x : #primitives.u32 = 1337
-#output.print_format("Hejdu din glada banan, här har du ett riktigt häftigt värde: {}", x)
+#output.print_format("Hejdu din glada banan, här har du ett riktigt häftigt värde: {}\n", x)
 
 /* What should happen
  - Type discovery

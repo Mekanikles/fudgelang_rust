@@ -2,14 +2,17 @@ use super::*;
 
 #[repr(u8)]
 pub enum Op {
-    LoadImmediate32,
-    LoadConstAddress,
-    LoadStackAddress,
-    StoreImmediate64,
-    CallBuiltIn,
-    Call,
-    Return,
-    Halt, // Need to be last enum variant
+    LoadImmediate64,        // Load value into register
+    LoadReg64,              // Load value at address in register into register
+    LoadConstAddress,       // Load const data address from offset
+    LoadStackAddress,       // Load stack address from offset
+    StoreImmediate64,       // Store value at address in register
+    StoreReg64,             // Store value in register at address in register
+    MoveReg64,              // Move value from register to register
+    CallBuiltIn,            // Call specified built-in function
+    Call,                   // Call function at address in register
+    Return,                 // Set pc to instruction address in return register
+    Halt,                   // End program. Need to be last enum variant
 }
 
 // Make sure op fits into 6 bits
@@ -25,24 +28,46 @@ pub mod instructions {
     use super::*;
 
     #[derive(Debug)]
-    pub struct LoadImmediate32 {
+    pub struct LoadImmediate64 {
         pub target: Register,
-        pub value: u32,
+        pub value: u64,
     }
-    impl Instruction for LoadImmediate32 {
-        const OP: Op = Op::LoadImmediate32;
+    impl Instruction for LoadImmediate64 {
+        const OP: Op = Op::LoadImmediate64;
 
         fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
             data.skip_op(pc);
             Self {
                 target: data.read_register(pc),
-                value: data.read_u32(pc),
+                value: data.read_u64(pc),
             }
         }
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
             data.write_register(self.target);
-            data.write_u32(self.value);
+            data.write_u64(self.value);
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct LoadReg64 {
+        pub target: Register,
+        pub address_source: Register,
+    }
+    impl Instruction for LoadReg64 {
+        const OP: Op = Op::LoadReg64;
+
+        fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
+            data.skip_op(pc);
+            Self {
+                target: data.read_register(pc),
+                address_source: data.read_register(pc),
+            }
+        }
+        fn encode(&self, data: &mut ByteCodeChunk) {
+            data.write_op(Self::OP);
+            data.write_register(self.target);
+            data.write_register(self.address_source);
         }
     }
 
@@ -113,6 +138,50 @@ pub mod instructions {
     }
 
     #[derive(Debug)]
+    pub struct StoreReg64 {    
+        pub address_source: Register,
+        pub value_source: Register,
+    }
+    impl Instruction for StoreReg64 {
+        const OP: Op = Op::StoreReg64;
+
+        fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
+            data.skip_op(pc);
+            Self {
+                value_source: data.read_register(pc),
+                address_source: data.read_register(pc),
+            }
+        }
+        fn encode(&self, data: &mut ByteCodeChunk) {
+            data.write_op(Self::OP);
+            data.write_register(self.value_source);
+            data.write_register(self.address_source);
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct MoveReg64 {    
+        pub target: Register,
+        pub source: Register,
+    }
+    impl Instruction for MoveReg64 {
+        const OP: Op = Op::MoveReg64;
+
+        fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
+            data.skip_op(pc);
+            Self {
+                target: data.read_register(pc),
+                source: data.read_register(pc),    
+            }
+        }
+        fn encode(&self, data: &mut ByteCodeChunk) {
+            data.write_op(Self::OP);
+            data.write_register(self.target);
+            data.write_register(self.source);
+        }
+    }
+
+    #[derive(Debug)]
     pub struct CallBuiltIn {
         pub builtin: crate::typesystem::BuiltInFunction,
     }
@@ -133,7 +202,7 @@ pub mod instructions {
 
     #[derive(Debug)]
     pub struct Call {
-        pub address_target: Register,
+        pub instruction_address_target: Register,
     }
     impl Instruction for Call {
         const OP: Op = Op::Call;
@@ -141,12 +210,12 @@ pub mod instructions {
         fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self {
             data.skip_op(pc);
             Self {
-                address_target: data.read_u8(pc),
+                instruction_address_target: data.read_u8(pc),
             }
         }
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
-            data.write_u8(self.address_target as u8);
+            data.write_u8(self.instruction_address_target as u8);
         }
     }
 

@@ -47,10 +47,6 @@ impl ByteCodeChunk {
         d
     }
 
-    pub fn read_u32(&self, pc: &mut usize) -> u32 {
-        u32::from_be_bytes(*self.read_bytes(pc))
-    }
-
     pub fn read_u64(&self, pc: &mut usize) -> u64 {
         u64::from_be_bytes(*self.read_bytes(pc))
     }
@@ -65,10 +61,6 @@ impl ByteCodeChunk {
 
     pub fn write_u8(&mut self, d: u8) {
         self.data.push(d)
-    }
-
-    pub fn write_u32(&mut self, d: u32) {
-        self.data.extend_from_slice(&d.to_be_bytes())
     }
 
     pub fn write_u64(&mut self, d: u64) {

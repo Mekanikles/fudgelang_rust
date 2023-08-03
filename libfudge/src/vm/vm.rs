@@ -14,12 +14,14 @@ pub struct Vm {
     pub pc: usize,
 }
 
+pub const RETURN_REGISTER : u8 = 255;
+
 impl Vm {
-    pub fn new() -> Self {
+    pub fn new(pc: usize) -> Self {
         Self {
             registers: vec![0; 256],
             stack: vec![0; 10000], // TODO: make this more sensible
-            pc: 0,
+            pc,
         }
     }
 }
