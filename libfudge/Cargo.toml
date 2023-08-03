@@ -14,6 +14,7 @@ phf = { version = "0.9", features = ["macros"] }
 regex = "1"
 dyn-fmt = "0.3.0"
 backtrace = "0.3"
+snailquote = "0.3.1"
 # TODO: Only needed for test output
 codespan-reporting = "0.11"
 

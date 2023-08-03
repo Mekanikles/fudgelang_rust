@@ -2,6 +2,8 @@ use super::*;
 
 use crate::shared::BinaryOperationType;
 
+use snailquote;
+
 pub enum OpPrecedence {
     MulDiv,
     AddSub,
@@ -190,10 +192,16 @@ impl<'a> Parser<'a> {
             ));
         } else if self.accept(TokenType::StringLiteral) {
             let text = self.get_last_token_text();
+
+            // Unescape string
+            // NOTE: Snailquote requires the string to have double quotes surrounding it
+            //  which is why the scanner keeps them around
+            let string = snailquote::unescape(text).unwrap();
+
             return Ok(Some(
                 self.ast.add_node(
                     ast::nodes::StringLiteral {
-                        text: text.to_string(),
+                        text: string,
                     }
                     .into(),
                 ),

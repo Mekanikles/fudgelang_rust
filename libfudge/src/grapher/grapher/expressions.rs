@@ -37,8 +37,13 @@ impl<'a> Grapher<'a> {
         _astkey: ast::AstKey,
         ast_lit: &ast::nodes::StringLiteral,
     ) -> ExpressionKey {
+        // Extract string from source
+        let string = ast_lit.text.clone();
+
+
+
         let literal = asg::expressions::literals::StringLiteral {
-            string: ast_lit.text.clone(),
+            string,
         };
         self.add_expression(asg::ExpressionObject::Literal(
             asg::expressions::Literal::StringLiteral(literal),

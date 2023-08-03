@@ -137,7 +137,7 @@ pub fn print_program(program: &Program) {
                     "{}",
                     if (cdata[i] as char).is_ascii_graphic() {
                         cdata[i] as char
-                    } else if (cdata[i] as char).is_ascii_whitespace() {
+                    } else if (cdata[i] as char) == ' ' {
                         ' '
                     } else {
                         '·'
