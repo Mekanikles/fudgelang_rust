@@ -11,6 +11,8 @@ pub mod typesystem;
 pub mod utils;
 pub mod vm;
 pub mod vmcodegen;
+pub mod ir;
+pub mod ircodegen;
 
 pub mod error;
 

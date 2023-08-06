@@ -42,9 +42,13 @@ impl RegisterAllocator {
         }
     }
 
-    fn acquire_param(&mut self, index : usize) -> vm::Register {
+    fn acquire_param(&mut self, index: usize) -> vm::Register {
         // Params are passed in registers 0+
-        assert!(!self.registers_used[index], "Register {} already in use!", index);
+        assert!(
+            !self.registers_used[index],
+            "Register {} already in use!",
+            index
+        );
         self.registers_used[index] = true;
         index as u8
     }
@@ -53,11 +57,13 @@ impl RegisterAllocator {
         // Allocate temp registers from the bottom to avoid
         //  collisions with call arguments/return values
         // TODO: Bleh, but I don't know how to deal with reverse iterators
-        let index = vm::RETURN_REGISTER as usize - self
-            .registers_used[0..vm::RETURN_REGISTER as usize]
-            .iter().rev()
-            .position(|&x| !x)
-            .expect("Out of registers!") - 1;
+        let index = vm::RETURN_REGISTER as usize
+            - self.registers_used[0..vm::RETURN_REGISTER as usize]
+                .iter()
+                .rev()
+                .position(|&x| !x)
+                .expect("Out of registers!")
+            - 1;
 
         self.registers_used[index] = true;
         index as u8
@@ -88,7 +94,7 @@ impl StackAllocator {
         }
     }
 
-    fn allocate(&mut self, size : u64) -> u64 {
+    fn allocate(&mut self, size: u64) -> u64 {
         let offset = self.current_stack_offset;
         self.current_stack_offset += size;
         offset
@@ -96,7 +102,7 @@ impl StackAllocator {
 
     fn allocate_symbol(&mut self, symbol: asg::SymbolKey, size: u64) {
         assert!(!self.symbol_lookup.contains_key(&symbol));
-        
+
         let offset = self.allocate(size);
         self.symbol_lookup.insert(symbol, offset);
     }
@@ -144,14 +150,18 @@ fn generate_expression(
                 let reg = context.register_allocator.acquire();
                 let lit_type = scope.expressiontypes.get(&expressionkey).unwrap();
 
-                assert!(lit_type.is_primitive(&crate::typesystem::PrimitiveType::StaticStringUtf8), "String literals assume static utf8 strings for now, was {:?}", lit_type);
-                
+                assert!(
+                    lit_type.is_primitive(&crate::typesystem::PrimitiveType::StaticStringUtf8),
+                    "String literals assume static utf8 strings for now, was {:?}",
+                    lit_type
+                );
+
                 // Create string const data
                 let strhandle = create_constdata_utf8_static_string(builder, n.string.as_str());
 
                 builder.load_const_address(reg, strhandle.0);
                 reg
-            },
+            }
             asg::expressions::Literal::BoolLiteral(_) => todo!(),
             asg::expressions::Literal::IntegerLiteral(n) => {
                 let reg = context.register_allocator.acquire();
@@ -159,9 +169,12 @@ fn generate_expression(
                 let lit_type = scope.expressiontypes.get(&expressionkey).unwrap();
 
                 // TODO: Assume u32 for now
-                assert!(lit_type.is_primitive(&crate::typesystem::PrimitiveType::U32), "Integer literals assume u32 for now, was {:?}", lit_type);
+                assert!(
+                    lit_type.is_primitive(&crate::typesystem::PrimitiveType::U32),
+                    "Integer literals assume u32 for now, was {:?}",
+                    lit_type
+                );
 
-                
                 builder.load_u64(reg, n.data);
                 reg
             }
@@ -205,11 +218,12 @@ fn generate_expression(
         }
         asg::ExpressionObject::If(_) => todo!(),
         asg::ExpressionObject::Call(n) => {
-            let callablereg = generate_expression(builder, context, asg, scoperef, &n.callable, false);
+            let callablereg =
+                generate_expression(builder, context, asg, scoperef, &n.callable, false);
 
             let callabletype = scope.expressiontypes.get(&n.callable).unwrap();
 
-            let mut args : Vec<(vm::Register, &crate::typesystem::TypeId)> = Vec::new();
+            let mut args: Vec<(vm::Register, &crate::typesystem::TypeId)> = Vec::new();
             for arg in &n.args {
                 let reg = generate_expression(builder, context, asg, scoperef, arg, false);
                 let argtype = scope.expressiontypes.get(arg).unwrap();
@@ -226,17 +240,21 @@ fn generate_expression(
                             assert!(args.len() >= 1);
 
                             // Move first argument into call reg 0 and release original
-                            builder.move_reg64(context.register_allocator.acquire_param(0), args[0].0);
+                            builder
+                                .move_reg64(context.register_allocator.acquire_param(0), args[0].0);
                             context.register_allocator.release(args[0].0);
 
                             // Write arg count as second argument
-                            builder.load_u64(context.register_allocator.acquire_param(1), (args.len() - 1) as u64);
+                            builder.load_u64(
+                                context.register_allocator.acquire_param(1),
+                                (args.len() - 1) as u64,
+                            );
 
                             // Generate typed values for rest of arguments and store in param registers
                             let mut index = 2;
                             for arg in &args[1..] {
                                 // Typed value is (currently) primitive type id as u64 and register content
-                                const U64SIZE : u64 = std::mem::size_of::<u64>() as u64;
+                                const U64SIZE: u64 = std::mem::size_of::<u64>() as u64;
                                 let stack_offset = context.stack_allocator.allocate(2 * U64SIZE);
 
                                 let argvalue = arg.0;
@@ -244,13 +262,13 @@ fn generate_expression(
 
                                 // Use final reg as working register as well
                                 let reg = context.register_allocator.acquire_param(index);
-                                
+
                                 // Store pair of type and value on stack, leaving reg pointing to beginning of allocation
                                 builder.load_stack_address(reg, stack_offset + U64SIZE);
                                 builder.store_reg64(reg, argvalue);
                                 builder.load_stack_address(reg, stack_offset);
                                 builder.store_u64(reg, argtype_id);
-                                
+
                                 // At this point reg is done for call
 
                                 // Release arg register
@@ -266,11 +284,13 @@ fn generate_expression(
                             for i in 0..index {
                                 context.register_allocator.release(i as vm::Register);
                             }
-                        },
-                    }         
-                },
-                crate::typesystem::TypeId::Function(_) => panic!("User callables not yet supported!"),
-                _ => panic!("Type {:?} not supported as callable", callabletype)
+                        }
+                    }
+                }
+                crate::typesystem::TypeId::Function(_) => {
+                    panic!("User callables not yet supported!")
+                }
+                _ => panic!("Type {:?} not supported as callable", callabletype),
             }
 
             let reg = context.register_allocator.acquire();
@@ -295,7 +315,9 @@ fn generate_statement_body(
             asg::Statement::Return(_) => todo!(),
             asg::Statement::Initialize(n) => {
                 // Declaration has been reserved on stack earlier
-                let stack_offset = context.stack_allocator.get_symbol_offset(&asg::SymbolKey::from_str(n.symbol.as_str()));
+                let stack_offset = context
+                    .stack_allocator
+                    .get_symbol_offset(&asg::SymbolKey::from_str(n.symbol.as_str()));
 
                 let lhsreg = context.register_allocator.acquire();
                 builder.load_stack_address(lhsreg, stack_offset);
@@ -333,7 +355,7 @@ pub fn generate_program(asg: &asg::Asg) -> vm::Program {
             // Module init
             if let Some(body) = &module.body {
                 context.stack_allocator.reset();
-                    
+
                 let scoperef = &asg::ScopeRef {
                     module: modulekey,
                     scope: body.scope_nonowned,
@@ -343,7 +365,9 @@ pub fn generate_program(asg: &asg::Asg) -> vm::Program {
                 for declkey in scope.symboltable.declarations.keys() {
                     let decl = scope.symboltable.declarations.get(&declkey);
                     let decltype = scope.declarationtypes.get(&declkey).unwrap();
-                    context.stack_allocator.allocate_symbol(declkey.clone(), decltype.size());
+                    context
+                        .stack_allocator
+                        .allocate_symbol(declkey.clone(), decltype.size());
                 }
 
                 let module_init_address = builder.get_current_instruction_address();
@@ -362,7 +386,9 @@ pub fn generate_program(asg: &asg::Asg) -> vm::Program {
                 // Module inits are called like functions, return at the end
                 builder.do_return();
 
-                context.module_init_lookup.insert(modulekey, module_init_address);
+                context
+                    .module_init_lookup
+                    .insert(modulekey, module_init_address);
             }
 
             // Generate all functions
@@ -371,7 +397,7 @@ pub fn generate_program(asg: &asg::Asg) -> vm::Program {
 
                 if let Some(body) = &function.body {
                     context.stack_allocator.reset();
-                    
+
                     let scoperef = &asg::ScopeRef {
                         module: modulekey,
                         scope: body.scope_nonowned,
@@ -381,43 +407,51 @@ pub fn generate_program(asg: &asg::Asg) -> vm::Program {
                     for declkey in scope.symboltable.declarations.keys() {
                         let decl = scope.symboltable.declarations.get(&declkey);
                         let decltype = scope.declarationtypes.get(&declkey).unwrap();
-                        context.stack_allocator.allocate_symbol(declkey.clone(), decltype.size());
+                        context
+                            .stack_allocator
+                            .allocate_symbol(declkey.clone(), decltype.size());
                     }
 
                     let function_address = builder.get_current_instruction_address();
-    
-                    generate_statement_body(
-                        builder,
-                        context,
-                        asg,
-                        &scoperef,
-                        &body,
-                    );
-    
+
+                    generate_statement_body(builder, context, asg, &scoperef, &body);
+
                     // Functions return at the end
                     builder.do_return();
-    
-                    context.function_lookup.insert(asg::FunctionRef {module: modulekey, function: functionkey}, function_address);
+
+                    context.function_lookup.insert(
+                        asg::FunctionRef {
+                            module: modulekey,
+                            function: functionkey,
+                        },
+                        function_address,
+                    );
                 }
             }
         }
 
         // Generate program initialization
         let program_init_address = builder.get_current_instruction_address();
-        {        
+        {
             let callable_reg = context.register_allocator.acquire();
 
             // Call modules inits
             // TODO: Not in random order...
             for module_init_address in context.module_init_lookup.values() {
                 // TODO: should be u64
-                
+
                 builder.load_u64(callable_reg, *module_init_address as u64);
                 builder.call(callable_reg);
             }
 
             // Finally, call main
-            builder.load_u64(callable_reg, context.function_lookup[&asg::FunctionRef { module: asg.global_module, function: asg.main }] as u64);
+            builder.load_u64(
+                callable_reg,
+                context.function_lookup[&asg::FunctionRef {
+                    module: asg.global_module,
+                    function: asg.main,
+                }] as u64,
+            );
             builder.call(callable_reg);
 
             context.register_allocator.release(callable_reg);
@@ -427,40 +461,4 @@ pub fn generate_program(asg: &asg::Asg) -> vm::Program {
     };
 
     builder.finish(entrypoint)
-
-    /*
-    // TODO: Hard-code generation for now!
-    let mut builder = vm::ProgramBuilder::new();
-
-    // Create const data
-    let fmtstr = create_constdata_utf8_static_string(&mut builder, "Value of x: {}\n");
-
-    // Store typed values on stack
-    {
-        //  Typed value is [typeid: u64, data: u64]
-
-        // u32 literal "5"
-        builder.load_stack_address(0, 0);
-        builder.store_u64(0, crate::typesystem::PrimitiveType::U32 as u64);
-        builder.load_stack_address(0, 8);
-        builder.store_u64(0, 5u32 as u64);
-    }
-
-    // Prepare call #print_format(static_string, argcount, typed_value...)
-    {
-        // Load format string address into register 0
-        builder.load_const_address(0, fmtstr.0);
-
-        // Load arg count, located at stack address 0, into register 1
-        builder.load_u8(1, 1);
-
-        // Load typed value 5 address, located at stack address 0, into register 2
-        builder.load_stack_address(2, 0);
-    }
-
-    // Issue call
-    builder.call_builtin(crate::typesystem::BuiltInFunction::PrintFormat);
-
-    builder.finish()
-    */
 }

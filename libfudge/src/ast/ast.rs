@@ -283,6 +283,7 @@ declare_nodes!(
     },
     IntegerLiteral {
         value: u64,
+        // TODO: What does this mean? How does the literal know if it's signed or not?
         signed: bool,
     },
     // TODO: BigIntegerLiteral

@@ -5,7 +5,6 @@ use crate::typesystem::*;
 use crate::utils::objectstore::*;
 pub use crate::utils::*;
 
-use super::scope::ExpressionKey;
 pub use super::*;
 
 pub type ModuleStore = IndexedObjectStore<Module>;
@@ -50,6 +49,28 @@ pub struct Asg {
     pub global_module: ModuleKey,
     pub main: FunctionKey,
     pub modulestore: ModuleStore,
+}
+
+impl Asg {
+    pub fn modulekeys(&self) -> std::ops::Range<usize> {
+        self.modulestore.keys()
+    }
+
+    pub fn get_module(&self, key: &ModuleKey) -> &Module {
+        self.modulestore.get(key)
+    }
+
+    pub fn get_scope(&self, scoperef: &ScopeRef) -> &Scope {
+        self.get_module(&scoperef.module)
+            .scopestore
+            .get(&scoperef.scope)
+    }
+
+    pub fn get_function(&self, functionref: &FunctionRef) -> &Function {
+        self.get_module(&functionref.module)
+            .functionstore
+            .get(&functionref.function)
+    }
 }
 
 #[derive(Debug)]

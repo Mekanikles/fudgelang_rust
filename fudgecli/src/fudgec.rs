@@ -108,14 +108,20 @@ fn main() {
     println!("{}", Color::Green.bold().paint("Running treewalker..."));
     interpreter::treewalker::run(&main_ast, &module_asts);
 
-    println!("{}", Color::Green.bold().paint("Generating program..."));
-    let program = vmcodegen::generate_program(&grapher_result.asg);
+    println!("{}", Color::Green.bold().paint("Generating ircode..."));
+    let irprogram = ircodegen::generate_program(&grapher_result.asg);
 
-    println!("{}", Color::Green.bold().paint("Program:"));
-    vm::program::print_program(&program);
+    println!("{}", Color::Green.bold().paint("Vm Program:"));
+    ir::program::print_program(&irprogram);
+
+    println!("{}", Color::Green.bold().paint("Generating vmcode..."));
+    let vmprogram = vmcodegen::generate_program(&grapher_result.asg);
+
+    println!("{}", Color::Green.bold().paint("Vm Program:"));
+    vm::program::print_program(&vmprogram);
 
     println!("{}", Color::Green.bold().paint("Running vm..."));
-    vm::run(&program);
+    vm::run(&vmprogram);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

@@ -6,6 +6,9 @@ use StringKey as SymbolKey;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PrimitiveType {
+    // TODO: Should static string be a primitive? It cannot fit into a register
+    // without being some kind of ref-only type, maybe differentiate between
+    // built-ins and primitives
     StaticStringUtf8,
     Bool,
     U8,
@@ -18,6 +21,42 @@ pub enum PrimitiveType {
     S64,
     F32,
     F64,
+}
+
+impl PrimitiveType {
+    pub fn to_str(&self) -> &str {
+        match self {
+            PrimitiveType::StaticStringUtf8 => "str",
+            PrimitiveType::Bool => "bool",
+            PrimitiveType::U8 => "u8",
+            PrimitiveType::U16 => "u16",
+            PrimitiveType::U32 => "u32",
+            PrimitiveType::U64 => "u64",
+            PrimitiveType::S8 => "s8",
+            PrimitiveType::S16 => "s16",
+            PrimitiveType::S32 => "s32",
+            PrimitiveType::S64 => "s64",
+            PrimitiveType::F32 => "f32",
+            PrimitiveType::F64 => "f64",
+        }
+    }
+
+    pub fn data_to_string(&self, data: u64) -> String {
+        match self {
+            PrimitiveType::StaticStringUtf8 => format!("@c{}", data as u64),
+            PrimitiveType::Bool => format!("{}", data != 0),
+            PrimitiveType::U8 => format!("{}", data as u8),
+            PrimitiveType::U16 => format!("{}", data as u16),
+            PrimitiveType::U32 => format!("{}", data as u32),
+            PrimitiveType::U64 => format!("{}", data as u64),
+            PrimitiveType::S8 => format!("{}", data as i8),
+            PrimitiveType::S16 => format!("{}", data as i16),
+            PrimitiveType::S32 => format!("{}", data as i32),
+            PrimitiveType::S64 => format!("{}", data as i64),
+            PrimitiveType::F32 => format!("{}", data as f32),
+            PrimitiveType::F64 => format!("{}", data as f64),
+        }
+    }
 }
 
 // Map with all addressable primitive types
@@ -64,6 +103,14 @@ pub enum BuiltInFunction {
     PrintFormat,
 }
 
+impl BuiltInFunction {
+    pub fn to_str(&self) -> &str {
+        match self {
+            BuiltInFunction::PrintFormat => "#output.print_format",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TypeId {
     Null,
@@ -74,6 +121,8 @@ pub enum TypeId {
     Function(FunctionSignature),
     Struct(StructDefinition),
     Module,
+    // Hm, this is a bit awkward, perhaps this can be a core struct instead?
+    TypedValue,
 }
 
 impl TypeId {
@@ -84,21 +133,40 @@ impl TypeId {
     pub fn type_id(&self) -> u64 {
         match self {
             TypeId::Primitive(n) => return *n as u64,
-            _ => panic!("Type id is only supported for primitives currently, not {:?}", self)
+            _ => panic!(
+                "Type id is only supported for primitives currently, not {:?}",
+                self
+            ),
         }
     }
 
     pub fn size(&self) -> u64 {
         match self {
             TypeId::Primitive(n) => return 8, // TODO: All primitives are stored as u64 for now
-            _ => panic!("Size is only supported for primitives currently, not {:?}", self)
+            _ => panic!(
+                "Size is only supported for primitives currently, not {:?}",
+                self
+            ),
         }
     }
 
     pub fn is_primitive(&self, ptype: &PrimitiveType) -> bool {
         match &self {
             TypeId::Primitive(n) => *n == *ptype,
-            _ => false
+            _ => false,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self {
+            TypeId::Null => format!("null"),
+            TypeId::Type => format!("type"),
+            TypeId::Primitive(n) => n.to_str().into(),
+            TypeId::BuiltInFunction(n) => n.to_str().into(),
+            TypeId::Function(_) => format!("func"),
+            TypeId::Struct(_) => format!("struct"),
+            TypeId::Module => format!("module"),
+            TypeId::TypedValue => format!("typed value"),
         }
     }
 }
