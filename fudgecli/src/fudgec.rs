@@ -115,7 +115,7 @@ fn main() {
     ir::program::print_program(&irprogram);
 
     println!("{}", Color::Green.bold().paint("Generating vmcode..."));
-    let vmprogram = vmcodegen::generate_program(&grapher_result.asg);
+    let vmprogram = vmcodegen::generate_program(&irprogram);
 
     println!("{}", Color::Green.bold().paint("Vm Program:"));
     vm::program::print_program(&vmprogram);

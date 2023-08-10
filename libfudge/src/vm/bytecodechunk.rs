@@ -23,6 +23,10 @@ impl ByteCodeChunk {
         &self.data[start..stop]
     }
 
+    pub fn slice_mut(&mut self, start: usize, stop: usize) -> &mut [u8] {
+        &mut self.data[start..stop]
+    }
+
     pub fn peek_op(&self, pc: &usize) -> Op {
         unsafe { std::mem::transmute::<u8, Op>(self.data[*pc] & OP_BITMASK) }
     }

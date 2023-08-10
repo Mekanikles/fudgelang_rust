@@ -131,11 +131,37 @@ fn generate_expression(
                         data: args.len() as u64 - 1, // First arg is string
                     });
 
+                    fn copy_expr_and_push(
+                        functionbuilder: &mut FunctionBuilder,
+                        current_block: &BasicBlockKey,
+                        arg_vars: &mut Vec<VariableKey>,
+                        expression: Expression,
+                    ) {
+                        // Store the expression in a variable
+                        let etype = expression.get_type(functionbuilder);
+                        let var = functionbuilder.add_unnamed_variable(etype);
+                        functionbuilder
+                            .edit_block(current_block)
+                            .assign(var, expression);
+
+                        arg_vars.push(var);
+                    }
+
                     // Inject dynamic value count after first arg
                     // TODO: Avoid clones
                     let mut arg_vars = Vec::new();
-                    arg_vars.push(args[0].clone());
-                    arg_vars.push(dynarglen_const);
+                    copy_expr_and_push(
+                        functionbuilder,
+                        current_block,
+                        &mut arg_vars,
+                        args[0].clone(),
+                    );
+                    copy_expr_and_push(
+                        functionbuilder,
+                        current_block,
+                        &mut arg_vars,
+                        dynarglen_const,
+                    );
 
                     // Create dynamic value wrappers
                     for arg in &args[1..] {
@@ -151,7 +177,12 @@ fn generate_expression(
                         let dynvalexpr =
                             Expression::Constant(Value::TypedValue { typeid, variable });
 
-                        arg_vars.push(dynvalexpr)
+                        copy_expr_and_push(
+                            functionbuilder,
+                            current_block,
+                            &mut arg_vars,
+                            dynvalexpr,
+                        );
                     }
 
                     let returnvalue = functionbuilder.add_unnamed_variable(TypeId::Null);
@@ -279,6 +310,10 @@ pub fn generate_program(asg: &asg::Asg) -> ir::Program {
                         &body,
                     );
 
+                    // TODO: This wont work, we need the last block
+                    // Maybe add this in graph generation instead?
+                    functionbuilder.edit_block(&entry).do_return(Vec::new());
+
                     let function = functionbuilder.finish(entry);
 
                     // TODO: This function_map relies on functions being generated before they can be referenced.
@@ -319,6 +354,9 @@ pub fn generate_program(asg: &asg::Asg) -> ir::Program {
                     function: asg.main,
                 };
                 block.call_static(dummy_var, context.function_map[&mainfuncref], Vec::new());
+
+                // Don't forget to halt the program
+                block.halt();
             }
             functionbuilder.finish(entry)
         };

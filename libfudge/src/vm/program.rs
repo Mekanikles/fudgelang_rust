@@ -15,9 +15,7 @@ impl ProgramBuilder {
         }
     }
 
-    pub fn finish(mut self, entrypoint: u64) -> Program {
-        self.bytecode.write_u8(Op::Halt as u8);
-
+    pub fn finish(self, entrypoint: u64) -> Program {
         Program {
             constdata: self.constdata,
             bytecode: self.bytecode,
@@ -31,6 +29,14 @@ impl ProgramBuilder {
 
     pub fn get_current_instruction_address(&self) -> InstrAddr {
         self.bytecode.len() as u64
+    }
+
+    pub fn patch_address(&mut self, location: InstrAddr, address: InstrAddr) {
+        let start = location as usize;
+        let stop = location as usize + 8;
+        self.bytecode
+            .slice_mut(start, stop)
+            .copy_from_slice(&address.to_be_bytes())
     }
 
     pub fn alloc_constdata(&mut self, size: usize) -> ConstDataHandle {
@@ -49,6 +55,17 @@ impl ProgramBuilder {
 
     pub fn load_u64(&mut self, target: Register, value: u64) {
         self.write_instruction(instructions::LoadImmediate64 { target, value });
+    }
+
+    pub fn load_patchable_instruction_address(&mut self, target: Register) -> InstrAddr {
+        let current_pc = self.get_current_instruction_address();
+        let instr = instructions::LoadImmediate64 {
+            target,
+            value: u64::MAX,
+        };
+        let offset = instr.get_value_instruction_offset();
+        self.write_instruction(instr);
+        current_pc + offset
     }
 
     pub fn load_reg64(&mut self, target: Register, address_source: Register) {
@@ -73,10 +90,7 @@ impl ProgramBuilder {
     }
 
     pub fn move_reg64(&mut self, target: Register, source: Register) {
-        self.write_instruction(instructions::MoveReg64 {
-            target,
-            source,
-        });
+        self.write_instruction(instructions::MoveReg64 { target, source });
     }
 
     pub fn load_const_address(&mut self, target: Register, address: ConstDataAddr) {
@@ -92,11 +106,17 @@ impl ProgramBuilder {
     }
 
     pub fn call(&mut self, instruction_address_target: Register) {
-        self.write_instruction(instructions::Call { instruction_address_target });
+        self.write_instruction(instructions::Call {
+            instruction_address_target,
+        });
     }
 
     pub fn do_return(&mut self) {
         self.write_instruction(instructions::Return {});
+    }
+
+    pub fn halt(&mut self) {
+        self.write_instruction(instructions::Halt {});
     }
 }
 

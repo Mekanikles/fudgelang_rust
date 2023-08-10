@@ -4,6 +4,7 @@ pub type Register = u8;
 pub type Val16 = u16;
 pub type ConstDataAddr = u64;
 pub type ConstDataHandle = (ConstDataAddr, u64);
+pub type StackOffset = u64;
 pub type InstrAddr = u64;
 pub type ConstMemPtr = *const u8;
 pub type MutMemPtr = *mut u8;
@@ -14,7 +15,7 @@ pub struct Vm {
     pub pc: usize,
 }
 
-pub const RETURN_REGISTER : u8 = 255;
+pub const RETURN_REGISTER: u8 = 255;
 
 impl Vm {
     pub fn new(pc: usize) -> Self {

@@ -142,7 +142,8 @@ impl TypeId {
 
     pub fn size(&self) -> u64 {
         match self {
-            TypeId::Primitive(n) => return 8, // TODO: All primitives are stored as u64 for now
+            TypeId::Primitive(_) => return 8, // TODO: All primitives are stored as u64 for now
+            TypeId::TypedValue => return 2 * 8, // u64 typeid, u64 value
             _ => panic!(
                 "Size is only supported for primitives currently, not {:?}",
                 self
@@ -166,7 +167,7 @@ impl TypeId {
             TypeId::Function(_) => format!("func"),
             TypeId::Struct(_) => format!("struct"),
             TypeId::Module => format!("module"),
-            TypeId::TypedValue => format!("typed value"),
+            TypeId::TypedValue => format!("typedval"),
         }
     }
 }

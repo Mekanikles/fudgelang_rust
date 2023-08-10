@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::*;
 
 use crate::typesystem::TypeId;

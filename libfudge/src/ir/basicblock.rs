@@ -36,7 +36,7 @@ impl<'a> BasicBlockEditor<'a> {
         &mut self,
         variable: VariableKey,
         function: FunctionKey,
-        args: Vec<Expression>,
+        args: Vec<VariableKey>,
     ) {
         self.block
             .push_instruction(Instruction::CallStatic(instructions::CallStatic {
@@ -50,7 +50,7 @@ impl<'a> BasicBlockEditor<'a> {
         &mut self,
         variable: VariableKey,
         builtin: crate::typesystem::BuiltInFunction,
-        args: Vec<Expression>,
+        args: Vec<VariableKey>,
     ) {
         self.block
             .push_instruction(Instruction::CallBuiltIn(instructions::CallBuiltIn {
@@ -58,5 +58,15 @@ impl<'a> BasicBlockEditor<'a> {
                 builtin,
                 args,
             }))
+    }
+
+    pub fn do_return(&mut self, values: Vec<VariableKey>) {
+        self.block
+            .push_instruction(Instruction::Return(instructions::Return { values }));
+    }
+
+    pub fn halt(&mut self) {
+        self.block
+            .push_instruction(Instruction::Halt(instructions::Halt {}));
     }
 }

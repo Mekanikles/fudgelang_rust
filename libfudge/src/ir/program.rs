@@ -1,13 +1,11 @@
 use super::*;
 
-use crate::typesystem::*;
-
 use crate::utils::objectstore::ObjectStore;
 
 pub struct Program {
-    functionstore: FunctionStore,
-    constantdatastore: ConstantDataStore,
-    init: FunctionKey,
+    pub functionstore: FunctionStore,
+    pub constantdatastore: ConstantDataStore,
+    pub init: FunctionKey,
 }
 
 pub struct ProgramBuilder {
@@ -104,14 +102,14 @@ pub fn print_program(program: &Program) {
                     }
                 }
 
-                fn call_args_to_string(args: &Vec<Expression>) -> String {
+                fn call_args_to_string(args: &Vec<VariableKey>) -> String {
                     let mut ret = String::new();
                     if !args.is_empty() {
                         for arg in &args[0..args.len() - 1] {
-                            ret += format!("{}, ", expression_to_string(arg)).as_str();
+                            ret += format!("v{}, ", arg).as_str();
                         }
 
-                        ret += format!("{}", expression_to_string(args.last().unwrap())).as_str();
+                        ret += format!("v{}", args.last().unwrap()).as_str();
                     }
                     ret
                 }
@@ -137,6 +135,12 @@ pub fn print_program(program: &Program) {
                                 call_args_to_string(&n.args)
                             )
                         }
+                        Instruction::Return(n) => {
+                            format!("return {}", call_args_to_string(&n.values))
+                        }
+                        Instruction::Halt(n) => {
+                            format!("halt")
+                        }
                     }
                 }
 
@@ -161,6 +165,9 @@ pub fn print_program(program: &Program) {
                     }
                     Instruction::CallStatic(n) => {
                         print_variable_target_intr(instr, &n.variable, function)
+                    }
+                    _ => {
+                        println!("        {}", instruction_to_string(instr));
                     }
                 }
             }

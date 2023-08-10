@@ -2,17 +2,17 @@ use super::*;
 
 #[repr(u8)]
 pub enum Op {
-    LoadImmediate64,        // Load value into register
-    LoadReg64,              // Load value at address in register into register
-    LoadConstAddress,       // Load const data address from offset
-    LoadStackAddress,       // Load stack address from offset
-    StoreImmediate64,       // Store value at address in register
-    StoreReg64,             // Store value in register at address in register
-    MoveReg64,              // Move value from register to register
-    CallBuiltIn,            // Call specified built-in function
-    Call,                   // Call function at address in register
-    Return,                 // Set pc to instruction address in return register
-    Halt,                   // End program. Need to be last enum variant
+    LoadImmediate64,  // Load value into register
+    LoadReg64,        // Load value at address in register into register
+    LoadConstAddress, // Load const data address from offset
+    LoadStackAddress, // Load stack address from offset
+    StoreImmediate64, // Store value at address in register
+    StoreReg64,       // Store value in register at address in register
+    MoveReg64,        // Move value from register to register
+    CallBuiltIn,      // Call specified built-in function
+    Call,             // Call function at address in register
+    Return,           // Set pc to instruction address in return register
+    Halt,             // End program. Need to be last enum variant
 }
 
 // Make sure op fits into 6 bits
@@ -46,6 +46,12 @@ pub mod instructions {
             data.write_op(Self::OP);
             data.write_register(self.target);
             data.write_u64(self.value);
+        }
+    }
+    impl LoadImmediate64 {
+        // This is used for address patching
+        pub fn get_value_instruction_offset(&self) -> u64 {
+            return 2; // Address is located two bytes into instruction
         }
     }
 
@@ -138,7 +144,7 @@ pub mod instructions {
     }
 
     #[derive(Debug)]
-    pub struct StoreReg64 {    
+    pub struct StoreReg64 {
         pub address_source: Register,
         pub value_source: Register,
     }
@@ -160,7 +166,7 @@ pub mod instructions {
     }
 
     #[derive(Debug)]
-    pub struct MoveReg64 {    
+    pub struct MoveReg64 {
         pub target: Register,
         pub source: Register,
     }
@@ -171,7 +177,7 @@ pub mod instructions {
             data.skip_op(pc);
             Self {
                 target: data.read_register(pc),
-                source: data.read_register(pc),    
+                source: data.read_register(pc),
             }
         }
         fn encode(&self, data: &mut ByteCodeChunk) {

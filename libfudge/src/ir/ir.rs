@@ -22,6 +22,8 @@ pub enum Instruction {
     Assign(instructions::Assign),
     CallBuiltIn(instructions::CallBuiltIn),
     CallStatic(instructions::CallStatic),
+    Return(instructions::Return),
+    Halt(instructions::Halt),
 }
 
 pub mod instructions {
@@ -37,18 +39,23 @@ pub mod instructions {
     pub struct CallBuiltIn {
         pub variable: VariableKey,
         pub builtin: BuiltInFunction,
-        // TODO: We can't really support complex expressions here, and bytecode needs to
-        //  store args in regs/stack, there is no call instruction that takes immediates
-        // Maybe just use Variables here instead?
-        pub args: Vec<Expression>,
+        pub args: Vec<VariableKey>,
     }
 
     #[derive(Debug)]
     pub struct CallStatic {
         pub variable: VariableKey,
         pub function: FunctionKey,
-        pub args: Vec<Expression>,
+        pub args: Vec<VariableKey>,
     }
+
+    #[derive(Debug)]
+    pub struct Return {
+        pub values: Vec<VariableKey>,
+    }
+
+    #[derive(Debug)]
+    pub struct Halt {}
 }
 
 #[derive(Debug, Clone)]
@@ -109,10 +116,14 @@ impl Value {
             Value::Primitive { ptype, data: _ } => TypeId::Primitive(*ptype),
             Value::BuiltInFunction { builtin } => TypeId::BuiltInFunction(*builtin),
             Value::TypedValue {
-                typeid,
+                typeid: _,
                 variable: _,
-            } => typeid.clone(),
+            } => TypeId::TypedValue,
         }
+    }
+
+    pub fn get_size(&self) -> u64 {
+        self.get_type().size()
     }
 }
 
