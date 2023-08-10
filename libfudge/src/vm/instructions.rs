@@ -2,21 +2,23 @@ use super::*;
 
 #[repr(u8)]
 pub enum Op {
-    LoadImmediate64,  // Load value into register
-    LoadReg64,        // Load value at address in register into register
+    Halt = 0, // End program. Practial to have as the zero value, in case of executing garbage memory.
+    LoadImmediate64, // Load value into register
+    LoadReg64, // Load value at address in register into register
     LoadConstAddress, // Load const data address from offset
     LoadStackAddress, // Load stack address from offset
     StoreImmediate64, // Store value at address in register
-    StoreReg64,       // Store value in register at address in register
-    MoveReg64,        // Move value from register to register
-    CallBuiltIn,      // Call specified built-in function
-    Call,             // Call function at address in register
-    Return,           // Set pc to instruction address in return register
-    Halt,             // End program. Need to be last enum variant
+    StoreReg64, // Store value in register at address in register
+    MoveReg64, // Move value from register to register
+    CallBuiltIn, // Call specified built-in function
+    Call,     // Call function at address in register
+
+    // Keep return as last instruction
+    Return, // Set pc to instruction address in return register.
 }
 
 // Make sure op fits into 6 bits
-const __OP_INVARIANT: () = assert!((Op::Halt as u8) < 64);
+const __OP_INVARIANT: () = assert!((Op::Return as u8) < 64);
 
 pub trait Instruction {
     const OP: Op;
