@@ -155,7 +155,7 @@ pub mod instructions {
         }
         fn to_string(&self) -> String {
             columnize_output3(
-                &format!("LoadConst"),
+                &format!("LoadConstA"),
                 &format!("r{}", self.target),
                 &format!("&cp[{}]", self.address),
             )
@@ -184,7 +184,7 @@ pub mod instructions {
         }
         fn to_string(&self) -> String {
             columnize_output3(
-                &format!("StoreReg"),
+                &format!("LoadStackA"),
                 &format!("r{}", self.target),
                 &format!("&sp[{}]", self.offset),
             )
@@ -323,7 +323,7 @@ pub mod instructions {
         fn to_string(&self) -> String {
             columnize_output2(
                 &format!("Call"),
-                &format!("{:#010X}", self.instruction_address_target),
+                &format!("*r{}", self.instruction_address_target),
             )
         }
     }
