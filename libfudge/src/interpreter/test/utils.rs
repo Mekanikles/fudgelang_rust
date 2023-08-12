@@ -23,7 +23,7 @@ pub fn test_interpreters_with_modules(
 ) {
     let interpreters: Vec<Box<dyn InterpreterTestingHarness>> = vec![
         Box::new(TreeWalkerTestingHarness::new()),
-        /*Box::new(GraphWalkerTestingHarness::new()),*/
+        //Box::new(GraphWalkerTestingHarness::new())
     ];
 
     for mut i in interpreters {

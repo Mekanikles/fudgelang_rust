@@ -52,306 +52,6 @@ fn lookup_symbol(
     return asg::symboltable::SymbolReference::UnresolvedReference(reference.clone());
 }
 
-/*
-
-use std::collections::HashMap;
-
-use std::mem;
-
-
-use crate::asg::expression::expressions::SymbolReference;
-use crate::asg::scope::ExpressionKey;
-use crate::asg::symboltable::SymbolKey;
-
-
-use crate::typesystem::*;
-use crate::utils::objectstore::*;
-
-
-
-type TypeCache = HashMap<asg::ScopeRef, TypeCacheScope>;
-
-pub type TypeVariableStore = IndexedObjectStore<TypeVariable>;
-pub type TypeVariableKey = usize;
-
-struct TypeCacheScope {
-    variables: TypeVariableStore,
-    expression_lookup: HashMap<asg::scope::ExpressionKey, TypeVariableKey>,
-}
-
-impl TypeCacheScope {
-    pub fn new() -> Self {
-        Self {
-            variables: TypeVariableStore::new(),
-            expression_lookup: HashMap::new(),
-        }
-    }
-
-    pub fn get_from_expression(
-        &self,
-        expressionkey: &asg::scope::ExpressionKey,
-    ) -> Option<&TypeVariable> {
-        if let Some(varkey) = self.expression_lookup.get(expressionkey) {
-            return Some(self.variables.get(varkey));
-        }
-
-        None
-    }
-
-    pub fn get_from_expression_mut(
-        &mut self,
-        expressionkey: &asg::scope::ExpressionKey,
-    ) -> Option<&TypeVariable> {
-        if let Some(varkey) = self.expression_lookup.get(expressionkey) {
-            return Some(self.variables.get_mut(varkey));
-        }
-
-        None
-    }
-
-    pub fn insert(&mut self, typevar: TypeVariable) -> TypeVariableKey {
-        let varkey = self.variables.add(typevar);
-        varkey
-    }
-
-    pub fn insert_for_expression(
-        &mut self,
-        expressionkey: asg::scope::ExpressionKey,
-        typevar: TypeVariable,
-    ) -> TypeVariableKey {
-        assert!(self.get_from_expression(&expressionkey).is_none());
-        let varkey = self.insert(typevar);
-        self.expression_lookup.insert(expressionkey, varkey);
-        varkey
-    }
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct FunctionTypeVariable {
-    inputparams: Vec<(asg::symboltable::SymbolKey, TypeVariableKey)>,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct CallTypeVariable {
-    callexpr: ExpressionKey,
-    args: Vec<TypeVariableKey>,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct SubscriptTypeVariable {
-    expr: ExpressionKey,
-    symbol: SymbolKey,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum TypeVariable {
-    Resovled(TypeId),
-    ExpressionValue(ExpressionKey),
-    ExpressionTypes(Vec<ExpressionKey>),
-    SymbolType(asg::symboltable::SymbolReference),
-    Function(FunctionTypeVariable),
-    Call(CallTypeVariable),
-    Subscript(SubscriptTypeVariable),
-}
-
-impl TypeVariable {
-    pub fn resolve(self) -> TypeId {
-        match self {
-            TypeVariable::Resovled(n) => n,
-            _ => {
-                panic!("TypeVariable not resolved: {:?}", self);
-            }
-        }
-    }
-
-    pub fn new_primitive(ptype: PrimitiveType) -> Self {
-        TypeVariable::Resovled(TypeId::Primitive(ptype))
-    }
-
-    pub fn new_null() -> Self {
-        TypeVariable::Resovled(TypeId::Null)
-    }
-
-    pub fn new_type() -> Self {
-        TypeVariable::Resovled(TypeId::Type)
-    }
-
-    pub fn new_module() -> Self {
-        TypeVariable::Resovled(TypeId::Module)
-    }
-
-    pub fn new_symboltype(symbolref: asg::symboltable::SymbolReference) -> Self {
-        TypeVariable::SymbolType(symbolref)
-    }
-
-    pub fn new_function(inputparams: Vec<(asg::symboltable::SymbolKey, TypeVariableKey)>) -> Self {
-        TypeVariable::Function(FunctionTypeVariable { inputparams })
-    }
-
-    pub fn new_expression_types(values: Vec<ExpressionKey>) -> Self {
-        TypeVariable::ExpressionTypes(values)
-    }
-
-    pub fn new_call(callexpr: ExpressionKey, args: Vec<TypeVariableKey>) -> Self {
-        TypeVariable::Call(CallTypeVariable { callexpr, args })
-    }
-}
-
-fn generate_type_variable(
-    asg: &asg::Asg,
-    scoperef: &asg::ScopeRef,
-    expressionkey: &asg::scope::ExpressionKey,
-    typecache: &mut TypeCache,
-) {
-    if typecache[scoperef]
-        .get_from_expression(expressionkey)
-        .is_some()
-    {
-        return;
-    }
-
-    let scope = get_scope(asg, &scoperef);
-    let expression = scope.expressions.get(expressionkey);
-
-    let typevar: TypeVariable = match &expression.object {
-        expression::ExpressionObject::Literal(n) => {
-            use expression::expressions::Literal::*;
-            match n {
-                StringLiteral(_) => TypeVariable::new_primitive(PrimitiveType::StaticStringUtf8),
-                BoolLiteral(_) => TypeVariable::new_primitive(PrimitiveType::Bool),
-                IntegerLiteral(_) => {
-                    // TODO: All integer literals are u64 for now
-                    TypeVariable::new_primitive(PrimitiveType::U64)
-                }
-                StructLiteral(_) => TypeVariable::new_type(),
-                FunctionLiteral(n) => {
-                    let mut inputparams = Vec::new();
-
-                    let module = asg.modulestore.get(&scoperef.module);
-                    let function = module.functionstore.get(&n.functionkey);
-                    for inputparam in &function.inparams {
-                        let scopecache = typecache.get_mut(scoperef).unwrap();
-                        let typevar = TypeVariable::new_symboltype(
-                            asg::symboltable::SymbolReference::ResolvedReference(
-                                inputparam.symref.clone(),
-                            ),
-                        );
-                        let key = scopecache.insert(typevar);
-                        inputparams.push((inputparam.symref.symbol.clone(), key));
-                    }
-
-                    TypeVariable::new_function(inputparams)
-                }
-                ModuleLiteral(_) => TypeVariable::new_module(),
-            }
-        }
-        expression::ExpressionObject::BuiltInFunction(_) => {
-            // TODO: All built-ins currently return null
-            TypeVariable::new_null()
-        }
-        expression::ExpressionObject::PrimitiveType(n) => TypeVariable::new_primitive(n.ptype),
-        expression::ExpressionObject::SymbolReference(n) => {
-            let symref = scope.symboltable.references.get(&n.symbolref);
-            TypeVariable::new_symboltype(symref.clone())
-        }
-        expression::ExpressionObject::If(n) => {
-            let mut branch_expressions = Vec::new();
-
-            for b in &n.branches {
-                branch_expressions.push(b.1);
-            }
-
-            if let Some(e) = n.elsebranch {
-                branch_expressions.push(e);
-            }
-
-            TypeVariable::new_expression_types(branch_expressions)
-        }
-        expression::ExpressionObject::Call(n) => {
-            let mut args = Vec::new();
-
-            for arg in &n.args {
-                args.push(*arg)
-            }
-
-            TypeVariable::new_call(n.callable, args)
-        }
-        expression::ExpressionObject::BinOp(n) => {
-            // TODO: For now, assume all operators have to be same type
-            let mut ops = Vec::new();
-            ops.push(n.lhs);
-            ops.push(n.rhs);
-
-            TypeVariable::new_expression_types(ops)
-        }
-        expression::ExpressionObject::Subscript(_) => todo!(),
-    };
-
-    let scopecache = typecache.get_mut(scoperef).unwrap();
-    scopecache.insert_for_expression(*expressionkey, typevar);
-}
-
-pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {
-    let mut collected_scoperefs = Vec::new();
-
-    // Collect all scopes
-    for modulekey in asg.modulestore.keys() {
-        let module = asg.modulestore.get_mut(&modulekey);
-        for scopekey in module.scopestore.keys() {
-            collected_scoperefs.push(asg::ScopeRef::new(modulekey, scopekey));
-        }
-    }
-
-    // Lookup symbols
-    for scoperef in &collected_scoperefs {
-        // Really finagling to not iterate over references while trying to modify them
-        let mut references = mem::replace(
-            &mut get_scope_mut(&mut asg, &scoperef).symboltable.references,
-            asg::symboltable::SymbolReferenceStore::new(),
-        );
-
-        for reference in references.values_mut() {
-            match reference {
-                asg::symboltable::SymbolReference::ResolvedReference(_) => {}
-                asg::symboltable::SymbolReference::UnresolvedReference(n) => {
-                    *reference = lookup_symbol(&asg, &n, scoperef.clone())
-                }
-            }
-        }
-
-        get_scope_mut(&mut asg, &scoperef).symboltable.references = references;
-    }
-
-    // Cache of all types
-    let mut typecache: TypeCache = HashMap::new();
-
-    // Go through all scopes and generate type variables
-    for scoperef in &collected_scoperefs {
-        let scope = get_scope_mut(&mut asg, &scoperef);
-        typecache.insert(*scoperef, TypeCacheScope::new());
-        for expression in scope.expressions.keys() {
-            generate_type_variable(&asg, &scoperef, &expression, &mut typecache);
-        }
-    }
-
-    // TODO: Unify types
-
-    // Concretize and assign result to scopes
-    for scoperef in &collected_scoperefs {
-        let scope = get_scope_mut(&mut asg, &scoperef);
-        let mut tsc = typecache.remove(&scoperef).unwrap();
-        let mut typevars = tsc.variables.remove_vec();
-        for kvp in tsc.expression_lookup {
-            let typevar = std::mem::replace(&mut typevars[kvp.1], TypeVariable::new_null());
-            scope.expressiontypes.insert(kvp.0, typevar.resolve());
-        }
-    }
-
-    asg
-}
-
-*/
-
 #[derive(Debug)]
 enum TypeVariable {
     Free,
@@ -973,35 +673,52 @@ fn process_function(
         {
             let module = asg.modulestore.get(&modulekey);
             let scope = module.scopestore.get(&scopekey);
-    
+
             let decls = &scope.symboltable.declarations;
             for d in decls.keys() {
-                let e = typeenv.get_entry(&resolve_substitutions(&typeenv.get_for_symbol(d), typeenv));
+                let e =
+                    typeenv.get_entry(&resolve_substitutions(&typeenv.get_for_symbol(d), typeenv));
                 match e {
                     TypeEntry::Id(n) => decltypes.insert(d.clone(), n.clone()),
-                    _ => panic!("Unresolved type for symbol {:?}", scope.symboltable.declarations.get(&d))
+                    _ => panic!(
+                        "Unresolved type for symbol {:?}",
+                        scope.symboltable.declarations.get(&d)
+                    ),
                 };
             }
         }
-        asg.modulestore.get_mut(&modulekey).scopestore.get_mut(&scopekey).declarationtypes = decltypes;
+        asg.modulestore
+            .get_mut(&modulekey)
+            .scopestore
+            .get_mut(&scopekey)
+            .declarationtypes = decltypes;
 
         let mut exprtypes = HashMap::new();
         {
             let module = asg.modulestore.get(&modulekey);
             let scope = module.scopestore.get(&scopekey);
-    
-            for expkey in scope.expressions.keys(){
-                let e = typeenv.get_entry(&resolve_substitutions(&typeenv.get_for_expression(&expkey), typeenv));
+
+            for expkey in scope.expressions.keys() {
+                let e = typeenv.get_entry(&resolve_substitutions(
+                    &typeenv.get_for_expression(&expkey),
+                    typeenv,
+                ));
                 match e {
                     TypeEntry::Id(n) => exprtypes.insert(expkey, n.clone()),
-                    _ => panic!("Unresolved type for expression {:?}", scope.expressions.get(&expkey))
+                    _ => panic!(
+                        "Unresolved type for expression {:?}",
+                        scope.expressions.get(&expkey)
+                    ),
                 };
             }
         }
 
-        asg.modulestore.get_mut(&modulekey).scopestore.get_mut(&scopekey).expressiontypes = exprtypes;
+        asg.modulestore
+            .get_mut(&modulekey)
+            .scopestore
+            .get_mut(&scopekey)
+            .expressiontypes = exprtypes;
     }
-
 }
 
 pub fn process_asg(mut asg: asg::Asg) -> asg::Asg {

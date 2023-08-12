@@ -1180,7 +1180,7 @@ impl<'a> TreeWalker<'a> {
     fn evaluate_statement(&mut self, astref: &AstRef) {
         return match self.context.get_node(astref) {
             ast::Node::ModuleSelfDeclaration(_) => {
-                /* TODO: This should be pruned before any intepretation step */
+                // TODO: This should be pruned before any intepretation step
             }
             ast::Node::Module(n) => self.evaluate_module(astref, n),
             ast::Node::StatementBody(n) => self.evaluate_statementbody(astref, n),
