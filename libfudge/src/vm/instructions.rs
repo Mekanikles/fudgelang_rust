@@ -30,6 +30,17 @@ pub enum OpSize {
     Size32 = 2,
     Size64 = 3,
 }
+impl OpSize {
+    pub fn size(&self) -> u64 {
+        match self {
+            OpSize::Size8 => 8,
+            OpSize::Size16 => 16,
+            OpSize::Size32 => 32,
+            OpSize::Size64 => 64,
+        }
+    }
+}
+
 const __OPSIZE_INVARIANT: () = assert!((OpSize::Size64 as u8) < 4);
 pub const OPSIZE_MASK: u8 = 0b11000000;
 
@@ -37,10 +48,22 @@ pub trait Instruction {
     const OP: Op;
     fn decode(data: &ByteCodeChunk, pc: &mut usize) -> Self;
     fn encode(&self, data: &mut ByteCodeChunk);
+    fn to_string(&self) -> String;
 }
 
 pub mod instructions {
     use super::*;
+
+    // I'm sure there's a better way of doing this, but meh
+    fn columnize_output1(name: &str) -> String {
+        columnize_output2(name, "".into())
+    }
+    fn columnize_output2(name: &str, arg1: &str) -> String {
+        columnize_output3(name, arg1, "".into())
+    }
+    fn columnize_output3(name: &str, arg1: &str, arg2: &str) -> String {
+        format!("{: <11} {: >5} {}", name, arg1, arg2)
+    }
 
     #[derive(Debug)]
     pub struct LoadImmediate {
@@ -63,6 +86,13 @@ pub mod instructions {
             data.write_sized_op(Self::OP, self.opsize);
             data.write_register(self.target);
             data.write_sized_u64(self.opsize, self.value);
+        }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("LoadIm{}", self.opsize.size()),
+                &format!("r{}", self.target),
+                &format!("{}", self.value),
+            )
         }
     }
     impl LoadImmediate {
@@ -94,6 +124,13 @@ pub mod instructions {
             data.write_register(self.target);
             data.write_register(self.address_source);
         }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("LoadReg{}", self.opsize.size()),
+                &format!("r{}", self.target),
+                &format!("*r{}", self.address_source),
+            )
+        }
     }
 
     #[derive(Debug)]
@@ -116,6 +153,13 @@ pub mod instructions {
             data.write_register(self.target);
             data.write_u64(self.address);
         }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("LoadConst"),
+                &format!("r{}", self.target),
+                &format!("&cp[{}]", self.address),
+            )
+        }
     }
 
     #[derive(Debug)]
@@ -137,6 +181,13 @@ pub mod instructions {
             data.write_op(Self::OP);
             data.write_register(self.target);
             data.write_u64(self.offset);
+        }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("StoreReg"),
+                &format!("r{}", self.target),
+                &format!("&sp[{}]", self.offset),
+            )
         }
     }
 
@@ -162,6 +213,13 @@ pub mod instructions {
             data.write_register(self.address_source);
             data.write_sized_u64(self.opsize, self.value);
         }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("StoreIm{}", self.opsize.size()),
+                &format!("*r{}", self.address_source),
+                &format!("{}", self.value),
+            )
+        }
     }
 
     #[derive(Debug)]
@@ -185,6 +243,13 @@ pub mod instructions {
             data.write_register(self.value_source);
             data.write_register(self.address_source);
         }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("StoreReg{}", self.opsize.size()),
+                &format!("*r{}", self.address_source),
+                &format!("r{}", self.value_source),
+            )
+        }
     }
 
     #[derive(Debug)]
@@ -207,6 +272,13 @@ pub mod instructions {
             data.write_register(self.target);
             data.write_register(self.source);
         }
+        fn to_string(&self) -> String {
+            columnize_output3(
+                &format!("MoveReg"),
+                &format!("r{}", self.target),
+                &format!("r{}", self.source),
+            )
+        }
     }
 
     #[derive(Debug)]
@@ -225,6 +297,9 @@ pub mod instructions {
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
             data.write_u8(self.builtin as u8);
+        }
+        fn to_string(&self) -> String {
+            columnize_output2(&format!("CallBI"), &format!("{:?}", self.builtin))
         }
     }
 
@@ -245,6 +320,12 @@ pub mod instructions {
             data.write_op(Self::OP);
             data.write_u8(self.instruction_address_target as u8);
         }
+        fn to_string(&self) -> String {
+            columnize_output2(
+                &format!("Call"),
+                &format!("{:#010X}", self.instruction_address_target),
+            )
+        }
     }
 
     #[derive(Debug)]
@@ -259,6 +340,9 @@ pub mod instructions {
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
         }
+        fn to_string(&self) -> String {
+            columnize_output1(&format!("Return"))
+        }
     }
 
     #[derive(Debug)]
@@ -272,6 +356,9 @@ pub mod instructions {
         }
         fn encode(&self, data: &mut ByteCodeChunk) {
             data.write_op(Self::OP);
+        }
+        fn to_string(&self) -> String {
+            columnize_output1(&format!("Halt"))
         }
     }
 }

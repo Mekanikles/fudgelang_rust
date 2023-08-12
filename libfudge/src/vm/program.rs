@@ -250,46 +250,66 @@ pub fn print_program(program: &Program) {
             let op = bc.peek_op(&index);
             let str = match op {
                 Op::LoadImmediate => {
-                    format!("{:?}", instructions::LoadImmediate::decode(&bc, &mut index))
+                    format!(
+                        "{}",
+                        instructions::LoadImmediate::decode(&bc, &mut index).to_string()
+                    )
                 }
                 Op::LoadConstAddress => {
                     format!(
-                        "{:?}",
-                        instructions::LoadConstAddress::decode(&bc, &mut index)
+                        "{}",
+                        instructions::LoadConstAddress::decode(&bc, &mut index).to_string()
                     )
                 }
                 Op::LoadStackAddress => {
                     format!(
-                        "{:?}",
-                        instructions::LoadStackAddress::decode(&bc, &mut index)
+                        "{}",
+                        instructions::LoadStackAddress::decode(&bc, &mut index).to_string()
                     )
                 }
                 Op::StoreImmediate => {
                     format!(
-                        "{:?}",
-                        instructions::StoreImmediate::decode(&bc, &mut index)
+                        "{}",
+                        instructions::StoreImmediate::decode(&bc, &mut index).to_string()
                     )
                 }
                 Op::CallBuiltIn => {
-                    format!("{:?}", instructions::CallBuiltIn::decode(&bc, &mut index))
+                    format!(
+                        "{}",
+                        instructions::CallBuiltIn::decode(&bc, &mut index).to_string()
+                    )
                 }
-                Op::Call => {
-                    format!("{:?}", instructions::Call::decode(&bc, &mut index))
-                }
+                Op::Call => format!(
+                    "{}",
+                    instructions::Call::decode(&bc, &mut index).to_string()
+                ),
                 Op::Return => {
-                    format!("{:?}", instructions::Return::decode(&bc, &mut index))
+                    format!(
+                        "{}",
+                        instructions::Return::decode(&bc, &mut index).to_string()
+                    )
                 }
-                Op::Halt => {
-                    format!("{:?}", instructions::Halt::decode(&bc, &mut index))
-                }
+                Op::Halt => format!(
+                    "{}",
+                    instructions::Halt::decode(&bc, &mut index).to_string()
+                ),
                 Op::StoreReg => {
-                    format!("{:?}", instructions::StoreReg::decode(&bc, &mut index))
+                    format!(
+                        "{}",
+                        instructions::StoreReg::decode(&bc, &mut index).to_string()
+                    )
                 }
                 Op::MoveReg => {
-                    format!("{:?}", instructions::MoveReg::decode(&bc, &mut index))
+                    format!(
+                        "{}",
+                        instructions::MoveReg::decode(&bc, &mut index).to_string()
+                    )
                 }
                 Op::LoadReg => {
-                    format!("{:?}", instructions::LoadReg::decode(&bc, &mut index))
+                    format!(
+                        "{}",
+                        instructions::LoadReg::decode(&bc, &mut index).to_string()
+                    )
                 }
             };
 
