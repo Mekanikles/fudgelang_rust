@@ -28,11 +28,37 @@ impl<'a> Interpreter<'a> {
         self.vm.registers[reg as usize] as usize as *const u8
     }
 
+    // Store
+    fn store_u8(&self, memptr: MutMemPtr, value: u8) {
+        let bytes: &mut [u8; 1] = unsafe { &mut *(memptr as *mut [u8; 1]) };
+        bytes.copy_from_slice(&value.to_be_bytes());
+    }
+    fn store_u16(&self, memptr: MutMemPtr, value: u16) {
+        let bytes: &mut [u8; 2] = unsafe { &mut *(memptr as *mut [u8; 2]) };
+        bytes.copy_from_slice(&value.to_be_bytes());
+    }
+    fn store_u32(&self, memptr: MutMemPtr, value: u32) {
+        let bytes: &mut [u8; 4] = unsafe { &mut *(memptr as *mut [u8; 4]) };
+        bytes.copy_from_slice(&value.to_be_bytes());
+    }
     fn store_u64(&self, memptr: MutMemPtr, value: u64) {
         let bytes: &mut [u8; 8] = unsafe { &mut *(memptr as *mut [u8; 8]) };
         bytes.copy_from_slice(&value.to_be_bytes());
     }
 
+    // Read
+    fn read_u8(&self, memptr: ConstMemPtr) -> u8 {
+        let bytes: [u8; 1] = unsafe { *(memptr as *const [u8; 1]) };
+        u8::from_be_bytes(bytes)
+    }
+    fn read_u16(&self, memptr: ConstMemPtr) -> u16 {
+        let bytes: [u8; 2] = unsafe { *(memptr as *const [u8; 2]) };
+        u16::from_be_bytes(bytes)
+    }
+    fn read_u32(&self, memptr: ConstMemPtr) -> u32 {
+        let bytes: [u8; 4] = unsafe { *(memptr as *const [u8; 4]) };
+        u32::from_be_bytes(bytes)
+    }
     fn read_u64(&self, memptr: ConstMemPtr) -> u64 {
         let bytes: [u8; 8] = unsafe { *(memptr as *const [u8; 8]) };
         u64::from_be_bytes(bytes)
@@ -74,10 +100,9 @@ impl<'a> Interpreter<'a> {
             }
         }
 
-        const FMTSTR_REG : Register = 0;
-        const DYNARG_COUNT_REG : Register = 1;
-        const DYNARG_START_REG : Register = 2;
-
+        const FMTSTR_REG: Register = 0;
+        const DYNARG_COUNT_REG: Register = 1;
+        const DYNARG_START_REG: Register = 2;
 
         let fmtstr: &str = unsafe {
             let fmtstrptr = self.reg_to_memptr(FMTSTR_REG);
@@ -108,19 +133,24 @@ impl<'a> Interpreter<'a> {
         loop {
             let op = self.peek_op();
             match op {
-                Op::LoadImmediate64 => {
-                    let instr = self.read_instruction::<instructions::LoadImmediate64>();
+                Op::LoadImmediate => {
+                    let instr = self.read_instruction::<instructions::LoadImmediate>();
                     let target = instr.target as usize;
                     self.vm.registers[target] = instr.value as u64;
                 }
-                Op::LoadReg64 => {
-                    let instr = self.read_instruction::<instructions::LoadReg64>();
+                Op::LoadReg => {
+                    let instr = self.read_instruction::<instructions::LoadReg>();
                     let target = instr.target as usize;
                     let source = instr.address_source as usize;
                     let memptr: MutMemPtr =
                         unsafe { std::mem::transmute(self.vm.registers[source]) };
 
-                    self.vm.registers[target] = self.read_u64(memptr);
+                    self.vm.registers[target] = match instr.opsize {
+                        OpSize::Size8 => self.read_u8(memptr) as u64,
+                        OpSize::Size16 => self.read_u16(memptr) as u64,
+                        OpSize::Size32 => self.read_u32(memptr) as u64,
+                        OpSize::Size64 => self.read_u64(memptr),
+                    };
                 }
                 Op::LoadConstAddress => {
                     let const_base: usize =
@@ -138,28 +168,41 @@ impl<'a> Interpreter<'a> {
                     let target = instr.target as usize;
                     self.vm.registers[target] = (stack_base + instr.offset as usize) as u64;
                 }
-                Op::StoreImmediate64 => {
-                    let instr = self.read_instruction::<instructions::StoreImmediate64>();
+                Op::StoreImmediate => {
+                    let instr = self.read_instruction::<instructions::StoreImmediate>();
                     let address_source = instr.address_source as usize;
                     let value = instr.value;
                     let memptr: MutMemPtr =
                         unsafe { std::mem::transmute(self.vm.registers[address_source]) };
 
-                    self.store_u64(memptr, value);
+                    match instr.opsize {
+                        OpSize::Size8 => self.store_u8(memptr, value as u8),
+                        OpSize::Size16 => self.store_u16(memptr, value as u16),
+                        OpSize::Size32 => self.store_u32(memptr, value as u32),
+                        OpSize::Size64 => self.store_u64(memptr, value),
+                    };
                 }
-                Op::StoreReg64 => {
-                    let instr = self.read_instruction::<instructions::StoreReg64>();
+                Op::StoreReg => {
+                    let instr = self.read_instruction::<instructions::StoreReg>();
                     let addressreg = instr.address_source as usize;
                     let valuereg = instr.value_source as usize;
 
                     let memptr: MutMemPtr =
                         unsafe { std::mem::transmute(self.vm.registers[addressreg]) };
 
-                    self.store_u64(memptr, self.vm.registers[valuereg]);  
+                    let value = self.vm.registers[valuereg];
+
+                    match instr.opsize {
+                        OpSize::Size8 => self.store_u8(memptr, value as u8),
+                        OpSize::Size16 => self.store_u16(memptr, value as u16),
+                        OpSize::Size32 => self.store_u32(memptr, value as u32),
+                        OpSize::Size64 => self.store_u64(memptr, value),
+                    };
                 }
-                Op::MoveReg64 => {
-                    let instr = self.read_instruction::<instructions::MoveReg64>();
-                    self.vm.registers[instr.target as usize] = self.vm.registers[instr.source as usize];
+                Op::MoveReg => {
+                    let instr = self.read_instruction::<instructions::MoveReg>();
+                    self.vm.registers[instr.target as usize] =
+                        self.vm.registers[instr.source as usize];
                 }
                 Op::CallBuiltIn => {
                     let instr = self.read_instruction::<instructions::CallBuiltIn>();
@@ -180,7 +223,6 @@ impl<'a> Interpreter<'a> {
                     self.read_instruction::<instructions::Halt>();
                     break;
                 }
-
             }
         }
     }

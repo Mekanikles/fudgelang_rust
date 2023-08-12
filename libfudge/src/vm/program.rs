@@ -27,6 +27,47 @@ impl ProgramBuilder {
         instr.encode(&mut self.bytecode);
     }
 
+    pub fn store_sized(&mut self, opsize: OpSize, address_source: Register, value: u64) {
+        self.write_instruction(instructions::StoreImmediate {
+            opsize,
+            address_source,
+            value,
+        });
+    }
+
+    pub fn load_sized(&mut self, opsize: OpSize, target: Register, value: u64) {
+        self.write_instruction(instructions::LoadImmediate {
+            opsize,
+            target,
+            value,
+        });
+    }
+
+    pub fn load_reg_sized(&mut self, opsize: OpSize, target: Register, address_source: Register) {
+        self.write_instruction(instructions::LoadReg {
+            opsize,
+            target,
+            address_source,
+        });
+    }
+
+    pub fn store_reg_sized(
+        &mut self,
+        opsize: OpSize,
+        address_source: Register,
+        value_source: Register,
+    ) {
+        self.write_instruction(instructions::StoreReg {
+            opsize,
+            address_source,
+            value_source,
+        });
+    }
+
+    pub fn move_reg_sized(&mut self, opsize: OpSize, target: Register, source: Register) {
+        self.write_instruction(instructions::MoveReg { target, source });
+    }
+
     pub fn get_current_instruction_address(&self) -> InstrAddr {
         self.bytecode.len() as u64
     }
@@ -49,17 +90,10 @@ impl ProgramBuilder {
         self.constdata[(handle.0 as usize)..(handle.0 + handle.1) as usize].as_mut()
     }
 
-    pub fn load_u8(&mut self, target: Register, value: u8) {
-        self.load_u64(target, value as u64)
-    }
-
-    pub fn load_u64(&mut self, target: Register, value: u64) {
-        self.write_instruction(instructions::LoadImmediate64 { target, value });
-    }
-
     pub fn load_patchable_instruction_address(&mut self, target: Register) -> InstrAddr {
         let current_pc = self.get_current_instruction_address();
-        let instr = instructions::LoadImmediate64 {
+        let instr = instructions::LoadImmediate {
+            opsize: OpSize::Size64,
             target,
             value: u64::MAX,
         };
@@ -68,29 +102,65 @@ impl ProgramBuilder {
         current_pc + offset
     }
 
+    // Load immediate
+    pub fn load_u8(&mut self, target: Register, value: u8) {
+        self.load_sized(OpSize::Size8, target, value as u64)
+    }
+    pub fn load_u16(&mut self, target: Register, value: u16) {
+        self.load_sized(OpSize::Size16, target, value as u64)
+    }
+    pub fn load_u32(&mut self, target: Register, value: u32) {
+        self.load_sized(OpSize::Size32, target, value as u64)
+    }
+    pub fn load_u64(&mut self, target: Register, value: u64) {
+        self.load_sized(OpSize::Size64, target, value)
+    }
+
+    // Load reg
+    pub fn load_reg8(&mut self, target: Register, address_source: Register) {
+        self.load_reg_sized(OpSize::Size8, target, address_source)
+    }
+    pub fn load_reg16(&mut self, target: Register, address_source: Register) {
+        self.load_reg_sized(OpSize::Size16, target, address_source)
+    }
+    pub fn load_reg32(&mut self, target: Register, address_source: Register) {
+        self.load_reg_sized(OpSize::Size32, target, address_source)
+    }
     pub fn load_reg64(&mut self, target: Register, address_source: Register) {
-        self.write_instruction(instructions::LoadReg64 {
-            target,
-            address_source,
-        });
+        self.load_reg_sized(OpSize::Size64, target, address_source)
     }
 
+    // Store immediate
+    pub fn store_u8(&mut self, address_source: Register, value: u8) {
+        self.store_sized(OpSize::Size8, address_source, value as u64)
+    }
+    pub fn store_u16(&mut self, address_source: Register, value: u16) {
+        self.store_sized(OpSize::Size16, address_source, value as u64)
+    }
+    pub fn store_u32(&mut self, address_source: Register, value: u32) {
+        self.store_sized(OpSize::Size32, address_source, value as u64)
+    }
     pub fn store_u64(&mut self, address_source: Register, value: u64) {
-        self.write_instruction(instructions::StoreImmediate64 {
-            address_source,
-            value,
-        });
+        self.store_sized(OpSize::Size64, address_source, value)
     }
 
+    // Store reg
+    pub fn store_reg8(&mut self, address_source: Register, value_source: Register) {
+        self.store_reg_sized(OpSize::Size8, address_source, value_source)
+    }
+    pub fn store_reg16(&mut self, address_source: Register, value_source: Register) {
+        self.store_reg_sized(OpSize::Size16, address_source, value_source)
+    }
+    pub fn store_reg32(&mut self, address_source: Register, value_source: Register) {
+        self.store_reg_sized(OpSize::Size32, address_source, value_source)
+    }
     pub fn store_reg64(&mut self, address_source: Register, value_source: Register) {
-        self.write_instruction(instructions::StoreReg64 {
-            address_source,
-            value_source,
-        });
+        self.store_reg_sized(OpSize::Size64, address_source, value_source)
     }
 
-    pub fn move_reg64(&mut self, target: Register, source: Register) {
-        self.write_instruction(instructions::MoveReg64 { target, source });
+    // Move reg
+    pub fn move_reg(&mut self, target: Register, source: Register) {
+        self.write_instruction(instructions::MoveReg { target, source });
     }
 
     pub fn load_const_address(&mut self, target: Register, address: ConstDataAddr) {
@@ -179,11 +249,8 @@ pub fn print_program(program: &Program) {
 
             let op = bc.peek_op(&index);
             let str = match op {
-                Op::LoadImmediate64 => {
-                    format!(
-                        "{:?}",
-                        instructions::LoadImmediate64::decode(&bc, &mut index)
-                    )
+                Op::LoadImmediate => {
+                    format!("{:?}", instructions::LoadImmediate::decode(&bc, &mut index))
                 }
                 Op::LoadConstAddress => {
                     format!(
@@ -197,10 +264,10 @@ pub fn print_program(program: &Program) {
                         instructions::LoadStackAddress::decode(&bc, &mut index)
                     )
                 }
-                Op::StoreImmediate64 => {
+                Op::StoreImmediate => {
                     format!(
                         "{:?}",
-                        instructions::StoreImmediate64::decode(&bc, &mut index)
+                        instructions::StoreImmediate::decode(&bc, &mut index)
                     )
                 }
                 Op::CallBuiltIn => {
@@ -215,14 +282,14 @@ pub fn print_program(program: &Program) {
                 Op::Halt => {
                     format!("{:?}", instructions::Halt::decode(&bc, &mut index))
                 }
-                Op::StoreReg64 => {
-                    format!("{:?}", instructions::StoreReg64::decode(&bc, &mut index))
+                Op::StoreReg => {
+                    format!("{:?}", instructions::StoreReg::decode(&bc, &mut index))
                 }
-                Op::MoveReg64 => {
-                    format!("{:?}", instructions::MoveReg64::decode(&bc, &mut index))
+                Op::MoveReg => {
+                    format!("{:?}", instructions::MoveReg::decode(&bc, &mut index))
                 }
-                Op::LoadReg64 => {
-                    format!("{:?}", instructions::LoadReg64::decode(&bc, &mut index))
+                Op::LoadReg => {
+                    format!("{:?}", instructions::LoadReg::decode(&bc, &mut index))
                 }
             };
 

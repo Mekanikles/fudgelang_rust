@@ -57,6 +57,23 @@ impl PrimitiveType {
             PrimitiveType::F64 => format!("{}", data as f64),
         }
     }
+
+    pub fn size(&self) -> u64 {
+        match self {
+            PrimitiveType::StaticStringUtf8 => 8, // u64 address, length is stored at address
+            PrimitiveType::Bool => 1,
+            PrimitiveType::U8 => 1,
+            PrimitiveType::U16 => 2,
+            PrimitiveType::U32 => 4,
+            PrimitiveType::U64 => 8,
+            PrimitiveType::S8 => 1,
+            PrimitiveType::S16 => 2,
+            PrimitiveType::S32 => 4,
+            PrimitiveType::S64 => 8,
+            PrimitiveType::F32 => 4,
+            PrimitiveType::F64 => 8,
+        }
+    }
 }
 
 // Map with all addressable primitive types
@@ -142,7 +159,7 @@ impl TypeId {
 
     pub fn size(&self) -> u64 {
         match self {
-            TypeId::Primitive(_) => return 8, // TODO: All primitives are stored as u64 for now
+            TypeId::Primitive(n) => return n.size(),
             TypeId::TypedValue => return 2 * 8, // u64 typeid, u64 value
             _ => panic!(
                 "Size is only supported for primitives currently, not {:?}",

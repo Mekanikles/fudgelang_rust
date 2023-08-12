@@ -644,7 +644,7 @@ impl StorageManager {
             // Target in use, need to move to other register
             // TODO: Deal with out-of-registers and spills
             let new_register = self.register_allocator.acquire();
-            programbuilder.move_reg64(new_register, target_register);
+            programbuilder.move_reg(new_register, target_register);
 
             // Update variable storage
             for kvp in &mut self.current_variable_storage {
@@ -660,7 +660,7 @@ impl StorageManager {
             }
         }
 
-        programbuilder.move_reg64(target_register, source_register);
+        programbuilder.move_reg(target_register, source_register);
         self.register_allocator.release(source_register);
 
         target_register
@@ -683,8 +683,10 @@ impl StorageManager {
                 // TODO: This is ABI stuff, how to pass parameters bigger than a register
                 //  This should be handled more formally.
                 if *size <= 8 {
-                    programbuilder.load_reg64(temp, temp);
+                    // If value is a register or less, send actual value instead of address
+                    programbuilder.load_reg_sized(vm::size_to_opsize(*size), temp, temp);
                 }
+
                 self.move_register_if_needed(programbuilder, paramindex as vm::Register, temp);
             }
         }
@@ -734,12 +736,15 @@ fn generate_function(
                                         size,
                                     } => {
                                         assert!(size <= 8);
-                                        programbuilder.move_reg64(target, source)
+                                        programbuilder.move_reg(target, source)
                                     }
                                     Storage::Stack { offset, size } => {
-                                        assert!(size <= 8);
                                         programbuilder.load_stack_address(target, offset);
-                                        programbuilder.load_reg64(target, target);
+                                        programbuilder.load_reg_sized(
+                                            vm::size_to_opsize(size),
+                                            target,
+                                            target,
+                                        );
                                     }
                                 }
                             }
@@ -764,7 +769,11 @@ fn generate_function(
                                             programbuilder
                                                 .load_const_address(target, vm_const_data.0)
                                         }
-                                        _ => programbuilder.load_u64(target, *data),
+                                        n => programbuilder.load_sized(
+                                            vm::size_to_opsize(n.size()),
+                                            target,
+                                            *data,
+                                        ),
                                     },
                                     ir::Value::BuiltInFunction { builtin: _ } => todo!(),
                                     ir::Value::TypedValue { typeid, variable } => {
@@ -786,7 +795,11 @@ fn generate_function(
                                             storagemanager.acquire_register(programbuilder, size);
 
                                         programbuilder.load_stack_address(tempreg, offset);
-                                        programbuilder.store_reg64(tempreg, source);
+                                        programbuilder.store_reg_sized(
+                                            vm::size_to_opsize(size),
+                                            tempreg,
+                                            source,
+                                        );
 
                                         storagemanager.release_register(tempreg);
                                     }
@@ -803,21 +816,27 @@ fn generate_function(
 
                                         programbuilder.load_stack_address(sourcereg, source_offset);
                                         programbuilder.load_stack_address(targetreg, source_offset);
-                                        programbuilder.store_reg64(targetreg, sourcereg);
+                                        programbuilder.store_reg_sized(
+                                            vm::size_to_opsize(size),
+                                            targetreg,
+                                            sourcereg,
+                                        );
                                     }
                                 }
                             }
                             ir::Expression::Constant(n) => {
                                 match n {
-                                    ir::Value::Primitive { ptype: _, data } => {
+                                    ir::Value::Primitive { ptype: n, data } => {
                                         let reg =
                                             storagemanager.acquire_register(programbuilder, 8);
                                         let reg2 =
                                             storagemanager.acquire_register(programbuilder, 8);
 
-                                        programbuilder.load_u64(reg, *data);
+                                        let opsize = vm::size_to_opsize(n.size());
+
+                                        programbuilder.load_sized(opsize, reg, *data);
                                         programbuilder.load_stack_address(reg2, offset);
-                                        programbuilder.store_reg64(reg2, reg);
+                                        programbuilder.store_reg_sized(opsize, reg2, reg);
                                     }
                                     ir::Value::BuiltInFunction { builtin: _ } => todo!(),
                                     ir::Value::TypedValue { typeid, variable } => {

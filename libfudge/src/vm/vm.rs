@@ -17,6 +17,18 @@ pub struct Vm {
 
 pub const RETURN_REGISTER: u8 = 255;
 
+pub fn size_to_opsize(size: u64) -> OpSize {
+    match size {
+        1 => OpSize::Size8,
+        2 => OpSize::Size16,
+        4 => OpSize::Size32,
+        8 => OpSize::Size64,
+        _ => {
+            panic!("Size {} not supported by ops", size)
+        }
+    }
+}
+
 impl Vm {
     pub fn new(pc: usize) -> Self {
         Self {
