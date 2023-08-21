@@ -1,65 +1,92 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use crate::asg::objectstore::IndexedObjectStore;
 use crate::source;
 use crate::utils::objectstore::ObjectStore;
 
-use crate::ir::{self, function, program, Variable, VariableKey};
+use crate::ir;
 use crate::vm::{self, InstrAddr, StackOffset};
 
+// TODO: u32 just to make them distinct for now
+pub type AbstractRegister = u32;
+pub type AbstractStackOffset = u32;
+
+struct CodeGenFunctionInfo {
+    vmkey: crate::vm::program::abstractvm::FunctionKey,
+    basicblock_lookup: HashMap<ir::BasicBlockKey, crate::vm::program::abstractvm::ChunkKey>,
+}
+
 struct CodeGenContext {
-    // Map ir functions to their address in vm code
-    function_address_map: HashMap<ir::FunctionKey, vm::InstrAddr>,
-    // Keep track of function addresses that need to be patched when all function addresses are known
-    function_address_patch_map: HashMap<vm::InstrAddr, ir::FunctionKey>,
+    // Map ir constants to their location in the vm program
+    constant_lookup: HashMap<ir::ConstantDataKey, crate::vm::program::abstractvm::ConstantKey>,
+
+    // Map ir functions to their location in the vm program
+    functioninfo_lookup: HashMap<ir::FunctionKey, CodeGenFunctionInfo>,
 }
 
 impl CodeGenContext {
     pub fn new() -> Self {
         Self {
-            function_address_map: HashMap::new(),
-            function_address_patch_map: HashMap::new(),
+            constant_lookup: HashMap::new(),
+            functioninfo_lookup: HashMap::new(),
         }
     }
 
-    pub fn record_function_address(
+    pub fn register_constant(
+        &mut self,
+        irconstkey: ir::ConstantDataKey,
+        vmconstkey: crate::vm::program::abstractvm::ConstantKey,
+    ) {
+        self.constant_lookup.insert(irconstkey, vmconstkey);
+    }
+
+    pub fn get_vmconstant(
+        &self,
+        irconstkey: ir::ConstantDataKey,
+    ) -> crate::vm::program::abstractvm::ConstantKey {
+        self.constant_lookup[&irconstkey]
+    }
+
+    pub fn get_vmfunction(
+        &self,
+        irfunckey: ir::ConstantDataKey,
+    ) -> crate::vm::program::abstractvm::FunctionKey {
+        self.functioninfo_lookup[&irfunckey].vmkey
+    }
+
+    pub fn register_function(
         &mut self,
         irfunckey: ir::FunctionKey,
-        vmaddress: vm::InstrAddr,
+        vmfunckey: crate::vm::program::abstractvm::FunctionKey,
     ) {
-        self.function_address_map.insert(irfunckey, vmaddress);
-    }
-
-    pub fn get_function_address(&self, irfunc: &ir::FunctionKey) -> Option<vm::InstrAddr> {
-        self.function_address_map.get(&irfunc).copied()
-    }
-
-    pub fn patch_function_addresses(&self, programbuilder: &mut vm::ProgramBuilder) {
-        for kvp in &self.function_address_patch_map {
-            let function_address = self.get_function_address(&kvp.1).unwrap();
-            let instr_address_to_patch = *kvp.0;
-
-            programbuilder.patch_address(instr_address_to_patch, function_address);
-        }
+        self.functioninfo_lookup.insert(
+            irfunckey,
+            CodeGenFunctionInfo {
+                vmkey: vmfunckey,
+                basicblock_lookup: HashMap::new(),
+            },
+        );
     }
 }
 
-struct RegisterAllocator {
+// TODO: Registers are actually not abstract yet, consider if this is necessary
+struct AbstractRegisterAllocator {
     pub registers_used: [bool; 256],
 }
 
-impl RegisterAllocator {
+impl AbstractRegisterAllocator {
     fn new() -> Self {
         Self {
             registers_used: [false; 256],
         }
     }
 
-    fn is_used(&self, reg: vm::Register) -> bool {
+    fn is_used(&self, reg: AbstractRegister) -> bool {
         self.registers_used[reg as usize]
     }
 
-    fn acquire_param(&mut self, index: usize) -> vm::Register {
+    fn acquire_param(&mut self, index: usize) -> AbstractRegister {
         // Params are passed in registers 0+
         assert!(
             !self.registers_used[index],
@@ -67,10 +94,10 @@ impl RegisterAllocator {
             index
         );
         self.registers_used[index] = true;
-        index as u8
+        index as AbstractRegister
     }
 
-    pub fn acquire(&mut self) -> vm::Register {
+    pub fn acquire(&mut self) -> AbstractRegister {
         // Allocate temp registers from the bottom to avoid
         //  collisions with call arguments/return values
         // TODO: Bleh, but I don't know how to deal with reverse iterators
@@ -83,7 +110,7 @@ impl RegisterAllocator {
             - 1;
 
         self.registers_used[index] = true;
-        index as u8
+        index as AbstractRegister
     }
 
     pub fn acquire_return_reg(&mut self) -> vm::Register {
@@ -92,23 +119,23 @@ impl RegisterAllocator {
         vm::RETURN_REGISTER
     }
 
-    pub fn release(&mut self, reg: vm::Register) {
+    pub fn release(&mut self, reg: AbstractRegister) {
         assert!(self.is_used(reg));
         self.registers_used[reg as usize] = false;
     }
 }
 
-struct StorageManager {
+struct AbstractStorageManager {
     current_variable_storage: HashMap<ir::VariableKey, Storage>,
-    register_allocator: RegisterAllocator,
+    register_allocator: AbstractRegisterAllocator,
     current_stack_offset: u64, // TODO: Handle re-using stack "holes"
 }
 
-impl StorageManager {
+impl AbstractStorageManager {
     pub fn new() -> Self {
         Self {
             current_variable_storage: HashMap::new(),
-            register_allocator: RegisterAllocator::new(),
+            register_allocator: AbstractRegisterAllocator::new(),
             current_stack_offset: 0,
         }
     }
@@ -117,29 +144,24 @@ impl StorageManager {
         self.current_variable_storage[variable].clone()
     }
 
-    pub fn allocate_stack(&mut self, size: u64) -> StackOffset {
+    pub fn allocate_stack(&mut self, size: u64) -> AbstractStackOffset {
         let offset = self.current_stack_offset;
         self.current_stack_offset += size;
-        offset
+        offset as AbstractStackOffset
     }
 
-    pub fn acquire_register(
-        &mut self,
-        _programbuilder: &mut vm::ProgramBuilder,
-        _size: u64,
-    ) -> vm::Register {
+    pub fn acquire_register(&mut self) -> AbstractRegister {
         // TODO: Handle out-of-registers
         self.register_allocator.acquire()
     }
 
-    pub fn release_register(&mut self, register: vm::Register) {
-        self.register_allocator.release(register);
+    pub fn release_register(&mut self, register: AbstractRegister) {
+        self.register_allocator.release(register)
     }
 
     // TODO: We never release storage atm
     pub fn acquire_variable_storage(
         &mut self,
-        _programbuilder: &mut vm::ProgramBuilder,
         irfunction: &ir::Function,
         variablekey: &ir::VariableKey,
     ) -> Storage {
@@ -152,11 +174,8 @@ impl StorageManager {
             let register = self.register_allocator.acquire();
             Storage::Register { register, size }
         } else {
-            let stack_offset = self.allocate_stack(size);
-            Storage::Stack {
-                offset: stack_offset,
-                size,
-            }
+            let offset = self.allocate_stack(size);
+            Storage::Stack { offset, size }
         };
 
         self.current_variable_storage
@@ -164,12 +183,14 @@ impl StorageManager {
         storage
     }
 
-    pub fn move_register_if_needed(
+    pub fn move_param_register_if_needed<'a>(
         &mut self,
-        programbuilder: &mut vm::ProgramBuilder,
-        target_register: vm::Register,
-        source_register: vm::Register,
-    ) -> vm::Register {
+        chunkeditor: &mut crate::vm::program::abstractvm::ChunkEditor<'a>,
+        paramindex: usize,
+        source_register: AbstractRegister,
+    ) -> AbstractRegister {
+        let target_register = paramindex as AbstractRegister;
+
         if target_register == source_register {
             return target_register;
         }
@@ -178,7 +199,7 @@ impl StorageManager {
             // Target in use, need to move to other register
             // TODO: Deal with out-of-registers and spills
             let new_register = self.register_allocator.acquire();
-            programbuilder.move_reg(new_register, target_register);
+            chunkeditor.move_reg(new_register, target_register);
 
             // Update variable storage
             for kvp in &mut self.current_variable_storage {
@@ -194,34 +215,34 @@ impl StorageManager {
             }
         }
 
-        programbuilder.move_reg(target_register, source_register);
+        chunkeditor.move_reg(target_register, source_register);
         self.register_allocator.release(source_register);
 
         target_register
     }
 
-    pub fn set_up_variable_as_call_param(
+    pub fn set_up_variable_as_call_param<'a>(
         &mut self,
-        programbuilder: &mut vm::ProgramBuilder,
-        variable: &VariableKey,
+        chunkeditor: &mut crate::vm::program::abstractvm::ChunkEditor<'a>,
+        variable: &ir::VariableKey,
         paramindex: usize,
     ) {
         let storage = &self.current_variable_storage[variable];
         match storage {
             Storage::Register { register, size: _ } => {
-                self.move_register_if_needed(programbuilder, paramindex as vm::Register, *register);
+                self.move_param_register_if_needed(chunkeditor, paramindex, *register);
             }
             Storage::Stack { offset, size } => {
                 let temp = self.register_allocator.acquire();
-                programbuilder.load_stack_address(temp, *offset);
+                chunkeditor.load_stack_address(temp, *offset);
                 // TODO: This is ABI stuff, how to pass parameters bigger than a register
                 //  This should be handled more formally.
                 if *size <= 8 {
                     // If value is a register or less, send actual value instead of address
-                    programbuilder.load_reg_sized(vm::size_to_opsize(*size), temp, temp);
+                    chunkeditor.load_reg_sized(vm::size_to_opsize(*size), temp, temp);
                 }
 
-                self.move_register_if_needed(programbuilder, paramindex as vm::Register, temp);
+                self.move_param_register_if_needed(chunkeditor, paramindex, temp);
             }
         }
     }
@@ -229,31 +250,33 @@ impl StorageManager {
 
 #[derive(Clone)]
 enum Storage {
-    Register { register: vm::Register, size: u64 },
-    Stack { offset: vm::StackOffset, size: u64 },
+    Register {
+        register: AbstractRegister,
+        size: u64,
+    },
+    Stack {
+        offset: AbstractStackOffset,
+        size: u64,
+    },
 }
-
-fn generate_function(
+fn populate_function(
     context: &mut CodeGenContext,
-    programbuilder: &mut vm::ProgramBuilder,
-    irprogram: &ir::Program,
+    functioneditor: &mut crate::vm::program::abstractvm::FunctionEditor,
     irfunction: &ir::Function,
-) -> InstrAddr {
-    let addr = programbuilder.get_current_instruction_address();
-
-    let mut storagemanager = StorageManager::new();
+) {
+    let mut storagemanager = AbstractStorageManager::new();
 
     for blockkey in irfunction.basicblockstore.keys() {
         let block = irfunction.basicblockstore.get(&blockkey);
 
+        let chunkkey = functioneditor.create_chunk();
+        let mut chunkeditor = functioneditor.edit_chunk(chunkkey);
+
         for instr in &block.instructions {
             match instr {
                 ir::Instruction::Assign(n) => {
-                    let targetstorage = storagemanager.acquire_variable_storage(
-                        programbuilder,
-                        irfunction,
-                        &n.variable,
-                    );
+                    let targetstorage =
+                        storagemanager.acquire_variable_storage(irfunction, &n.variable);
 
                     // TODO: Exhaust expression to non-compound
 
@@ -270,11 +293,11 @@ fn generate_function(
                                         size,
                                     } => {
                                         assert!(size <= 8);
-                                        programbuilder.move_reg(target, source)
+                                        chunkeditor.move_reg(target, source)
                                     }
                                     Storage::Stack { offset, size } => {
-                                        programbuilder.load_stack_address(target, offset);
-                                        programbuilder.load_reg_sized(
+                                        chunkeditor.load_stack_address(target, offset);
+                                        chunkeditor.load_reg_sized(
                                             vm::size_to_opsize(size),
                                             target,
                                             target,
@@ -288,22 +311,13 @@ fn generate_function(
                                 match n {
                                     ir::Value::Primitive { ptype, data } => match ptype {
                                         crate::typesystem::PrimitiveType::StaticStringUtf8 => {
-                                            // Copy const data to vm code
-                                            let ir_const_data = irprogram
-                                                .constantdatastore
-                                                .get(&(*data as ir::ConstantDataKey));
-
-                                            let vm_const_data = programbuilder
-                                                .alloc_constdata(ir_const_data.data.len());
-                                            programbuilder
-                                                .edit_constdata(&vm_const_data)
-                                                .copy_from_slice(&ir_const_data.data);
+                                            let irconstkey = *data as ir::ConstantDataKey;
+                                            let vm_const_data = context.get_vmconstant(irconstkey);
 
                                             // Strings are weird primitives, they refer to const data
-                                            programbuilder
-                                                .load_const_address(target, vm_const_data.0)
+                                            chunkeditor.load_const_address(target, vm_const_data)
                                         }
-                                        n => programbuilder.load_sized(
+                                        n => chunkeditor.load_sized(
                                             vm::size_to_opsize(n.size()),
                                             target,
                                             *data,
@@ -325,11 +339,10 @@ fn generate_function(
                                         size,
                                     } => {
                                         assert!(size <= 8);
-                                        let tempreg =
-                                            storagemanager.acquire_register(programbuilder, size);
+                                        let tempreg = storagemanager.acquire_register();
 
-                                        programbuilder.load_stack_address(tempreg, offset);
-                                        programbuilder.store_reg_sized(
+                                        chunkeditor.load_stack_address(tempreg, offset);
+                                        chunkeditor.store_reg_sized(
                                             vm::size_to_opsize(size),
                                             tempreg,
                                             source,
@@ -342,15 +355,13 @@ fn generate_function(
                                         size,
                                     } => {
                                         assert!(size <= 8);
-                                        let sourcereg =
-                                            storagemanager.acquire_register(programbuilder, size);
+                                        let sourcereg = storagemanager.acquire_register();
 
-                                        let targetreg =
-                                            storagemanager.acquire_register(programbuilder, size);
+                                        let targetreg = storagemanager.acquire_register();
 
-                                        programbuilder.load_stack_address(sourcereg, source_offset);
-                                        programbuilder.load_stack_address(targetreg, source_offset);
-                                        programbuilder.store_reg_sized(
+                                        chunkeditor.load_stack_address(sourcereg, source_offset);
+                                        chunkeditor.load_stack_address(targetreg, source_offset);
+                                        chunkeditor.store_reg_sized(
                                             vm::size_to_opsize(size),
                                             targetreg,
                                             sourcereg,
@@ -361,41 +372,37 @@ fn generate_function(
                             ir::Expression::Constant(n) => {
                                 match n {
                                     ir::Value::Primitive { ptype: n, data } => {
-                                        let reg =
-                                            storagemanager.acquire_register(programbuilder, 8);
-                                        let reg2 =
-                                            storagemanager.acquire_register(programbuilder, 8);
+                                        let reg = storagemanager.acquire_register();
+                                        let reg2 = storagemanager.acquire_register();
 
                                         let opsize = vm::size_to_opsize(n.size());
 
-                                        programbuilder.load_sized(opsize, reg, *data);
-                                        programbuilder.load_stack_address(reg2, offset);
-                                        programbuilder.store_reg_sized(opsize, reg2, reg);
+                                        chunkeditor.load_sized(opsize, reg, *data);
+                                        chunkeditor.load_stack_address(reg2, offset);
+                                        chunkeditor.store_reg_sized(opsize, reg2, reg);
                                     }
                                     ir::Value::BuiltInFunction { builtin: _ } => todo!(),
                                     ir::Value::TypedValue { typeid, variable } => {
-                                        let reg =
-                                            storagemanager.acquire_register(programbuilder, 8);
-                                        programbuilder.load_stack_address(reg, offset + 8);
+                                        let reg = storagemanager.acquire_register();
+                                        chunkeditor.load_stack_address(reg, offset + 8);
 
                                         let source_storage =
                                             storagemanager.get_current_variable_storage(variable);
 
                                         match source_storage {
                                             Storage::Register { register, size } => {
-                                                programbuilder.store_reg64(reg, register);
+                                                chunkeditor.store_reg64(reg, register);
                                             }
                                             Storage::Stack { offset, size } => {
-                                                let reg2 = storagemanager
-                                                    .acquire_register(programbuilder, 8);
-                                                programbuilder.load_stack_address(reg2, offset);
-                                                programbuilder.store_reg64(reg, reg2);
+                                                let reg2 = storagemanager.acquire_register();
+                                                chunkeditor.load_stack_address(reg2, offset);
+                                                chunkeditor.store_reg64(reg, reg2);
                                                 storagemanager.release_register(reg2);
                                             }
                                         }
 
-                                        programbuilder.load_stack_address(reg, offset);
-                                        programbuilder.store_u64(reg, typeid.type_id());
+                                        chunkeditor.load_stack_address(reg, offset);
+                                        chunkeditor.store_u64(reg, typeid.type_id());
                                     }
                                 };
                             }
@@ -408,7 +415,7 @@ fn generate_function(
                     // Make sure args occupy call registers
                     for var in &n.args {
                         storagemanager.set_up_variable_as_call_param(
-                            programbuilder,
+                            &mut chunkeditor,
                             var,
                             paramindex,
                         );
@@ -419,7 +426,7 @@ fn generate_function(
                     // TODO: What should be done about return values
 
                     // Will parse call param registers internally
-                    programbuilder.call_builtin(n.builtin);
+                    chunkeditor.call_builtin(n.builtin);
 
                     // TODO: Deal with return values
                 }
@@ -429,7 +436,7 @@ fn generate_function(
                     // Make sure args occupy call registers
                     for var in &n.args {
                         storagemanager.set_up_variable_as_call_param(
-                            programbuilder,
+                            &mut chunkeditor,
                             var,
                             paramindex,
                         );
@@ -439,50 +446,64 @@ fn generate_function(
                     // TODO: Spill all registers except call params, since we cannot trust registers
                     //  after the call
 
-                    // TODO: Prevent this causing spilling of param registers
-                    let callreg = storagemanager.acquire_register(programbuilder, 8);
-                    let patch_address = programbuilder.load_patchable_instruction_address(callreg);
+                    let vmfunctionkey = context.get_vmfunction(n.function);
 
-                    // Store patch address for later
-                    context
-                        .function_address_patch_map
-                        .insert(patch_address, n.function);
+                    // TODO: Prevent this causing spilling of param registers
+                    let callreg = storagemanager.acquire_register();
+                    chunkeditor.load_function_address(callreg, vmfunctionkey);
 
                     // Will parse call param registers internally
-                    programbuilder.call(callreg);
+                    chunkeditor.call(callreg);
 
                     // TODO: Deal with return values
                 }
                 ir::Instruction::Return(n) => {
                     // TODO
                     assert!(n.values.len() == 0);
-
-                    programbuilder.do_return();
+                    chunkeditor.do_return();
                 }
                 ir::Instruction::Halt(_) => {
-                    programbuilder.halt();
+                    chunkeditor.halt();
                 }
             }
         }
     }
-
-    addr
 }
 
-pub fn generate_program(irprogram: &ir::Program) -> vm::Program {
-    let mut programbuilder = vm::ProgramBuilder::new();
+pub fn generate_program(irprogram: &ir::Program) -> crate::vm::program::abstractvm::Program {
+    let mut programbuilder = crate::vm::program::abstractvm::ProgramBuilder::new();
     let mut context = CodeGenContext::new();
 
-    // Generate all functions
-    for functionkey in irprogram.functionstore.keys() {
-        let function = irprogram.functionstore.get(&functionkey);
-        let addr = generate_function(&mut context, &mut programbuilder, irprogram, function);
+    // Generate constant data
+    for constantdatakey in irprogram.constantdatastore.keys() {
+        // TODO: Should remove from source here instead of copy
+        let constantdata = irprogram.constantdatastore.get(&constantdatakey);
 
-        context.record_function_address(functionkey, addr);
+        let constant = crate::vm::program::abstractvm::Constant::new(constantdata.data.clone());
+        let vmconstantkey = programbuilder.add_constant(constant);
+
+        context.register_constant(constantdatakey, vmconstantkey);
     }
 
-    // Patch function addresses
-    context.patch_function_addresses(&mut programbuilder);
+    // Register all functions
+    for irfunctionkey in irprogram.functionstore.keys() {
+        let irfunction = irprogram.functionstore.get(&irfunctionkey);
+        let vmfunction = crate::vm::program::abstractvm::Function::new(irfunction.name.clone());
 
-    programbuilder.finish(context.get_function_address(&irprogram.init).unwrap())
+        let vmfunctionkey = programbuilder.create_function(vmfunction);
+
+        context.register_function(irfunctionkey, vmfunctionkey)
+    }
+
+    // Populate all functions
+    for irfunctionkey in irprogram.functionstore.keys() {
+        let irfunction = irprogram.functionstore.get(&irfunctionkey);
+        let vmfunctionkey = context.get_vmfunction(irfunctionkey);
+
+        let mut functioneeditor = programbuilder.edit_function(vmfunctionkey);
+
+        populate_function(&mut context, &mut functioneeditor, irfunction);
+    }
+
+    programbuilder.finish(context.get_vmfunction(irprogram.init))
 }

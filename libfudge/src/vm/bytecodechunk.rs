@@ -4,13 +4,68 @@ unsafe fn read_bytes_from_mem<const T: usize>(memptr: *const u8) -> &'static [u8
     &*(memptr as *const [u8; T])
 }
 
+pub struct ByteCodeWriter<'a> {
+    data: &'a mut [u8],
+    offset: usize,
+}
+
+impl<'a> ByteCodeWriter<'a> {
+    pub fn new(data: &'a mut [u8]) -> Self {
+        Self { data, offset: 0 }
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub fn write_n<const S: usize>(&mut self, data: &[u8; S]) {
+        self.data[self.offset..self.offset + S].copy_from_slice(data);
+        self.offset += S
+    }
+
+    pub fn write_u8(&mut self, d: u8) {
+        self.data[self.offset] = d;
+        self.offset += 1
+    }
+
+    pub fn write_u64(&mut self, d: u64) {
+        self.write_n(&d.to_be_bytes())
+    }
+
+    pub fn write_op(&mut self, op: Op) {
+        self.write_u8(op as u8 & OP_MASK)
+    }
+
+    pub fn write_sized_op(&mut self, op: Op, size: OpSize) {
+        let opbase = op as u8 & OP_MASK;
+        let masked_size = ((size as u8) << 6) & OPSIZE_MASK;
+
+        self.write_u8(opbase + masked_size)
+    }
+
+    pub fn write_register(&mut self, reg: Register) {
+        self.write_u8(reg as u8)
+    }
+
+    pub fn write_sized_u64(&mut self, opsize: OpSize, d: u64) {
+        match opsize {
+            OpSize::Size8 => self.write_n(&(d as u8).to_be_bytes()),
+            OpSize::Size16 => self.write_n(&(d as u16).to_be_bytes()),
+            OpSize::Size32 => self.write_n(&(d as u32).to_be_bytes()),
+            OpSize::Size64 => self.write_n(&(d as u64).to_be_bytes()),
+        }
+    }
+}
+
 pub struct ByteCodeChunk {
     data: Vec<u8>,
 }
 
 impl ByteCodeChunk {
-    pub fn new() -> Self {
-        Self { data: Vec::new() }
+    pub fn new(size: usize) -> Self {
+        Self {
+            data: vec![0; size],
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -64,38 +119,6 @@ impl ByteCodeChunk {
             OpSize::Size16 => u16::from_be_bytes(*self.read_bytes(pc)) as u64,
             OpSize::Size32 => u32::from_be_bytes(*self.read_bytes(pc)) as u64,
             OpSize::Size64 => u64::from_be_bytes(*self.read_bytes(pc)),
-        }
-    }
-
-    pub fn write_op(&mut self, op: Op) {
-        self.write_u8(op as u8 & OP_MASK)
-    }
-
-    pub fn write_sized_op(&mut self, op: Op, size: OpSize) {
-        let opbase = op as u8 & OP_MASK;
-        let masked_size = ((size as u8) << 6) & OPSIZE_MASK;
-
-        self.write_u8(opbase + masked_size)
-    }
-
-    pub fn write_register(&mut self, reg: Register) {
-        self.write_u8(reg as u8)
-    }
-
-    pub fn write_u8(&mut self, d: u8) {
-        self.data.push(d)
-    }
-
-    pub fn write_u64(&mut self, d: u64) {
-        self.data.extend_from_slice(&d.to_be_bytes())
-    }
-
-    pub fn write_sized_u64(&mut self, opsize: OpSize, d: u64) {
-        match opsize {
-            OpSize::Size8 => self.data.extend_from_slice(&(d as u8).to_be_bytes()),
-            OpSize::Size16 => self.data.extend_from_slice(&(d as u16).to_be_bytes()),
-            OpSize::Size32 => self.data.extend_from_slice(&(d as u32).to_be_bytes()),
-            OpSize::Size64 => self.data.extend_from_slice(&(d as u64).to_be_bytes()),
         }
     }
 }

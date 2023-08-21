@@ -111,17 +111,29 @@ fn main() {
     println!("{}", Color::Green.bold().paint("Generating ircode..."));
     let irprogram = ircodegen::generate_program(&grapher_result.asg);
 
-    println!("{}", Color::Green.bold().paint("Vm Program:"));
+    println!("{}", Color::Green.bold().paint("IR Program:"));
     ir::program::print_program(&irprogram);
 
-    println!("{}", Color::Green.bold().paint("Generating vmcode..."));
-    let vmprogram = vmcodegen::generate_program(&irprogram);
+    println!(
+        "{}",
+        Color::Green.bold().paint("Generating abstract vmcode...")
+    );
+    let avmprogram = vmcodegen::generate_program(&irprogram);
 
-    println!("{}", Color::Green.bold().paint("Vm Program:"));
-    vm::program::print_program(&vmprogram);
+    println!("{}", Color::Green.bold().paint("Abstract Vm Program:"));
+    vm::program::abstractvm::print_program(&avmprogram);
 
-    println!("{}", Color::Green.bold().paint("Running vm..."));
-    vm::run(&vmprogram);
+    println!(
+        "{}",
+        Color::Green.bold().paint("Generating bytecode vmcode...")
+    );
+    let bcvmprogram = vm::program::generate_bytecode(&avmprogram);
+
+    println!("{}", Color::Green.bold().paint("Bytecode Vm Program:"));
+    vm::program::bytecodevm::print_program(&bcvmprogram);
+
+    println!("{}", Color::Green.bold().paint("Executing bytecode..."));
+    vm::run(&bcvmprogram);
 
     println!("{}", Color::Green.bold().paint("Done"));
 }

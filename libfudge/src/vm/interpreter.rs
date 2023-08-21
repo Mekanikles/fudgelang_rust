@@ -3,6 +3,10 @@ use instructions::instructions;
 
 use dyn_fmt::AsStrFormatExt;
 
+type Config = bytecodevm::Config;
+use bytecodevm::Vm;
+use program::bytecodevm::Program;
+
 pub struct Interpreter<'a> {
     vm: Vm,
     program: &'a Program,
@@ -134,12 +138,12 @@ impl<'a> Interpreter<'a> {
             let op = self.peek_op();
             match op {
                 Op::LoadImmediate => {
-                    let instr = self.read_instruction::<instructions::LoadImmediate>();
+                    let instr = self.read_instruction::<instructions::LoadImmediate<Config>>();
                     let target = instr.target as usize;
                     self.vm.registers[target] = instr.value as u64;
                 }
                 Op::LoadReg => {
-                    let instr = self.read_instruction::<instructions::LoadReg>();
+                    let instr = self.read_instruction::<instructions::LoadReg<Config>>();
                     let target = instr.target as usize;
                     let source = instr.address_source as usize;
                     let memptr: MutMemPtr =
@@ -152,24 +156,40 @@ impl<'a> Interpreter<'a> {
                         OpSize::Size64 => self.read_u64(memptr),
                     };
                 }
-                Op::LoadConstAddress => {
+                /*Op::LoadConstAddress => {
                     let const_base: usize =
                         unsafe { std::mem::transmute(&self.program.constdata[0]) };
-                    let instr = self.read_instruction::<instructions::LoadConstAddress>();
+                    let instr = self.read_instruction::<instructions::LoadConstAddress<Config>>();
 
                     let target = instr.target as usize;
                     self.vm.registers[target] = (const_base + instr.address as usize) as u64;
-                }
-                Op::LoadStackAddress => {
-                    // TODO: This should be a stack window base
-                    let stack_base: usize = unsafe { std::mem::transmute(&self.vm.stack[0]) };
-                    let instr = self.read_instruction::<instructions::LoadStackAddress>();
+                }*/
+                Op::LoadAddress => {
+                    let instr = self.read_instruction::<instructions::LoadAddress<Config>>();
+                    let addr: u64 = match instr.mode {
+                        LoadAddressMode::StackOffset => {
+                            // TODO: This should be a stack window base
+                            let stack_base: usize =
+                                unsafe { std::mem::transmute(&self.vm.stack[0]) };
+                            stack_base as u64 + instr.value
+                        }
+                        LoadAddressMode::ConstantAddress => {
+                            let const_base: usize =
+                                unsafe { std::mem::transmute(&self.program.constdata[0]) };
+                            const_base as u64 + instr.value
+                        }
+                        LoadAddressMode::InstructionAddress => {
+                            let instr_base: usize =
+                                unsafe { std::mem::transmute(&self.program.constdata[0]) };
+                            instr_base as u64 + instr.value
+                        }
+                    };
 
                     let target = instr.target as usize;
-                    self.vm.registers[target] = (stack_base + instr.offset as usize) as u64;
+                    self.vm.registers[target] = addr;
                 }
                 Op::StoreImmediate => {
-                    let instr = self.read_instruction::<instructions::StoreImmediate>();
+                    let instr = self.read_instruction::<instructions::StoreImmediate<Config>>();
                     let address_source = instr.address_source as usize;
                     let value = instr.value;
                     let memptr: MutMemPtr =
@@ -183,7 +203,7 @@ impl<'a> Interpreter<'a> {
                     };
                 }
                 Op::StoreReg => {
-                    let instr = self.read_instruction::<instructions::StoreReg>();
+                    let instr = self.read_instruction::<instructions::StoreReg<Config>>();
                     let addressreg = instr.address_source as usize;
                     let valuereg = instr.value_source as usize;
 
@@ -200,7 +220,7 @@ impl<'a> Interpreter<'a> {
                     };
                 }
                 Op::MoveReg => {
-                    let instr = self.read_instruction::<instructions::MoveReg>();
+                    let instr = self.read_instruction::<instructions::MoveReg<Config>>();
                     self.vm.registers[instr.target as usize] =
                         self.vm.registers[instr.source as usize];
                 }
@@ -210,7 +230,7 @@ impl<'a> Interpreter<'a> {
                     self.call_builtin(&builtin);
                 }
                 Op::Call => {
-                    let instr = self.read_instruction::<instructions::Call>();
+                    let instr = self.read_instruction::<instructions::Call<Config>>();
                     self.vm.registers[RETURN_REGISTER as usize] = self.vm.pc as u64;
                     let new_pc = self.vm.registers[instr.instruction_address_target as usize];
                     self.vm.pc = new_pc as usize;
