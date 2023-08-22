@@ -310,9 +310,14 @@ pub fn generate_program(asg: &asg::Asg) -> ir::Program {
                         &body,
                     );
 
-                    // TODO: This wont work, we need the last block
+                    // TODO: This wont work, we need the last block, not the entry
                     // Maybe add this in graph generation instead?
                     functionbuilder.edit_block(&entry).do_return(Vec::new());
+
+                    // TODO: Ideally, this is done while building, so that modifications
+                    //  can be done after this
+                    // Update variable lifetimes
+                    functionbuilder.update_variable_usage();
 
                     let function = functionbuilder.finish(entry);
 

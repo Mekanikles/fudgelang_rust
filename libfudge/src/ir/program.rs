@@ -79,7 +79,13 @@ pub fn print_program(program: &Program) {
         for blockkey in function.basicblockstore.keys() {
             let block = function.basicblockstore.get(&blockkey);
 
-            println!("      b{}:", blockkey);
+            println!(
+                "      b{} - declarations: {}, uses: {}, incoming blocks: {}",
+                blockkey,
+                block.variable_declarations.len(),
+                block.variable_usage.len(),
+                block.incoming_blocks.len()
+            );
             for instr in &block.instructions {
                 fn value_to_string(value: &Value) -> String {
                     match value {
