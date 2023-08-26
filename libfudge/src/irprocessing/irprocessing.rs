@@ -67,9 +67,9 @@ pub fn process_function(irfunction: &mut ir::Function) {
 }
 
 pub fn process_ir(mut irprogram: ir::Program) -> ir::Program {
-    /*for irfunction in irprogram.functionstore.values_mut() {
+    for irfunction in irprogram.functionstore.values_mut() {
         process_function(irfunction);
-    }*/
+    }
 
     irprogram
 }
