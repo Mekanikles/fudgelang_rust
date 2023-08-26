@@ -54,6 +54,7 @@ pub fn process_function(irfunction: &mut ir::Function) {
                     // Remove trivial assigns
                     if let Some(v) = is_trivial_assign(&n) {
                         variable_substitutions.push((n.variable, v));
+                        block.variable_declarations.remove(&n.variable);
                         *instr = ir::Instruction::Noop;
                     }
                 }
