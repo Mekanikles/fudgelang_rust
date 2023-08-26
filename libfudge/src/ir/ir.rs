@@ -23,7 +23,8 @@ pub enum Instruction {
     CallBuiltIn(instructions::CallBuiltIn),
     CallStatic(instructions::CallStatic),
     Return(instructions::Return),
-    Halt(instructions::Halt),
+    Halt,
+    Noop, // TODO: This is needed to keep static indexes
 }
 
 pub mod instructions {
@@ -53,9 +54,6 @@ pub mod instructions {
     pub struct Return {
         pub values: Vec<VariableKey>,
     }
-
-    #[derive(Debug)]
-    pub struct Halt {}
 }
 
 #[derive(Debug, Clone)]
@@ -65,9 +63,9 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn get_type(&self, functionbuilder: &FunctionBuilder) -> TypeId {
+    pub fn get_type(&self, variablestore: &VariableStore) -> TypeId {
         match self {
-            Expression::Variable(n) => functionbuilder.get_variable(n).get_type().clone(), // Ugh, clone
+            Expression::Variable(n) => variablestore.get(n).get_type(&variablestore).clone(), // Ugh, clone
             Expression::Constant(n) => n.get_type(),
         }
     }
@@ -77,13 +75,17 @@ impl Expression {
 pub enum Variable {
     Named { symbol: StringKey, typeid: TypeId },
     Unnamed { typeid: TypeId },
+    Substituted { variablekey: VariableKey },
 }
 
 impl Variable {
-    pub fn get_type(&self) -> &TypeId {
+    pub fn get_type<'a>(&'a self, variablestore: &'a ir::VariableStore) -> &'a TypeId {
         match self {
             Variable::Named { symbol: _, typeid } => typeid,
             Variable::Unnamed { typeid } => typeid,
+            Variable::Substituted { variablekey } => {
+                variablestore.get(&variablekey).get_type(&variablestore)
+            }
         }
     }
 }

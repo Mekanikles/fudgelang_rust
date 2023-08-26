@@ -138,7 +138,7 @@ fn generate_expression(
                         expression: Expression,
                     ) {
                         // Store the expression in a variable
-                        let etype = expression.get_type(functionbuilder);
+                        let etype = expression.get_type(&functionbuilder.variablestore);
                         let var = functionbuilder.add_unnamed_variable(etype);
                         functionbuilder
                             .edit_block(current_block)
@@ -165,7 +165,7 @@ fn generate_expression(
 
                     // Create dynamic value wrappers
                     for arg in &args[1..] {
-                        let typeid = arg.get_type(functionbuilder);
+                        let typeid = arg.get_type(&functionbuilder.variablestore);
 
                         // Store value, so we can wrap it
                         let variable = functionbuilder.add_unnamed_variable(typeid.clone());

@@ -131,6 +131,14 @@ struct AbstractStorageManager {
     current_stack_offset: u64, // TODO: Handle re-using stack "holes"
 }
 
+fn resolve_variablekey(function: &ir::Function, variablekey: ir::VariableKey) -> ir::VariableKey {
+    let var = function.variablestore.get(&variablekey);
+    match var {
+        ir::Variable::Substituted { variablekey } => resolve_variablekey(function, *variablekey),
+        _ => variablekey,
+    }
+}
+
 impl AbstractStorageManager {
     pub fn new() -> Self {
         Self {
@@ -140,8 +148,14 @@ impl AbstractStorageManager {
         }
     }
 
-    pub fn get_current_variable_storage(&self, variable: &ir::VariableKey) -> Storage {
-        self.current_variable_storage[variable].clone()
+    pub fn get_current_variable_storage(
+        &self,
+        irfunction: &ir::Function,
+        variablekey: &ir::VariableKey,
+    ) -> Storage {
+        let variablekey = resolve_variablekey(irfunction, *variablekey);
+
+        self.current_variable_storage[&variablekey].clone()
     }
 
     pub fn allocate_stack(&mut self, size: u64) -> AbstractStackOffset {
@@ -165,9 +179,11 @@ impl AbstractStorageManager {
         irfunction: &ir::Function,
         variablekey: &ir::VariableKey,
     ) -> Storage {
-        assert!(!self.current_variable_storage.contains_key(variablekey));
+        let variablekey = resolve_variablekey(irfunction, *variablekey);
+
+        assert!(!self.current_variable_storage.contains_key(&variablekey));
         let variable = irfunction.variablestore.get(&variablekey);
-        let size = variable.get_type().size();
+        let size = variable.get_type(&irfunction.variablestore).size();
 
         let storage = if (size <= 8) {
             // TODO: Handle out-of-registers
@@ -179,7 +195,7 @@ impl AbstractStorageManager {
         };
 
         self.current_variable_storage
-            .insert(*variablekey, storage.clone());
+            .insert(variablekey, storage.clone());
         storage
     }
 
@@ -286,7 +302,8 @@ fn populate_function(
                             size: _, // TODO: Only 64-bit variants of instructions used atm
                         } => match &n.expression {
                             ir::Expression::Variable(n) => {
-                                let sourcestorage = storagemanager.get_current_variable_storage(&n);
+                                let sourcestorage =
+                                    storagemanager.get_current_variable_storage(irfunction, &n);
                                 match sourcestorage {
                                     Storage::Register {
                                         register: source,
@@ -332,7 +349,8 @@ fn populate_function(
                         },
                         Storage::Stack { offset, size } => match &n.expression {
                             ir::Expression::Variable(n) => {
-                                let sourcestorage = storagemanager.get_current_variable_storage(&n);
+                                let sourcestorage =
+                                    storagemanager.get_current_variable_storage(irfunction, &n);
                                 match sourcestorage {
                                     Storage::Register {
                                         register: source,
@@ -386,8 +404,8 @@ fn populate_function(
                                         let reg = storagemanager.acquire_register();
                                         chunkeditor.load_stack_address(reg, offset + 8);
 
-                                        let source_storage =
-                                            storagemanager.get_current_variable_storage(variable);
+                                        let source_storage = storagemanager
+                                            .get_current_variable_storage(irfunction, variable);
 
                                         match source_storage {
                                             Storage::Register { register, size } => {
@@ -462,9 +480,10 @@ fn populate_function(
                     assert!(n.values.len() == 0);
                     chunkeditor.do_return();
                 }
-                ir::Instruction::Halt(_) => {
+                ir::Instruction::Halt => {
                     chunkeditor.halt();
                 }
+                ir::Instruction::Noop => (),
             }
         }
     }

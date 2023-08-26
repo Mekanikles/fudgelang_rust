@@ -111,7 +111,13 @@ fn main() {
     println!("{}", Color::Green.bold().paint("Generating ircode..."));
     let irprogram = ircodegen::generate_program(&grapher_result.asg);
 
-    println!("{}", Color::Green.bold().paint("IR Program:"));
+    println!("{}", Color::Green.bold().paint("Initial IR Program:"));
+    ir::program::print_program(&irprogram);
+
+    println!("{}", Color::Green.bold().paint("Processing IR..."));
+    let irprogram = irprocessing::process_ir(irprogram);
+
+    println!("{}", Color::Green.bold().paint("Final IR Program:"));
     ir::program::print_program(&irprogram);
 
     println!(

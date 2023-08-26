@@ -3,6 +3,9 @@ pub mod asgprocessing;
 pub mod ast;
 pub mod grapher;
 pub mod interpreter;
+pub mod ir;
+pub mod ircodegen;
+pub mod irprocessing;
 pub mod parser;
 pub mod scanner;
 pub mod shared;
@@ -11,8 +14,6 @@ pub mod typesystem;
 pub mod utils;
 pub mod vm;
 pub mod vmcodegen;
-pub mod ir;
-pub mod ircodegen;
 
 pub mod error;
 

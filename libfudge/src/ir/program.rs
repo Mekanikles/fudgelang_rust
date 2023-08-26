@@ -87,7 +87,20 @@ pub fn print_program(program: &Program) {
                 block.incoming_blocks.len()
             );
             for instr in &block.instructions {
-                fn value_to_string(value: &Value) -> String {
+                fn resolve_rhs_variablekey(
+                    function: &Function,
+                    variablekey: VariableKey,
+                ) -> VariableKey {
+                    let var = function.variablestore.get(&variablekey);
+                    match var {
+                        Variable::Substituted { variablekey } => {
+                            resolve_rhs_variablekey(function, *variablekey)
+                        }
+                        _ => variablekey,
+                    }
+                }
+
+                fn value_to_string(function: &Function, value: &Value) -> String {
                     match value {
                         Value::Primitive { ptype, data } => {
                             format!("{}:{}", ptype.data_to_string(*data), ptype.to_str())
@@ -96,23 +109,28 @@ pub fn print_program(program: &Program) {
                             format!("#{:?}", builtin)
                         }
                         Value::TypedValue { typeid, variable } => {
-                            format!("dyn(v{}):{}", variable, typeid.to_string())
+                            format!(
+                                "dyn(v{}):{}",
+                                resolve_rhs_variablekey(function, *variable),
+                                typeid.to_string()
+                            )
                         }
                     }
                 }
 
-                fn expression_to_string(expr: &Expression) -> String {
+                fn expression_to_string(function: &Function, expr: &Expression) -> String {
                     match expr {
                         Expression::Variable(n) => format!("v{}", n),
-                        Expression::Constant(n) => format!("{}", value_to_string(n)),
+                        Expression::Constant(n) => format!("{}", value_to_string(function, n)),
                     }
                 }
 
-                fn call_args_to_string(args: &Vec<VariableKey>) -> String {
+                fn call_args_to_string(function: &Function, args: &Vec<VariableKey>) -> String {
                     let mut ret = String::new();
                     if !args.is_empty() {
                         for arg in &args[0..args.len() - 1] {
-                            ret += format!("v{}, ", arg).as_str();
+                            ret +=
+                                format!("v{}, ", resolve_rhs_variablekey(function, *arg)).as_str();
                         }
 
                         ret += format!("v{}", args.last().unwrap()).as_str();
@@ -120,33 +138,38 @@ pub fn print_program(program: &Program) {
                     ret
                 }
 
-                fn instruction_to_string(instr: &Instruction) -> String {
+                fn instruction_to_string(function: &Function, instr: &Instruction) -> String {
                     match instr {
                         Instruction::Assign(n) => {
-                            format!("v{} = {}", n.variable, expression_to_string(&n.expression))
+                            format!(
+                                "v{} = {}",
+                                n.variable,
+                                expression_to_string(function, &n.expression)
+                            )
                         }
                         Instruction::CallBuiltIn(n) => {
                             format!(
                                 "v{} = {}({})",
-                                n.variable,
+                                resolve_rhs_variablekey(function, n.variable),
                                 n.builtin.to_str(),
-                                call_args_to_string(&n.args)
+                                call_args_to_string(function, &n.args)
                             )
                         }
                         Instruction::CallStatic(n) => {
                             format!(
                                 "v{} = f{}({})",
-                                n.variable,
+                                resolve_rhs_variablekey(function, n.variable),
                                 n.function,
-                                call_args_to_string(&n.args)
+                                call_args_to_string(function, &n.args)
                             )
                         }
                         Instruction::Return(n) => {
-                            format!("return {}", call_args_to_string(&n.values))
+                            format!("return {}", call_args_to_string(function, &n.values))
                         }
-                        Instruction::Halt(n) => {
+                        Instruction::Halt => {
                             format!("halt")
                         }
+                        Instruction::Noop => panic!(),
                     }
                 }
 
@@ -157,8 +180,12 @@ pub fn print_program(program: &Program) {
                 ) {
                     println!(
                         "        {: <75}// {}",
-                        instruction_to_string(instr),
-                        function.variablestore.get(var).get_type().to_string(),
+                        instruction_to_string(function, instr),
+                        function
+                            .variablestore
+                            .get(var)
+                            .get_type(&function.variablestore)
+                            .to_string(),
                     );
                 }
 
@@ -172,8 +199,9 @@ pub fn print_program(program: &Program) {
                     Instruction::CallStatic(n) => {
                         print_variable_target_intr(instr, &n.variable, function)
                     }
+                    Instruction::Noop => (), // Just skip noops
                     _ => {
-                        println!("        {}", instruction_to_string(instr));
+                        println!("        {}", instruction_to_string(function, instr));
                     }
                 }
             }

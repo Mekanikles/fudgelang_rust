@@ -128,7 +128,6 @@ impl<'a> BasicBlockEditor<'a> {
     }
 
     pub fn halt(&mut self) {
-        self.block
-            .push_instruction(Instruction::Halt(instructions::Halt {}));
+        self.block.push_instruction(Instruction::Halt);
     }
 }

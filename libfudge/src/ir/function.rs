@@ -17,7 +17,7 @@ pub struct Function {
 pub struct FunctionBuilder {
     name: String,
     basicblockstore: BasicBlockStore,
-    variablestore: VariableStore,
+    pub variablestore: VariableStore, // TODO: pub
 }
 
 impl FunctionBuilder {
