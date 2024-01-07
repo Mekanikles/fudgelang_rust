@@ -524,13 +524,20 @@ impl<'a> Scanner<'a> {
         // Note: we eat all trailing alphanumericals in this function, parsing of the
         //  actual number and error reporting happens when constructing AST
 
-        while self
+        while let Some(c) = self
             .reader
             .peek()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == b'.')
-            .is_some()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == b'.' || *c == b'_')
         {
             self.reader.advance();
+
+            // Allow for signed exponents
+            if c == b'e' || c == b'E' {
+                let n = self.reader.peek();
+                if n == Some(b'-') || n == Some(b'+') {
+                    self.reader.advance();
+                }
+            }
         }
 
         return Token::new(
